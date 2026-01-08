@@ -1,3 +1,4 @@
+
 # Multi-Company Quotation System
 
 A modern, professional quotation management system built for **Arkay Pak** and **Electronics Hub** with support for multiple companies, dynamic branding, and automated calculations.
@@ -235,3 +236,7 @@ This quotation system is proprietary software developed for Arkay Pak and Electr
 ---
 
 **Built with ❤️ for professional quotation management**
+=======
+# Quotation-Gen
+Quotation Generator Web application for Electronics Hub
+>>>>>>> 03ddbe27ae301af51866174e10f5b85bc45ba29a
