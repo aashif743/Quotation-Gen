@@ -1,0 +1,51 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+
+/* Print Styles */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  
+  .quotation-document {
+    box-shadow: none !important;
+    margin: 0 !important;
+    border: none !important;
+  }
+  
+  body {
+    background: white !important;
+  }
+  
+  /* Ensure proper page breaks */
+  .quotation-document {
+    page-break-inside: avoid;
+  }
+  
+  /* Force background colors and images to print */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+  
+  /* Set specific dimensions for A4 printing */
+  @page {
+    size: A4;
+    margin: 0.5in;
+  }
+}

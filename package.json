@@ -7,13 +7,19 @@
     "start": "node server.js",
     "dev": "nodemon server.js",
     "setup": "node setup.js",
+    "migrate": "node database/migrate.js",
     "client": "cd client && npm start",
     "client-install": "cd client && npm install",
     "client-build": "cd client && npm run build",
     "build": "npm run client-install && npm run client-build",
     "install-all": "npm install && npm run client-install",
     "dev-full": "concurrently \"npm run dev\" \"npm run client\"",
+    "postinstall": "if [ \"$NODE_ENV\" = \"production\" ]; then npm run build; fi",
     "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
   },
   "keywords": [],
   "author": "",
@@ -24,9 +30,13 @@
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
+    "express-session": "^1.18.2",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.0.2",
-    "mysql2": "^3.16.0"
+    "mysql2": "^3.16.0",
+    "passport": "^0.7.0",
+    "passport-google-oauth20": "^2.0.0",
+    "passport-local": "^1.0.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.11"

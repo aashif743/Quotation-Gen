@@ -1,21 +1,38 @@
 const express = require('express');
 const db = require('../config/database');
+const { isAuthenticated, isAdmin } = require('../middleware/auth');
 
 const router = express.Router();
 
+// Apply authentication middleware to all routes
+router.use(isAuthenticated);
+
+// Staff see only the quotations they created; admins see everything. Every
+// row carries the creating staff member's name.
 router.get('/', async (req, res) => {
   try {
     const { company_id } = req.query;
     let query = `
-      SELECT q.*, c.name as company_name 
-      FROM quotations q 
+      SELECT q.*, c.name as company_name, u.name as created_by_name
+      FROM quotations q
       JOIN companies c ON q.company_id = c.id
+      LEFT JOIN users u ON q.created_by = u.id
     `;
-    let queryParams = [];
+    const conditions = [];
+    const queryParams = [];
 
     if (company_id) {
-      query += ' WHERE q.company_id = ?';
+      conditions.push('q.company_id = ?');
       queryParams.push(company_id);
+    }
+
+    if (req.user.role !== 'admin') {
+      conditions.push('q.created_by = ?');
+      queryParams.push(req.user.id);
+    }
+
+    if (conditions.length > 0) {
+      query += ' WHERE ' + conditions.join(' AND ');
     }
 
     query += ' ORDER BY q.created_at DESC';
@@ -33,14 +50,24 @@ router.get('/:id', async (req, res) => {
     const [quotations] = await db.execute(`
       SELECT q.*, c.name as company_name, c.address as company_address,
              c.tpin as company_tpin, c.bank_details as company_bank_details,
-             c.logo_url as company_logo, c.primary_color, c.secondary_color
-      FROM quotations q 
-      JOIN companies c ON q.company_id = c.id 
+             c.logo_url as company_logo,
+             c.quote_logo_url as company_quote_logo,
+             c.primary_color, c.secondary_color,
+             c.template as company_template,
+             u.name as created_by_name
+      FROM quotations q
+      JOIN companies c ON q.company_id = c.id
+      LEFT JOIN users u ON q.created_by = u.id
       WHERE q.id = ?
     `, [req.params.id]);
 
     if (quotations.length === 0) {
       return res.status(404).json({ error: 'Quotation not found' });
+    }
+
+    // Staff may only view their own quotations.
+    if (req.user.role !== 'admin' && quotations[0].created_by !== req.user.id) {
+      return res.status(403).json({ error: 'You do not have access to this quotation' });
     }
 
     const [items] = await db.execute(
@@ -85,12 +112,12 @@ router.post('/', async (req, res) => {
     } = req.body;
 
     const [quotationResult] = await connection.execute(`
-      INSERT INTO quotations 
-      (company_id, quote_number, client_name, client_address, client_email, client_phone,
+      INSERT INTO quotations
+      (company_id, created_by, quote_number, client_name, client_address, client_email, client_phone,
        date, expiry_days, subtotal, vat_amount, ppda_amount, grand_total, notes, terms_conditions)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
-      company_id, quote_number, client_name, client_address, client_email, client_phone,
+      company_id, req.user.id, quote_number, client_name, client_address, client_email, client_phone,
       date, expiry_days, subtotal, vat_amount, ppda_amount, grand_total, notes, terms_conditions
     ]);
 
@@ -118,13 +145,17 @@ router.post('/', async (req, res) => {
   } catch (error) {
     await connection.rollback();
     console.error('Error creating quotation:', error);
+    if (error && error.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({ error: 'A quotation with that number already exists for this company.' });
+    }
     res.status(500).json({ error: 'Failed to create quotation' });
   } finally {
     connection.release();
   }
 });
 
-router.put('/:id', async (req, res) => {
+// Staff are view-only; only admins may edit or delete quotations.
+router.put('/:id', isAdmin, async (req, res) => {
   const connection = await db.getConnection();
   
   try {
@@ -193,10 +224,10 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', isAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     const [result] = await db.execute('DELETE FROM quotations WHERE id = ?', [id]);
     
     if (result.affectedRows === 0) {
