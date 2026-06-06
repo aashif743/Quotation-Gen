@@ -108,6 +108,8 @@ router.post('/', async (req, res) => {
       grand_total,
       notes,
       terms_conditions,
+      vat_rate,
+      ppda_rate,
       items
     } = req.body;
 
@@ -126,10 +128,23 @@ router.post('/', async (req, res) => {
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
       await connection.execute(`
-        INSERT INTO quotation_items 
+        INSERT INTO quotation_items
         (quotation_id, description, quantity, unit_price, total, sort_order)
         VALUES (?, ?, ?, ?, ?, ?)
       `, [quotationId, item.description, item.quantity, item.unit_price, item.total, i]);
+    }
+
+    // Persist the rates the user typed back to the company so the next
+    // quotation pre-fills with their last entered values. Skip if the
+    // caller didn't send rates.
+    if (vat_rate != null || ppda_rate != null) {
+      await connection.execute(
+        `UPDATE companies
+            SET vat_rate = COALESCE(?, vat_rate),
+                ppda_rate = COALESCE(?, ppda_rate)
+          WHERE id = ?`,
+        [vat_rate ?? null, ppda_rate ?? null, company_id]
+      );
     }
 
     await connection.commit();

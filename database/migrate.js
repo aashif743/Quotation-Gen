@@ -22,6 +22,16 @@ async function columnExists(table, column) {
   return rows[0].count > 0;
 }
 
+async function tableExists(table) {
+  const [rows] = await db.execute(
+    `SELECT COUNT(*) AS count
+       FROM information_schema.TABLES
+      WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?`,
+    [DB_NAME, table]
+  );
+  return rows[0].count > 0;
+}
+
 async function foreignKeyExists(table, column) {
   const [rows] = await db.execute(
     `SELECT CONSTRAINT_NAME
@@ -107,6 +117,80 @@ async function migrate() {
     console.log(`  • Moved ${moved.affectedRows} bundled logo path(s) into quote_logo_url.`);
   } else {
     console.log('  • companies.quote_logo_url already present, skipping.');
+  }
+
+  // 3c2. companies.default_terms_conditions — terms now live per company so
+  //     they don't have to be re-typed on every quotation.
+  if (!(await columnExists('companies', 'default_terms_conditions'))) {
+    console.log('  • Adding `default_terms_conditions` column to companies...');
+    await db.query('ALTER TABLE `companies` ADD COLUMN `default_terms_conditions` TEXT NULL');
+  } else {
+    console.log('  • companies.default_terms_conditions already present, skipping.');
+  }
+
+  // 3d. delivery_notes + delivery_note_items (new feature: 2026-06-04)
+  if (!(await tableExists('delivery_notes'))) {
+    console.log('  • Creating `delivery_notes` table...');
+    await db.query(`
+      CREATE TABLE \`delivery_notes\` (
+        \`id\` INT PRIMARY KEY AUTO_INCREMENT,
+        \`company_id\` INT NOT NULL,
+        \`created_by\` INT,
+        \`quotation_id\` INT,
+        \`delivery_note_number\` VARCHAR(50) NOT NULL,
+        \`client_name\` VARCHAR(255) NOT NULL,
+        \`client_address\` TEXT,
+        \`client_email\` VARCHAR(255),
+        \`client_phone\` VARCHAR(50),
+        \`date\` DATE NOT NULL,
+        \`created_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        \`updated_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (\`company_id\`) REFERENCES \`companies\`(\`id\`) ON DELETE CASCADE,
+        FOREIGN KEY (\`created_by\`) REFERENCES \`users\`(\`id\`) ON DELETE SET NULL,
+        FOREIGN KEY (\`quotation_id\`) REFERENCES \`quotations\`(\`id\`) ON DELETE SET NULL,
+        UNIQUE KEY \`unique_delivery_per_company\` (\`company_id\`, \`delivery_note_number\`)
+      ) ENGINE=InnoDB
+    `);
+  } else {
+    console.log('  • delivery_notes already present, skipping.');
+  }
+  if (!(await tableExists('delivery_note_items'))) {
+    console.log('  • Creating `delivery_note_items` table...');
+    await db.query(`
+      CREATE TABLE \`delivery_note_items\` (
+        \`id\` INT PRIMARY KEY AUTO_INCREMENT,
+        \`delivery_note_id\` INT NOT NULL,
+        \`description\` TEXT NOT NULL,
+        \`quantity\` DECIMAL(10,2) NOT NULL,
+        \`sort_order\` INT DEFAULT 0,
+        \`created_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (\`delivery_note_id\`) REFERENCES \`delivery_notes\`(\`id\`) ON DELETE CASCADE
+      ) ENGINE=InnoDB
+    `);
+  } else {
+    console.log('  • delivery_note_items already present, skipping.');
+  }
+
+  // 3e. delivery_notes: signed-copy columns (uploaded photo/PDF of the
+  //     paper-signed delivery note).
+  if (await tableExists('delivery_notes')) {
+    if (!(await columnExists('delivery_notes', 'signed_file_url'))) {
+      console.log('  • Adding signed-copy columns to delivery_notes...');
+      await db.query('ALTER TABLE `delivery_notes` ADD COLUMN `signed_file_url` VARCHAR(255) NULL');
+      await db.query('ALTER TABLE `delivery_notes` ADD COLUMN `signed_at` TIMESTAMP NULL');
+      await db.query('ALTER TABLE `delivery_notes` ADD COLUMN `signed_by` INT NULL');
+      try {
+        await db.query(
+          'ALTER TABLE `delivery_notes` ADD CONSTRAINT `fk_delivery_notes_signed_by` ' +
+            'FOREIGN KEY (`signed_by`) REFERENCES `users`(`id`) ON DELETE SET NULL'
+        );
+        console.log('  • Added FK delivery_notes.signed_by → users.id');
+      } catch (err) {
+        console.warn('  ⚠️  Could not add FK on delivery_notes.signed_by:', err.message);
+      }
+    } else {
+      console.log('  • delivery_notes signed columns already present, skipping.');
+    }
   }
 
   // 4. Backfill created_by from each row's company owner so existing records

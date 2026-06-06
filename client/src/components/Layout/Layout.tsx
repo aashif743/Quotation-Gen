@@ -17,6 +17,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   HardDrive,
+  Truck,
 } from 'lucide-react';
 
 interface LayoutProps {
@@ -89,6 +90,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { to: '/new-quotation', icon: FileText, label: 'New Quotation' },
     { to: '/history', icon: History, label: 'Quotation History' },
     { to: '/invoice-history', icon: Receipt, label: 'Invoice History' },
+    { to: '/delivery-history', icon: Truck, label: 'Delivery Notes' },
     ...(isAdmin
       ? [
           { to: '/users', icon: Users, label: 'User Management' },
@@ -129,7 +131,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
             <CompanySelector collapsed={collapsed} />
 
-            <nav className="mt-8 space-y-2">
+            {/* The nav is the only scrollable area so the brand stays at the
+                top and the user/logout block stays at the bottom even on
+                short viewports. `min-h-0` is required for `overflow-y-auto`
+                to actually engage inside a flex column. */}
+            <nav className="mt-8 flex-1 min-h-0 overflow-y-auto space-y-2 pr-1 -mr-1">
               {navItems.map(({ to, icon: Icon, label }) => (
                 <Link
                   key={to}

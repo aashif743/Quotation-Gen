@@ -49,3 +49,15 @@ code {
     margin: 0.5in;
   }
 }
+/* Hide the up/down spinner arrows on number inputs across the app so the
+   user types values from the keyboard only. (Mouse-wheel value changes are
+   prevented in JSX via onWheel={(e) => e.currentTarget.blur()}.) */
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}

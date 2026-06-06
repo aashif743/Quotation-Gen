@@ -191,7 +191,6 @@ const CompanySelector: React.FC<CompanySelectorProps> = ({ collapsed = false }) 
                     )}
                     <div>
                       <p className="font-medium text-gray-900">{company.name}</p>
-                      <p className="text-xs text-gray-600">{company.address}</p>
                     </div>
                   </div>
                   {isSelected && (

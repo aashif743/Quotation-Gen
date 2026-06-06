@@ -107,26 +107,32 @@ const QuotationDocument: React.FC<QuotationDocumentProps> = ({
   // Shared bottom block: notes + terms + thank-you, always centered and pinned
   // to the bottom of the page via `mt-auto`. Used by every template so the
   // closing sections look consistent across all quotations.
+  const hasNotes = !!data.notes;
+  const hasTerms = !!data.terms_conditions;
   const BottomBlock = (
     <div className="mt-auto pt-10 text-center">
-      {(data.notes || data.terms_conditions) && (
-        <div className="max-w-2xl mx-auto space-y-5 mb-8">
-          {data.notes && (
-            <div>
-              <h4 className="text-xs font-semibold uppercase tracking-widest mb-1.5" style={{ color: primary }}>
-                Notes
-              </h4>
-              <p className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">{data.notes}</p>
-            </div>
-          )}
-          {data.terms_conditions && (
-            <div>
-              <h4 className="text-xs font-semibold uppercase tracking-widest mb-1.5" style={{ color: primary }}>
-                Terms &amp; Conditions
-              </h4>
-              <p className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">{data.terms_conditions}</p>
-            </div>
-          )}
+      {(hasNotes || hasTerms) && (
+        <div className="max-w-3xl mx-auto mb-8">
+          <div
+            className={`grid gap-8 ${hasNotes && hasTerms ? 'grid-cols-2' : 'grid-cols-1'}`}
+          >
+            {hasNotes && (
+              <div>
+                <h4 className="text-xs font-semibold uppercase tracking-widest mb-1.5" style={{ color: primary }}>
+                  Notes
+                </h4>
+                <p className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">{data.notes}</p>
+              </div>
+            )}
+            {hasTerms && (
+              <div>
+                <h4 className="text-xs font-semibold uppercase tracking-widest mb-1.5" style={{ color: primary }}>
+                  Terms &amp; Conditions
+                </h4>
+                <p className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">{data.terms_conditions}</p>
+              </div>
+            )}
+          </div>
         </div>
       )}
       <div className="pt-5 border-t-2" style={{ borderColor: primary }}>

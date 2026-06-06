@@ -1,5 +1,5 @@
 SET FOREIGN_KEY_CHECKS = 0;
-DROP TABLE IF EXISTS `users`, `companies`, `quotations`, `quotation_items`, `invoices`, `invoice_items`;
+DROP TABLE IF EXISTS `users`, `companies`, `quotations`, `quotation_items`, `invoices`, `invoice_items`, `delivery_notes`, `delivery_note_items`;
 SET FOREIGN_KEY_CHECKS = 1;
 
 CREATE TABLE IF NOT EXISTS `users` (
@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS `companies` (
     `primary_color` VARCHAR(7) DEFAULT '#000000',
     `secondary_color` VARCHAR(7) DEFAULT '#ffffff',
     `template` VARCHAR(30) NOT NULL DEFAULT 'classic',
+    `default_terms_conditions` TEXT,
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE SET NULL
@@ -107,4 +108,37 @@ CREATE TABLE IF NOT EXISTS `invoice_items` (
     `sort_order` INT DEFAULT 0,
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (`invoice_id`) REFERENCES `invoices`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS `delivery_notes` (
+    `id` INT PRIMARY KEY AUTO_INCREMENT,
+    `company_id` INT NOT NULL,
+    `created_by` INT,
+    `quotation_id` INT,
+    `delivery_note_number` VARCHAR(50) NOT NULL,
+    `client_name` VARCHAR(255) NOT NULL,
+    `client_address` TEXT,
+    `client_email` VARCHAR(255),
+    `client_phone` VARCHAR(50),
+    `date` DATE NOT NULL,
+    `signed_file_url` VARCHAR(255),
+    `signed_at` TIMESTAMP NULL,
+    `signed_by` INT,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (`company_id`) REFERENCES `companies`(`id`) ON DELETE CASCADE,
+    FOREIGN KEY (`created_by`) REFERENCES `users`(`id`) ON DELETE SET NULL,
+    FOREIGN KEY (`quotation_id`) REFERENCES `quotations`(`id`) ON DELETE SET NULL,
+    FOREIGN KEY (`signed_by`) REFERENCES `users`(`id`) ON DELETE SET NULL,
+    UNIQUE KEY `unique_delivery_per_company` (`company_id`, `delivery_note_number`)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS `delivery_note_items` (
+    `id` INT PRIMARY KEY AUTO_INCREMENT,
+    `delivery_note_id` INT NOT NULL,
+    `description` TEXT NOT NULL,
+    `quantity` DECIMAL(10,2) NOT NULL,
+    `sort_order` INT DEFAULT 0,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (`delivery_note_id`) REFERENCES `delivery_notes`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB;

@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getQuotation, createInvoiceFromQuotation } from '../services/api';
+import { getQuotation, createInvoiceFromQuotation, createDeliveryNoteFromQuotation } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { Quotation } from '../types';
 import { generatePDF } from '../utils/pdfGenerator';
 import QuotationDocument from '../components/Quotation/QuotationDocument';
-import { Download, Edit2, ArrowLeft, Printer, FileText } from 'lucide-react';
+import { Download, Edit2, ArrowLeft, Printer, FileText, Truck } from 'lucide-react';
 
 const QuotationView: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -15,6 +15,7 @@ const QuotationView: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [generatingInvoice, setGeneratingInvoice] = useState(false);
+  const [generatingDeliveryNote, setGeneratingDeliveryNote] = useState(false);
 
   useEffect(() => {
     const loadQuotation = async () => {
@@ -63,6 +64,22 @@ const QuotationView: React.FC = () => {
       alert('Failed to generate invoice. Please try again.');
     } finally {
       setGeneratingInvoice(false);
+    }
+  };
+
+  const handleGenerateDeliveryNote = async () => {
+    if (!quotation?.id) return;
+
+    setGeneratingDeliveryNote(true);
+    try {
+      const dn = await createDeliveryNoteFromQuotation(quotation.id);
+      navigate(`/delivery-note/${dn.id}`);
+    } catch (error: any) {
+      console.error('Error generating delivery note:', error);
+      const message = error?.response?.data?.error || 'Failed to generate delivery note. Please try again.';
+      alert(message);
+    } finally {
+      setGeneratingDeliveryNote(false);
     }
   };
 
@@ -137,6 +154,24 @@ const QuotationView: React.FC = () => {
               <>
                 <FileText className="h-4 w-4 mr-2" />
                 Generate Invoice
+              </>
+            )}
+          </button>
+
+          <button
+            onClick={handleGenerateDeliveryNote}
+            disabled={generatingDeliveryNote}
+            className="inline-flex items-center px-4 py-2 border border-amber-500 text-amber-700 rounded-lg bg-white hover:bg-amber-50 transition-all disabled:opacity-50"
+          >
+            {generatingDeliveryNote ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-amber-600 mr-2"></div>
+                Generating...
+              </>
+            ) : (
+              <>
+                <Truck className="h-4 w-4 mr-2" />
+                Generate Delivery Note
               </>
             )}
           </button>

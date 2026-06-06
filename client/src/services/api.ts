@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { Company, Quotation, Invoice, User, AuthStatus, ManagedUser, UserRole } from '../types';
+import { Company, Quotation, Invoice, DeliveryNote, User, AuthStatus, ManagedUser, UserRole } from '../types';
 
 // Use a relative base so the same build works in development (proxied by CRA
 // to the local Express server) and in production (served by the same Express
@@ -103,9 +103,8 @@ export const updateCompany = async (
   const formData = new FormData();
   
   Object.entries(data).forEach(([key, value]) => {
-    if (value !== undefined) {
-      formData.append(key, value.toString());
-    }
+    if (value === undefined || value === null) return;
+    formData.append(key, value.toString());
   });
 
   if (logo) {
@@ -199,4 +198,43 @@ export const updateInvoice = async (
 
 export const deleteInvoice = async (id: number): Promise<void> => {
   await api.delete(`/invoices/${id}`);
+};
+
+// Delivery Note API
+export const getNextDeliveryNoteNumber = async (companyId: number): Promise<{ deliveryNoteNumber: string }> => {
+  const response = await api.get(`/companies/${companyId}/next-delivery-note-number`);
+  return response.data;
+};
+
+export const getDeliveryNotes = async (companyId?: number): Promise<DeliveryNote[]> => {
+  const params = companyId ? { company_id: companyId } : {};
+  const response = await api.get('/delivery-notes', { params });
+  return response.data;
+};
+
+export const getDeliveryNote = async (id: number): Promise<DeliveryNote> => {
+  const response = await api.get(`/delivery-notes/${id}`);
+  return response.data;
+};
+
+export const createDeliveryNoteFromQuotation = async (quotationId: number): Promise<DeliveryNote> => {
+  const response = await api.post(`/delivery-notes/from-quotation/${quotationId}`);
+  return response.data;
+};
+
+export const deleteDeliveryNote = async (id: number): Promise<void> => {
+  await api.delete(`/delivery-notes/${id}`);
+};
+
+export const uploadSignedDeliveryNote = async (id: number, file: File): Promise<DeliveryNote> => {
+  const formData = new FormData();
+  formData.append('file', file);
+  const response = await api.post(`/delivery-notes/${id}/signed`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return response.data;
+};
+
+export const deleteSignedDeliveryNote = async (id: number): Promise<void> => {
+  await api.delete(`/delivery-notes/${id}/signed`);
 };

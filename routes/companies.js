@@ -100,16 +100,21 @@ router.put('/:id', isAdmin, upload.single('logo'), async (req, res) => {
       ppda_rate,
       primary_color,
       secondary_color,
-      template
+      template,
+      default_terms_conditions
     } = req.body;
 
     let updateQuery = `
       UPDATE companies
       SET name = ?, address = ?, tpin = ?, bank_details = ?,
           vat_rate = ?, ppda_rate = ?, primary_color = ?, secondary_color = ?,
-          template = ?
+          template = ?, default_terms_conditions = ?
     `;
-    let queryParams = [name, address, tpin, bank_details, vat_rate, ppda_rate, primary_color, secondary_color, template || 'classic'];
+    let queryParams = [
+      name, address, tpin, bank_details, vat_rate, ppda_rate,
+      primary_color, secondary_color, template || 'classic',
+      default_terms_conditions ?? null,
+    ];
 
     if (req.file) {
       updateQuery += ', logo_url = ?';
@@ -177,6 +182,32 @@ router.get('/:id/next-quote-number', async (req, res) => {
   } catch (error) {
     console.error('Error generating quote number:', error);
     res.status(500).json({ error: 'Failed to generate quote number' });
+  }
+});
+
+router.get('/:id/next-delivery-note-number', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const [company] = await db.execute('SELECT name FROM companies WHERE id = ?', [id]);
+
+    if (company.length === 0) {
+      return res.status(404).json({ error: 'Company not found' });
+    }
+
+    const prefix = `${getCompanyPrefix(company[0].name)}-DN`;
+    const [result] = await db.execute(
+      `SELECT MAX(CAST(SUBSTRING_INDEX(delivery_note_number, '-', -1) AS UNSIGNED)) AS max_num
+         FROM delivery_notes
+        WHERE company_id = ? AND delivery_note_number LIKE ?`,
+      [id, `${prefix}-%`]
+    );
+
+    const nextNumber = (result[0].max_num || 0) + 1;
+    const deliveryNoteNumber = `${prefix}-${String(nextNumber).padStart(4, '0')}`;
+    res.json({ deliveryNoteNumber });
+  } catch (error) {
+    console.error('Error generating delivery note number:', error);
+    res.status(500).json({ error: 'Failed to generate delivery note number' });
   }
 });
 

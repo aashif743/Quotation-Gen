@@ -1,6 +1,6 @@
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
-import { Quotation, Invoice } from '../types';
+import { Quotation, Invoice, DeliveryNote } from '../types';
 
 export const generatePDF = async (quotation: Quotation): Promise<void> => {
   try {
@@ -431,6 +431,40 @@ export const generateInvoicePDF = async (invoice: Invoice): Promise<void> => {
     pdf.save(filename);
   } catch (error) {
     console.error('Error generating PDF:', error);
+    throw new Error('Failed to generate PDF');
+  }
+};
+
+export const generateDeliveryNotePDF = async (deliveryNote: DeliveryNote): Promise<void> => {
+  try {
+    const element = document.querySelector('.delivery-note-document') as HTMLElement;
+    if (!element) {
+      throw new Error('Delivery note document not found');
+    }
+
+    const canvas = await html2canvas(element, {
+      scale: 2,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: '#ffffff',
+      height: element.scrollHeight,
+      width: element.scrollWidth,
+    });
+
+    const imgData = canvas.toDataURL('image/png');
+    const pdf = new jsPDF('p', 'mm', 'a4');
+
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = pdf.internal.pageSize.getHeight();
+    const ratio = Math.min(pdfWidth / canvas.width, pdfHeight / canvas.height);
+    const imgX = (pdfWidth - canvas.width * ratio) / 2;
+
+    pdf.addImage(imgData, 'PNG', imgX, 0, canvas.width * ratio, canvas.height * ratio);
+
+    const filename = `${deliveryNote.delivery_note_number}_${deliveryNote.client_name.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+    pdf.save(filename);
+  } catch (error) {
+    console.error('Error generating delivery note PDF:', error);
     throw new Error('Failed to generate PDF');
   }
 };

@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useCompany } from '../context/CompanyContext';
-import { Upload, Save, AlertCircle, Plus, Trash2, Edit, X } from 'lucide-react';
+import { Upload, Save, AlertCircle, Plus, Trash2, Edit, X, Image as ImageIcon } from 'lucide-react';
 import { Company } from '../types';
 
 const Settings: React.FC = () => {
@@ -25,6 +25,12 @@ const Settings: React.FC = () => {
   const [companyToDelete, setCompanyToDelete] = useState<Company | null>(null);
   const [isButtonHovered, setIsButtonHovered] = useState(false);
 
+  // Logo drag-and-drop state
+  const [logoDragOver, setLogoDragOver] = useState(false);
+  const [logoError, setLogoError] = useState<string>('');
+  const logoInputRef = useRef<HTMLInputElement>(null);
+  const logoDragCounter = useRef(0);
+
 
   useEffect(() => {
     if (selectedCompany) {
@@ -37,7 +43,8 @@ const Settings: React.FC = () => {
         ppda_rate: selectedCompany.ppda_rate || 0.01,
         primary_color: selectedCompany.primary_color || '#000000',
         secondary_color: selectedCompany.secondary_color || '#ffffff',
-        template: selectedCompany.template || 'classic'
+        template: selectedCompany.template || 'classic',
+        default_terms_conditions: selectedCompany.default_terms_conditions || ''
       });
       if (selectedCompany.logo_url) {
         setLogoPreview(selectedCompany.logo_url);
@@ -58,17 +65,64 @@ const Settings: React.FC = () => {
     }));
   };
 
+  // Shared logo validation + preview pipeline used by both the file picker
+  // and the drop zone. Server limit is 5 MB and PNG/JPG only (see multer in
+  // routes/companies.js) — we validate the same here so the user sees the
+  // error immediately instead of after upload.
+  const acceptLogoFile = (file: File): boolean => {
+    if (!/^image\/(png|jpe?g)$/.test(file.type)) {
+      setLogoError('Only PNG or JPG images are allowed.');
+      return false;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setLogoError('Image is too large (5 MB maximum).');
+      return false;
+    }
+    setLogoError('');
+    setLogo(file);
+    const reader = new FileReader();
+    reader.onload = (ev) => setLogoPreview(ev.target?.result as string);
+    reader.readAsDataURL(file);
+    return true;
+  };
+
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setLogo(file);
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setLogoPreview(e.target?.result as string);
-      };
-      reader.readAsDataURL(file);
+    e.target.value = '';
+    if (file) acceptLogoFile(file);
+  };
+
+  const handleLogoDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    if (e.dataTransfer.types?.includes('Files')) {
+      logoDragCounter.current += 1;
+      setLogoDragOver(true);
     }
   };
+  const handleLogoDragOver = (e: React.DragEvent) => e.preventDefault();
+  const handleLogoDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    logoDragCounter.current = Math.max(0, logoDragCounter.current - 1);
+    if (logoDragCounter.current === 0) setLogoDragOver(false);
+  };
+  const handleLogoDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    logoDragCounter.current = 0;
+    setLogoDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) acceptLogoFile(file);
+  };
+
+  // Prevent the browser from opening the file if the user misses the drop zone.
+  useEffect(() => {
+    const block = (e: DragEvent) => e.preventDefault();
+    window.addEventListener('dragover', block);
+    window.addEventListener('drop', block);
+    return () => {
+      window.removeEventListener('dragover', block);
+      window.removeEventListener('drop', block);
+    };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -230,17 +284,21 @@ const Settings: React.FC = () => {
           </div>
 
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h2 className="text-xl font-semibold mb-6">Tax Rates</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">VAT Rate (%)</label>
-                <input type="number" name="vat_rate" value={(formData.vat_rate || 0) * 100} onChange={(e) => setFormData(prev => ({ ...prev, vat_rate: parseFloat(e.target.value) / 100 }))} step="0.1" min="0" max="100" className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500`} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">PPDA Rate (%)</label>
-                <input type="number" name="ppda_rate" value={(formData.ppda_rate || 0) * 100} onChange={(e) => setFormData(prev => ({ ...prev, ppda_rate: parseFloat(e.target.value) / 100 }))} step="0.1" min="0" max="100" className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500`} />
-              </div>
-            </div>
+            <h2 className="text-xl font-semibold mb-2">Default Terms &amp; Conditions</h2>
+            <p className="text-sm text-gray-500 mb-4">
+              These terms are auto-attached to every new quotation for this company. They appear at
+              the bottom of the printable document and can be left empty.
+            </p>
+            <textarea
+              name="default_terms_conditions"
+              value={formData.default_terms_conditions || ''}
+              onChange={(e) =>
+                setFormData((prev) => ({ ...prev, default_terms_conditions: e.target.value }))
+              }
+              rows={6}
+              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              placeholder={'Payment due within 30 days of invoice date.\nAll prices are inclusive of VAT.\nGoods remain property of the seller until full payment is received.'}
+            />
           </div>
 
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -401,27 +459,82 @@ const Settings: React.FC = () => {
               This thumbnail is shown in the sidebar's company switcher and the page header. The fixed
               quotation header logo is bundled in <code className="bg-gray-100 px-1 rounded">client/public/Company_Logos</code> and is not affected by uploads here.
             </p>
-            <div className="space-y-4">
-              {logoPreview && (
-                <div className="flex items-center space-x-4">
-                  <img src={logoPreview} alt="Logo preview" className="h-20 w-20 object-cover rounded-lg border border-gray-200" />
-                  <div>
-                    <p className="text-sm text-gray-600">Current logo</p>
-                    <p className="text-xs text-gray-500">Upload a new image to replace it</p>
-                  </div>
+            <input
+              ref={logoInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/jpg"
+              onChange={handleLogoChange}
+              className="hidden"
+              id="logo-upload"
+            />
+
+            <div
+              onDragEnter={handleLogoDragEnter}
+              onDragOver={handleLogoDragOver}
+              onDragLeave={handleLogoDragLeave}
+              onDrop={handleLogoDrop}
+              onClick={() => logoInputRef.current?.click()}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  logoInputRef.current?.click();
+                }
+              }}
+              className={`relative cursor-pointer rounded-xl border-2 border-dashed p-6 transition-colors ${
+                logoDragOver
+                  ? 'border-indigo-500 bg-indigo-50'
+                  : 'border-gray-300 hover:border-gray-400 bg-white'
+              }`}
+            >
+              <div className="flex flex-col sm:flex-row items-center gap-6">
+                {/* Preview thumbnail (or empty placeholder) */}
+                <div className="flex-shrink-0">
+                  {logoPreview ? (
+                    <img
+                      src={logoPreview}
+                      alt="Logo preview"
+                      className="h-24 w-24 object-contain rounded-lg border border-gray-200 bg-white"
+                    />
+                  ) : (
+                    <div className="h-24 w-24 rounded-lg border border-gray-200 bg-gray-50 flex items-center justify-center">
+                      <ImageIcon className="h-8 w-8 text-gray-300" />
+                    </div>
+                  )}
                 </div>
-              )}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Upload New Logo</label>
-                <div className="flex items-center space-x-4">
-                  <input type="file" accept="image/png,image/jpeg,image/jpg" onChange={handleLogoChange} className="hidden" id="logo-upload" />
-                  <label htmlFor="logo-upload" className="cursor-pointer inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2">
-                    <Upload className="h-4 w-4 mr-2" />
-                    Choose File
-                  </label>
-                  {logo && <span className="text-sm text-gray-600">{logo.name}</span>}
+
+                {/* Drop-zone copy + actions */}
+                <div className="flex-1 text-center sm:text-left">
+                  <p className="text-base font-semibold text-gray-900">
+                    {logoDragOver
+                      ? 'Release to use this image'
+                      : logoPreview
+                      ? 'Drag a new image here to replace, or click to browse'
+                      : 'Drag an image here, or click to browse'}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">PNG or JPG · up to 5 MB</p>
+                  {logo && (
+                    <p className="text-xs text-gray-600 mt-2 truncate" title={logo.name}>
+                      Selected: <span className="font-medium">{logo.name}</span>
+                    </p>
+                  )}
+                  {logoError && (
+                    <p className="text-sm text-red-600 mt-2">{logoError}</p>
+                  )}
                 </div>
-                <p className="text-xs text-gray-500 mt-1">Supported formats: PNG, JPG. Maximum size: 5MB</p>
+
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation(); // prevent the wrapper's onClick
+                    logoInputRef.current?.click();
+                  }}
+                  className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  Choose File
+                </button>
               </div>
             </div>
           </div>

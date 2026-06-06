@@ -61,6 +61,7 @@ const userRoutes = require('./routes/users');
 const companyRoutes = require('./routes/companies');
 const quotationRoutes = require('./routes/quotations');
 const invoiceRoutes = require('./routes/invoices');
+const deliveryRoutes = require('./routes/deliveries');
 const adminRoutes = require('./routes/admin');
 
 app.use('/api/auth', authRoutes);
@@ -68,6 +69,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/companies', companyRoutes);
 app.use('/api/quotations', quotationRoutes);
 app.use('/api/invoices', invoiceRoutes);
+app.use('/api/delivery-notes', deliveryRoutes);
 app.use('/api/admin', adminRoutes);
 
 // Serve the React build in production. Express 5 tightened path syntax, so

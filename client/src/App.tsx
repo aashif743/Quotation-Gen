@@ -12,6 +12,8 @@ import QuotationView from './pages/QuotationView';
 import InvoiceView from './pages/InvoiceView';
 import EditQuotation from './pages/EditQuotation';
 import EditInvoice from './pages/EditInvoice';
+import DeliveryNoteView from './pages/DeliveryNoteView';
+import DeliveryNoteHistory from './pages/DeliveryNoteHistory';
 import UserManagement from './pages/UserManagement';
 import Storage from './pages/Storage';
 import Login from './pages/Login';
@@ -103,6 +105,8 @@ function AppRoutes() {
                   <Route path="/invoice/:id" element={<InvoiceView />} />
                   <Route path="/edit-quotation/:id" element={<EditQuotation />} />
                   <Route path="/edit-invoice/:id" element={<EditInvoice />} />
+                  <Route path="/delivery-note/:id" element={<DeliveryNoteView />} />
+                  <Route path="/delivery-history" element={<DeliveryNoteHistory />} />
                   <Route
                     path="/users"
                     element={

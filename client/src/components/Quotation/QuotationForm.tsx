@@ -109,10 +109,65 @@ const QuotationForm: React.FC<QuotationFormProps> = ({
               type="number"
               value={quotationData.expiry_days || 30}
               onChange={(e) => onInputChange('expiry_days', parseInt(e.target.value))}
+              onWheel={(e) => e.currentTarget.blur()}
               className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500`}
               min="1"
               required
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              VAT Rate (%)
+            </label>
+            <input
+              type="number"
+              value={
+                quotationData.vat_rate != null
+                  ? +(quotationData.vat_rate * 100).toFixed(4)
+                  : ''
+              }
+              onChange={(e) => {
+                const raw = e.target.value;
+                onInputChange('vat_rate', raw === '' ? 0 : parseFloat(raw) / 100);
+              }}
+              onWheel={(e) => e.currentTarget.blur()}
+              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              step="0.1"
+              min="0"
+              max="100"
+              placeholder="16.5"
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              Auto-filled from the last quotation. Edit if needed.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              PPDA Rate (%)
+            </label>
+            <input
+              type="number"
+              value={
+                quotationData.ppda_rate != null
+                  ? +(quotationData.ppda_rate * 100).toFixed(4)
+                  : ''
+              }
+              onChange={(e) => {
+                const raw = e.target.value;
+                onInputChange('ppda_rate', raw === '' ? 0 : parseFloat(raw) / 100);
+              }}
+              onWheel={(e) => e.currentTarget.blur()}
+              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              step="0.1"
+              min="0"
+              max="100"
+              placeholder="1.0"
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              Auto-filled from the last quotation. Edit if needed.
+            </p>
           </div>
         </div>
       </div>
@@ -237,6 +292,7 @@ const QuotationForm: React.FC<QuotationFormProps> = ({
                       inputMode="decimal"
                       value={item.quantity === 0 ? '' : item.quantity}
                       onChange={(e) => updateItem(index, 'quantity', e.target.value)}
+                      onWheel={(e) => e.currentTarget.blur()}
                       className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-right text-sm tabular-nums focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                       placeholder="1"
                       min="0"
@@ -258,6 +314,7 @@ const QuotationForm: React.FC<QuotationFormProps> = ({
                         inputMode="decimal"
                         value={item.unit_price === 0 ? '' : item.unit_price}
                         onChange={(e) => updateItem(index, 'unit_price', e.target.value)}
+                        onWheel={(e) => e.currentTarget.blur()}
                         className="w-full rounded-lg border border-gray-300 bg-white py-2.5 pl-12 pr-3 text-right text-sm tabular-nums focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                         placeholder="0.00"
                         min="0"
@@ -338,18 +395,12 @@ const QuotationForm: React.FC<QuotationFormProps> = ({
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Terms & Conditions
-            </label>
-            <textarea
-              value={quotationData.terms_conditions || ''}
-              onChange={(e) => onInputChange('terms_conditions', e.target.value)}
-              rows={4}
-              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500`}
-              placeholder="Terms and conditions for this quotation"
-            />
-          </div>
+          {quotationData.terms_conditions ? (
+            <div className="rounded-lg bg-gray-50 border border-gray-200 px-4 py-3 text-xs text-gray-500">
+              Terms &amp; conditions for this quotation come from the company settings. To change
+              them, edit the company under <span className="font-medium">Company Settings</span>.
+            </div>
+          ) : null}
         </div>
       </div>
     </div>
