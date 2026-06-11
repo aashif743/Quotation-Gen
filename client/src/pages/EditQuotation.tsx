@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useCompany } from '../context/CompanyContext';
-import { QuotationItem, Quotation } from '../types';
+import { QuotationItem, Quotation, Client } from '../types';
 import { getQuotation, updateQuotation } from '../services/api';
 import {
   calculateSubtotal,
@@ -95,13 +95,22 @@ const EditQuotation: React.FC = () => {
     e.preventDefault();
     if (!id || !selectedCompany || !quotationData.items || quotationData.items.length === 0) return;
 
+    if (!quotationData.quote_number?.trim()) {
+      alert('Please enter a quote number.');
+      return;
+    }
+
     setLoading(true);
     try {
       await updateQuotation(parseInt(id), quotationData as Partial<Quotation>);
       navigate(`/quotation/${id}`);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating quotation:', error);
-      alert('Failed to update quotation. Please try again.');
+      const message =
+        error?.response?.data?.error ||
+        error?.response?.data?.message ||
+        'Failed to update quotation. Please try again.';
+      alert(message);
     } finally {
       setLoading(false);
     }
@@ -179,6 +188,16 @@ const EditQuotation: React.FC = () => {
             quotationData={quotationData}
             onInputChange={handleInputChange}
             onItemsChange={handleItemsChange}
+            onClientSelected={(client: Client) => {
+              setQuotationData((prev) => ({
+                ...prev,
+                client_id: client.id,
+                client_name: client.name,
+                client_address: client.address || prev.client_address || '',
+                client_email: client.email || prev.client_email || '',
+                client_phone: client.phone || prev.client_phone || '',
+              }));
+            }}
           />
         </div>
 

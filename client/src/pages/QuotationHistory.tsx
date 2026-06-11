@@ -318,7 +318,20 @@ const QuotationHistory: React.FC = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{quotation.client_name}</div>
+                      <div className="text-sm text-gray-900">
+                        {quotation.client_id ? (
+                          <Link
+                            to={`/clients/${quotation.client_id}`}
+                            className="hover:underline"
+                            style={{ color: primaryColor }}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {quotation.client_name}
+                          </Link>
+                        ) : (
+                          quotation.client_name
+                        )}
+                      </div>
                       {quotation.client_email && (
                         <div className="text-sm text-gray-500">{quotation.client_email}</div>
                       )}

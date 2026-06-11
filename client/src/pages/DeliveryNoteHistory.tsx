@@ -276,7 +276,20 @@ const DeliveryNoteHistory: React.FC = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{d.client_name}</div>
+                      <div className="text-sm text-gray-900">
+                        {d.client_id ? (
+                          <Link
+                            to={`/clients/${d.client_id}`}
+                            className="hover:underline"
+                            style={{ color: primary }}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {d.client_name}
+                          </Link>
+                        ) : (
+                          d.client_name
+                        )}
+                      </div>
                       {d.client_email && <div className="text-sm text-gray-500">{d.client_email}</div>}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">

@@ -326,14 +326,27 @@ const InvoiceView: React.FC = () => {
                       <span>Subtotal:</span>
                       <span className="font-medium">{formatCurrency(invoice.subtotal)}</span>
                     </div>
-                    <div className="flex justify-between text-sm">
-                      <span>VAT:</span>
-                      <span className="font-medium">{formatCurrency(invoice.vat_amount)}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span>PPDA:</span>
-                      <span className="font-medium">{formatCurrency(invoice.ppda_amount)}</span>
-                    </div>
+                    {(() => {
+                      // Back-calculate the rates from the stored amounts so
+                      // the saved invoice shows "VAT (X%)" / "PPDA (X%)"
+                      // like the live preview did.
+                      const vatPct =
+                        invoice.subtotal ? ((invoice.vat_amount || 0) / invoice.subtotal) * 100 : 0;
+                      const ppdaPct =
+                        invoice.subtotal ? ((invoice.ppda_amount || 0) / invoice.subtotal) * 100 : 0;
+                      return (
+                        <>
+                          <div className="flex justify-between text-sm">
+                            <span>VAT ({formatNumber(vatPct, 1)}%):</span>
+                            <span className="font-medium">{formatCurrency(invoice.vat_amount)}</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span>PPDA ({formatNumber(ppdaPct, 1)}%):</span>
+                            <span className="font-medium">{formatCurrency(invoice.ppda_amount)}</span>
+                          </div>
+                        </>
+                      );
+                    })()}
                     <hr className="border-gray-300" />
                     <div
                       className="flex justify-between text-lg font-bold"

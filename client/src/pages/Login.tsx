@@ -13,6 +13,19 @@ const Login: React.FC = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [googleEnabled, setGoogleEnabled] = useState(false);
+  // Set when the API interceptor redirected here due to a 401.
+  const [sessionExpired, setSessionExpired] = useState(false);
+
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem('sessionExpired')) {
+        setSessionExpired(true);
+        sessionStorage.removeItem('sessionExpired');
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   useEffect(() => {
     const checkProviders = async () => {
@@ -104,6 +117,13 @@ const Login: React.FC = () => {
             <h1 className="text-3xl font-bold text-gray-900">Welcome back</h1>
             <p className="text-gray-500 mt-2">Sign in to access your dashboard.</p>
           </div>
+
+          {sessionExpired && !error && (
+            <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm">
+              <p className="font-semibold">Your session has expired.</p>
+              <p className="mt-0.5">For your security you've been signed out after 7 days of inactivity. Please sign in again.</p>
+            </div>
+          )}
 
           {error && (
             <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">

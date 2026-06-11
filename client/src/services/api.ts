@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { Company, Quotation, Invoice, DeliveryNote, User, AuthStatus, ManagedUser, UserRole } from '../types';
+import { Company, Quotation, Invoice, DeliveryNote, User, AuthStatus, ManagedUser, UserRole, Client, ClientDocSummary } from '../types';
 
 // Use a relative base so the same build works in development (proxied by CRA
 // to the local Express server) and in production (served by the same Express
@@ -11,6 +11,36 @@ const api = axios.create({
   baseURL: API_BASE_URL,
   withCredentials: true,
 });
+
+// Single source of truth for "the session is gone". A 401 from *any* API
+// call (other than the auth endpoints themselves, where a 401 is just a
+// login failure) means the server has lost our session — most commonly
+// after 7 days of inactivity. Quietly send the user to the login screen
+// with a friendly banner instead of letting `alert()` dialogs fire.
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const status = error?.response?.status;
+    const url = error?.config?.url || '';
+    const isAuthEndpoint = url.includes('/auth/');
+    const alreadyOnLogin = window.location.pathname.startsWith('/login');
+
+    if (status === 401 && !isAuthEndpoint && !alreadyOnLogin) {
+      // Tell the login page why we're sending them there.
+      try {
+        sessionStorage.setItem('sessionExpired', '1');
+      } catch {
+        /* private mode, etc. */
+      }
+      window.location.assign('/login');
+      // Hang the promise so the page that initiated the call doesn't get
+      // a chance to show its own error alert — we're navigating away anyway.
+      return new Promise(() => {});
+    }
+
+    return Promise.reject(error);
+  }
+);
 
 // Auth API functions
 export const checkAuthStatus = async (): Promise<AuthStatus> => {
@@ -237,4 +267,49 @@ export const uploadSignedDeliveryNote = async (id: number, file: File): Promise<
 
 export const deleteSignedDeliveryNote = async (id: number): Promise<void> => {
   await api.delete(`/delivery-notes/${id}/signed`);
+};
+
+// Clients API
+export const getClients = async (companyId?: number, q?: string): Promise<Client[]> => {
+  const params: Record<string, any> = {};
+  if (companyId) params.company_id = companyId;
+  if (q) params.q = q;
+  const response = await api.get('/clients', { params });
+  return response.data;
+};
+
+export const getClient = async (id: number): Promise<Client> => {
+  const response = await api.get(`/clients/${id}`);
+  return response.data;
+};
+
+export const createClient = async (
+  data: Omit<Partial<Client>, 'id'> & { company_id: number; name: string }
+): Promise<Client> => {
+  const response = await api.post('/clients', data);
+  return response.data;
+};
+
+export const updateClient = async (id: number, data: Partial<Client>): Promise<Client> => {
+  const response = await api.put(`/clients/${id}`, data);
+  return response.data;
+};
+
+export const deleteClient = async (id: number): Promise<void> => {
+  await api.delete(`/clients/${id}`);
+};
+
+export const getClientQuotations = async (id: number): Promise<ClientDocSummary[]> => {
+  const response = await api.get(`/clients/${id}/quotations`);
+  return response.data;
+};
+
+export const getClientInvoices = async (id: number): Promise<ClientDocSummary[]> => {
+  const response = await api.get(`/clients/${id}/invoices`);
+  return response.data;
+};
+
+export const getClientDeliveryNotes = async (id: number): Promise<ClientDocSummary[]> => {
+  const response = await api.get(`/clients/${id}/delivery-notes`);
+  return response.data;
 };

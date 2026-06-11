@@ -1,5 +1,5 @@
 SET FOREIGN_KEY_CHECKS = 0;
-DROP TABLE IF EXISTS `users`, `companies`, `quotations`, `quotation_items`, `invoices`, `invoice_items`, `delivery_notes`, `delivery_note_items`;
+DROP TABLE IF EXISTS `users`, `companies`, `quotations`, `quotation_items`, `invoices`, `invoice_items`, `delivery_notes`, `delivery_note_items`, `clients`;
 SET FOREIGN_KEY_CHECKS = 1;
 
 CREATE TABLE IF NOT EXISTS `users` (
@@ -36,10 +36,27 @@ CREATE TABLE IF NOT EXISTS `companies` (
     FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
+CREATE TABLE IF NOT EXISTS `clients` (
+    `id` INT PRIMARY KEY AUTO_INCREMENT,
+    `company_id` INT NOT NULL,
+    `name` VARCHAR(255) NOT NULL,
+    `contact_person` VARCHAR(255),
+    `email` VARCHAR(255),
+    `phone` VARCHAR(50),
+    `address` TEXT,
+    `tax_id` VARCHAR(50),
+    `notes` TEXT,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (`company_id`) REFERENCES `companies`(`id`) ON DELETE CASCADE,
+    UNIQUE KEY `unique_client_per_company` (`company_id`, `name`)
+) ENGINE=InnoDB;
+
 CREATE TABLE IF NOT EXISTS `quotations` (
     `id` INT PRIMARY KEY AUTO_INCREMENT,
     `company_id` INT NOT NULL,
     `created_by` INT,
+    `client_id` INT,
     `quote_number` VARCHAR(50) NOT NULL,
     `client_name` VARCHAR(255) NOT NULL,
     `client_address` TEXT,
@@ -57,6 +74,7 @@ CREATE TABLE IF NOT EXISTS `quotations` (
     `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (`company_id`) REFERENCES `companies`(`id`) ON DELETE CASCADE,
     FOREIGN KEY (`created_by`) REFERENCES `users`(`id`) ON DELETE SET NULL,
+    FOREIGN KEY (`client_id`) REFERENCES `clients`(`id`) ON DELETE SET NULL,
     UNIQUE KEY `unique_quote_per_company` (`company_id`, `quote_number`)
 ) ENGINE=InnoDB;
 
@@ -76,6 +94,7 @@ CREATE TABLE IF NOT EXISTS `invoices` (
     `id` INT PRIMARY KEY AUTO_INCREMENT,
     `company_id` INT NOT NULL,
     `created_by` INT,
+    `client_id` INT,
     `quotation_id` INT,
     `invoice_number` VARCHAR(50) NOT NULL,
     `client_name` VARCHAR(255) NOT NULL,
@@ -94,6 +113,7 @@ CREATE TABLE IF NOT EXISTS `invoices` (
     `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (`company_id`) REFERENCES `companies`(`id`) ON DELETE CASCADE,
     FOREIGN KEY (`created_by`) REFERENCES `users`(`id`) ON DELETE SET NULL,
+    FOREIGN KEY (`client_id`) REFERENCES `clients`(`id`) ON DELETE SET NULL,
     FOREIGN KEY (`quotation_id`) REFERENCES `quotations`(`id`) ON DELETE SET NULL,
     UNIQUE KEY `unique_invoice_per_company` (`company_id`, `invoice_number`)
 ) ENGINE=InnoDB;
@@ -114,6 +134,7 @@ CREATE TABLE IF NOT EXISTS `delivery_notes` (
     `id` INT PRIMARY KEY AUTO_INCREMENT,
     `company_id` INT NOT NULL,
     `created_by` INT,
+    `client_id` INT,
     `quotation_id` INT,
     `delivery_note_number` VARCHAR(50) NOT NULL,
     `client_name` VARCHAR(255) NOT NULL,
@@ -130,6 +151,7 @@ CREATE TABLE IF NOT EXISTS `delivery_notes` (
     FOREIGN KEY (`created_by`) REFERENCES `users`(`id`) ON DELETE SET NULL,
     FOREIGN KEY (`quotation_id`) REFERENCES `quotations`(`id`) ON DELETE SET NULL,
     FOREIGN KEY (`signed_by`) REFERENCES `users`(`id`) ON DELETE SET NULL,
+    FOREIGN KEY (`client_id`) REFERENCES `clients`(`id`) ON DELETE SET NULL,
     UNIQUE KEY `unique_delivery_per_company` (`company_id`, `delivery_note_number`)
 ) ENGINE=InnoDB;
 

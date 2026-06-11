@@ -5,6 +5,7 @@ const multer = require('multer');
 const db = require('../config/database');
 const { isAuthenticated, isAdmin } = require('../middleware/auth');
 const { getCompanyPrefix } = require('../utils/quotePrefix');
+const { resolveClientId } = require('../utils/clientResolver');
 
 const router = express.Router();
 
@@ -122,6 +123,7 @@ router.post('/', async (req, res) => {
     await connection.beginTransaction();
     const {
       company_id,
+      client_id,
       quotation_id,
       delivery_note_number,
       client_name,
@@ -132,13 +134,17 @@ router.post('/', async (req, res) => {
       items,
     } = req.body;
 
+    const resolvedClientId = await resolveClientId(connection, {
+      company_id, client_id, client_name, client_address, client_email, client_phone,
+    });
+
     const [insertResult] = await connection.execute(`
       INSERT INTO delivery_notes
-      (company_id, created_by, quotation_id, delivery_note_number,
+      (company_id, created_by, client_id, quotation_id, delivery_note_number,
        client_name, client_address, client_email, client_phone, date)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
-      company_id, req.user.id, quotation_id || null, delivery_note_number,
+      company_id, req.user.id, resolvedClientId, quotation_id || null, delivery_note_number,
       client_name, client_address, client_email, client_phone, date,
     ]);
     const id = insertResult.insertId;
@@ -212,11 +218,11 @@ router.post('/from-quotation/:quotationId', async (req, res) => {
     const today = new Date().toISOString().split('T')[0];
     const [result] = await connection.execute(`
       INSERT INTO delivery_notes
-      (company_id, created_by, quotation_id, delivery_note_number,
+      (company_id, created_by, client_id, quotation_id, delivery_note_number,
        client_name, client_address, client_email, client_phone, date)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
-      quotation.company_id, req.user.id, quotationId, deliveryNoteNumber,
+      quotation.company_id, req.user.id, quotation.client_id || null, quotationId, deliveryNoteNumber,
       quotation.client_name, quotation.client_address,
       quotation.client_email, quotation.client_phone, today,
     ]);

@@ -18,6 +18,7 @@ import {
   PanelLeftOpen,
   HardDrive,
   Truck,
+  Briefcase,
 } from 'lucide-react';
 
 interface LayoutProps {
@@ -91,6 +92,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { to: '/history', icon: History, label: 'Quotation History' },
     { to: '/invoice-history', icon: Receipt, label: 'Invoice History' },
     { to: '/delivery-history', icon: Truck, label: 'Delivery Notes' },
+    { to: '/clients', icon: Briefcase, label: 'Clients' },
     ...(isAdmin
       ? [
           { to: '/users', icon: Users, label: 'User Management' },
@@ -215,14 +217,18 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   {selectedCompany?.address}
                 </p>
               </div>
-              {selectedCompany?.logo_url && (
-                <div className="h-12 w-12 rounded-lg overflow-hidden bg-gray-100">
-                  <img
-                    src={`${selectedCompany.logo_url}`}
-                    alt={`${selectedCompany.name} logo`}
-                    className="h-full w-full object-cover"
-                  />
-                </div>
+              {/* Header shows the real logo (banner-style, not a cropped
+                  thumbnail) — falls back to the bundled brand logo when
+                  no thumbnail has been uploaded. */}
+              {selectedCompany && (selectedCompany.logo_url || selectedCompany.quote_logo_url) && (
+                <img
+                  src={selectedCompany.logo_url || selectedCompany.quote_logo_url}
+                  alt={`${selectedCompany.name} logo`}
+                  className="object-contain max-h-14 w-auto"
+                  loading="eager"
+                  decoding="async"
+                  draggable={false}
+                />
               )}
             </div>
           </header>

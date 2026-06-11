@@ -304,7 +304,20 @@ const InvoiceHistory: React.FC = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{invoice.client_name}</div>
+                      <div className="text-sm text-gray-900">
+                        {invoice.client_id ? (
+                          <Link
+                            to={`/clients/${invoice.client_id}`}
+                            className="hover:underline"
+                            style={{ color: primaryColor }}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {invoice.client_name}
+                          </Link>
+                        ) : (
+                          invoice.client_name
+                        )}
+                      </div>
                       {invoice.client_email && (
                         <div className="text-sm text-gray-500">{invoice.client_email}</div>
                       )}

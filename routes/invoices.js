@@ -2,6 +2,7 @@ const express = require('express');
 const db = require('../config/database');
 const { isAuthenticated, isAdmin } = require('../middleware/auth');
 const { getCompanyPrefix } = require('../utils/quotePrefix');
+const { resolveClientId } = require('../utils/clientResolver');
 
 const router = express.Router();
 
@@ -97,6 +98,7 @@ router.post('/', async (req, res) => {
 
     const {
       company_id,
+      client_id,
       quotation_id,
       invoice_number,
       client_name,
@@ -114,13 +116,17 @@ router.post('/', async (req, res) => {
       items
     } = req.body;
 
+    const resolvedClientId = await resolveClientId(connection, {
+      company_id, client_id, client_name, client_address, client_email, client_phone,
+    });
+
     const [invoiceResult] = await connection.execute(`
       INSERT INTO invoices
-      (company_id, created_by, quotation_id, invoice_number, client_name, client_address, client_email, client_phone,
+      (company_id, created_by, client_id, quotation_id, invoice_number, client_name, client_address, client_email, client_phone,
        date, due_days, subtotal, vat_amount, ppda_amount, grand_total, notes, terms_conditions)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
-      company_id, req.user.id, quotation_id || null, invoice_number, client_name, client_address, client_email, client_phone,
+      company_id, req.user.id, resolvedClientId, quotation_id || null, invoice_number, client_name, client_address, client_email, client_phone,
       date, due_days, subtotal, vat_amount, ppda_amount, grand_total, notes, terms_conditions
     ]);
 
@@ -148,6 +154,9 @@ router.post('/', async (req, res) => {
   } catch (error) {
     await connection.rollback();
     console.error('Error creating invoice:', error);
+    if (error && error.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({ error: 'An invoice with that number already exists for this company.' });
+    }
     res.status(500).json({ error: 'Failed to create invoice' });
   } finally {
     connection.release();
@@ -207,12 +216,13 @@ router.post('/from-quotation/:quotationId', async (req, res) => {
 
     const [invoiceResult] = await connection.execute(`
       INSERT INTO invoices
-      (company_id, created_by, quotation_id, invoice_number, client_name, client_address, client_email, client_phone,
+      (company_id, created_by, client_id, quotation_id, invoice_number, client_name, client_address, client_email, client_phone,
        date, due_days, subtotal, vat_amount, ppda_amount, grand_total, notes, terms_conditions)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       quotation.company_id,
       req.user.id,
+      quotation.client_id || null,
       quotationId,
       invoiceNumber,
       quotation.client_name,
@@ -269,6 +279,7 @@ router.put('/:id', isAdmin, async (req, res) => {
 
     const { id } = req.params;
     const {
+      invoice_number,
       client_name,
       client_address,
       client_email,
@@ -284,16 +295,29 @@ router.put('/:id', isAdmin, async (req, res) => {
       items
     } = req.body;
 
-    const [updateResult] = await connection.execute(`
-      UPDATE invoices
-      SET client_name = ?, client_address = ?, client_email = ?, client_phone = ?,
-          date = ?, due_days = ?, subtotal = ?, vat_amount = ?, ppda_amount = ?,
-          grand_total = ?, notes = ?, terms_conditions = ?
-      WHERE id = ?
-    `, [
-      client_name, client_address, client_email, client_phone,
-      date, due_days, subtotal, vat_amount, ppda_amount, grand_total, notes, terms_conditions, id
-    ]);
+    // Build the SET clause dynamically so any field the form sends is
+    // updated — `invoice_number` was previously dropped silently.
+    const fields = [];
+    const values = [];
+    if (invoice_number != null)   { fields.push('invoice_number = ?');   values.push(invoice_number); }
+    if (client_name != null)      { fields.push('client_name = ?');      values.push(client_name); }
+    if (client_address != null)   { fields.push('client_address = ?');   values.push(client_address); }
+    if (client_email != null)     { fields.push('client_email = ?');     values.push(client_email); }
+    if (client_phone != null)     { fields.push('client_phone = ?');     values.push(client_phone); }
+    if (date != null)             { fields.push('date = ?');             values.push(date); }
+    if (due_days != null)         { fields.push('due_days = ?');         values.push(due_days); }
+    if (subtotal != null)         { fields.push('subtotal = ?');         values.push(subtotal); }
+    if (vat_amount != null)       { fields.push('vat_amount = ?');       values.push(vat_amount); }
+    if (ppda_amount != null)      { fields.push('ppda_amount = ?');      values.push(ppda_amount); }
+    if (grand_total != null)      { fields.push('grand_total = ?');      values.push(grand_total); }
+    if (notes != null)            { fields.push('notes = ?');            values.push(notes); }
+    if (terms_conditions != null) { fields.push('terms_conditions = ?'); values.push(terms_conditions); }
+    values.push(id);
+
+    const [updateResult] = await connection.execute(
+      `UPDATE invoices SET ${fields.join(', ')} WHERE id = ?`,
+      values
+    );
 
     if (updateResult.affectedRows === 0) {
       await connection.rollback();
@@ -324,6 +348,9 @@ router.put('/:id', isAdmin, async (req, res) => {
   } catch (error) {
     await connection.rollback();
     console.error('Error updating invoice:', error);
+    if (error && error.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({ error: 'An invoice with that number already exists for this company.' });
+    }
     res.status(500).json({ error: 'Failed to update invoice' });
   } finally {
     connection.release();

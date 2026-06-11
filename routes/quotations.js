@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('../config/database');
 const { isAuthenticated, isAdmin } = require('../middleware/auth');
+const { resolveClientId } = require('../utils/clientResolver');
 
 const router = express.Router();
 
@@ -95,6 +96,7 @@ router.post('/', async (req, res) => {
 
     const {
       company_id,
+      client_id,
       quote_number,
       client_name,
       client_address,
@@ -113,13 +115,19 @@ router.post('/', async (req, res) => {
       items
     } = req.body;
 
+    // Find-or-create the client so this quotation is filed under the right
+    // customer in the Clients page. Pass-through null if no client name.
+    const resolvedClientId = await resolveClientId(connection, {
+      company_id, client_id, client_name, client_address, client_email, client_phone,
+    });
+
     const [quotationResult] = await connection.execute(`
       INSERT INTO quotations
-      (company_id, created_by, quote_number, client_name, client_address, client_email, client_phone,
+      (company_id, created_by, client_id, quote_number, client_name, client_address, client_email, client_phone,
        date, expiry_days, subtotal, vat_amount, ppda_amount, grand_total, notes, terms_conditions)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
-      company_id, req.user.id, quote_number, client_name, client_address, client_email, client_phone,
+      company_id, req.user.id, resolvedClientId, quote_number, client_name, client_address, client_email, client_phone,
       date, expiry_days, subtotal, vat_amount, ppda_amount, grand_total, notes, terms_conditions
     ]);
 
@@ -178,6 +186,7 @@ router.put('/:id', isAdmin, async (req, res) => {
 
     const { id } = req.params;
     const {
+      quote_number,
       client_name,
       client_address,
       client_email,
@@ -193,16 +202,29 @@ router.put('/:id', isAdmin, async (req, res) => {
       items
     } = req.body;
 
-    const [updateResult] = await connection.execute(`
-      UPDATE quotations 
-      SET client_name = ?, client_address = ?, client_email = ?, client_phone = ?,
-          date = ?, expiry_days = ?, subtotal = ?, vat_amount = ?, ppda_amount = ?, 
-          grand_total = ?, notes = ?, terms_conditions = ?
-      WHERE id = ?
-    `, [
-      client_name, client_address, client_email, client_phone,
-      date, expiry_days, subtotal, vat_amount, ppda_amount, grand_total, notes, terms_conditions, id
-    ]);
+    // Build the SET clause dynamically — `quote_number` was previously
+    // dropped by this route, which is why edits to it were silently ignored.
+    const fields = [];
+    const values = [];
+    if (quote_number != null)     { fields.push('quote_number = ?');     values.push(quote_number); }
+    if (client_name != null)      { fields.push('client_name = ?');      values.push(client_name); }
+    if (client_address != null)   { fields.push('client_address = ?');   values.push(client_address); }
+    if (client_email != null)     { fields.push('client_email = ?');     values.push(client_email); }
+    if (client_phone != null)     { fields.push('client_phone = ?');     values.push(client_phone); }
+    if (date != null)             { fields.push('date = ?');             values.push(date); }
+    if (expiry_days != null)      { fields.push('expiry_days = ?');      values.push(expiry_days); }
+    if (subtotal != null)         { fields.push('subtotal = ?');         values.push(subtotal); }
+    if (vat_amount != null)       { fields.push('vat_amount = ?');       values.push(vat_amount); }
+    if (ppda_amount != null)      { fields.push('ppda_amount = ?');      values.push(ppda_amount); }
+    if (grand_total != null)      { fields.push('grand_total = ?');      values.push(grand_total); }
+    if (notes != null)            { fields.push('notes = ?');            values.push(notes); }
+    if (terms_conditions != null) { fields.push('terms_conditions = ?'); values.push(terms_conditions); }
+    values.push(id);
+
+    const [updateResult] = await connection.execute(
+      `UPDATE quotations SET ${fields.join(', ')} WHERE id = ?`,
+      values
+    );
 
     if (updateResult.affectedRows === 0) {
       await connection.rollback();
@@ -233,6 +255,9 @@ router.put('/:id', isAdmin, async (req, res) => {
   } catch (error) {
     await connection.rollback();
     console.error('Error updating quotation:', error);
+    if (error && error.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({ error: 'A quotation with that number already exists for this company.' });
+    }
     res.status(500).json({ error: 'Failed to update quotation' });
   } finally {
     connection.release();

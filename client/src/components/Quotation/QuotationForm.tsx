@@ -1,19 +1,22 @@
 import React from 'react';
 import { useCompany } from '../../context/CompanyContext';
-import { QuotationItem, Quotation } from '../../types';
+import { QuotationItem, Quotation, Client } from '../../types';
 import { Plus, Trash2, Calculator } from 'lucide-react';
 import { formatCurrency, formatNumber } from '../../utils/calculations';
+import ClientPicker from './ClientPicker';
 
 interface QuotationFormProps {
   quotationData: Partial<Quotation>;
   onInputChange: (field: string, value: any) => void;
   onItemsChange: (items: QuotationItem[]) => void;
+  onClientSelected?: (client: Client) => void;
 }
 
 const QuotationForm: React.FC<QuotationFormProps> = ({
   quotationData,
   onInputChange,
-  onItemsChange
+  onItemsChange,
+  onClientSelected,
 }) => {
   const { selectedCompany } = useCompany();
 
@@ -180,13 +183,34 @@ const QuotationForm: React.FC<QuotationFormProps> = ({
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Client Name *
             </label>
-            <input
-              type="text"
-              value={quotationData.client_name || ''}
-              onChange={(e) => onInputChange('client_name', e.target.value)}
-              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500`}
-              required
-            />
+            {selectedCompany ? (
+              <ClientPicker
+                companyId={selectedCompany.id}
+                value={quotationData.client_name || ''}
+                onChange={(name) => {
+                  // Typing a new name detaches from any previously-selected client.
+                  if (quotationData.client_id) onInputChange('client_id', null);
+                  onInputChange('client_name', name);
+                }}
+                onSelect={(client) => {
+                  if (onClientSelected) {
+                    onClientSelected(client);
+                  } else {
+                    // Fallback: just set the name if no batched handler was passed.
+                    onInputChange('client_name', client.name);
+                  }
+                }}
+                required
+              />
+            ) : (
+              <input
+                type="text"
+                value={quotationData.client_name || ''}
+                onChange={(e) => onInputChange('client_name', e.target.value)}
+                className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                required
+              />
+            )}
           </div>
 
           <div>

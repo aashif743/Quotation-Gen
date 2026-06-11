@@ -1,5 +1,40 @@
 export type UserRole = 'staff' | 'admin';
 
+export interface Client {
+  id: number;
+  company_id: number;
+  name: string;
+  contact_person?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  tax_id?: string | null;
+  notes?: string | null;
+  created_at?: string;
+  updated_at?: string;
+
+  // Joined in list endpoints
+  quotation_count?: number;
+  invoice_count?: number;
+  delivery_note_count?: number;
+  total_invoiced?: number;
+  total_quoted?: number;
+  last_activity?: string | null;
+}
+
+export interface ClientDocSummary {
+  id: number;
+  number: string;
+  client_name: string;
+  date: string;
+  grand_total?: number;
+  signed_file_url?: string | null;
+  signed_at?: string | null;
+  created_at: string;
+  created_by?: number;
+  created_by_name?: string;
+}
+
 export interface User {
   id: number;
   name: string;
@@ -58,6 +93,7 @@ export interface QuotationItem {
 export interface Quotation {
   id?: number;
   company_id: number;
+  client_id?: number | null;
   quote_number: string;
   client_name: string;
   client_address?: string;
@@ -103,6 +139,7 @@ export interface InvoiceItem {
 export interface Invoice {
   id?: number;
   company_id: number;
+  client_id?: number | null;
   quotation_id?: number;
   invoice_number: string;
   client_name: string;
@@ -144,6 +181,7 @@ export interface DeliveryNoteItem {
 export interface DeliveryNote {
   id?: number;
   company_id: number;
+  client_id?: number | null;
   quotation_id?: number;
   delivery_note_number: string;
   client_name: string;

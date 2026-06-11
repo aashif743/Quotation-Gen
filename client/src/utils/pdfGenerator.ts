@@ -2,38 +2,68 @@ import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { Quotation, Invoice, DeliveryNote } from '../types';
 
+/**
+ * Capture the given DOM element and save it as a multi-page A4 PDF.
+ *
+ * Previously the whole document was squeezed onto a single A4 page (with the
+ * text getting smaller as more items were added). This now scales the image
+ * to **A4 width only** and slices it vertically into as many A4 pages as
+ * needed — the text stays at its proper size and a long quotation simply
+ * spans multiple pages.
+ */
+async function saveElementAsPdf(
+  element: HTMLElement,
+  filename: string
+): Promise<void> {
+  // Capture the element at 2x device pixels for a sharp PDF.
+  const canvas = await html2canvas(element, {
+    scale: 2,
+    useCORS: true,
+    allowTaint: true,
+    backgroundColor: '#ffffff',
+    height: element.scrollHeight,
+    width: element.scrollWidth,
+  });
+  const imgData = canvas.toDataURL('image/png');
+  const pdf = new jsPDF('p', 'mm', 'a4');
+
+  // Scale the image to A4 width — height becomes whatever maintains the
+  // captured aspect ratio.
+  const pageWidth = pdf.internal.pageSize.getWidth();   // 210mm
+  const pageHeight = pdf.internal.pageSize.getHeight(); // 297mm
+  const widthScale = pageWidth / canvas.width;
+  const totalHeight = canvas.height * widthScale;
+
+  if (totalHeight <= pageHeight) {
+    // Fits on a single page — center vertically with 0 top margin.
+    pdf.addImage(imgData, 'PNG', 0, 0, pageWidth, totalHeight);
+  } else {
+    // Multi-page slicing: the entire image is re-added each page, offset
+    // upward by however much has already been printed. The parts above the
+    // page boundary are clipped by jsPDF automatically.
+    let printedHeight = 0;
+    let pageIndex = 0;
+    // Small overlap (0.5mm) hides hairline gaps caused by pixel rounding.
+    const overlap = 0.5;
+    while (printedHeight < totalHeight - 0.1) {
+      if (pageIndex > 0) pdf.addPage();
+      pdf.addImage(imgData, 'PNG', 0, -printedHeight, pageWidth, totalHeight);
+      printedHeight += pageHeight - overlap;
+      pageIndex++;
+    }
+  }
+
+  pdf.save(filename);
+}
+
+const safeFileSegment = (s: string) => s.replace(/[^a-zA-Z0-9]/g, '_');
+
 export const generatePDF = async (quotation: Quotation): Promise<void> => {
   try {
-    const element = document.querySelector('.quotation-document') as HTMLElement;
-    if (!element) {
-      throw new Error('Quotation document not found');
-    }
-
-    const canvas = await html2canvas(element, {
-      scale: 2,
-      useCORS: true,
-      allowTaint: true,
-      backgroundColor: '#ffffff',
-      height: element.scrollHeight,
-      width: element.scrollWidth,
-    });
-
-    const imgData = canvas.toDataURL('image/png');
-    const pdf = new jsPDF('p', 'mm', 'a4');
-    
-    const pdfWidth = pdf.internal.pageSize.getWidth();
-    const pdfHeight = pdf.internal.pageSize.getHeight();
-    const imgWidth = canvas.width;
-    const imgHeight = canvas.height;
-    
-    const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
-    const imgX = (pdfWidth - imgWidth * ratio) / 2;
-    const imgY = 0;
-    
-    pdf.addImage(imgData, 'PNG', imgX, imgY, imgWidth * ratio, imgHeight * ratio);
-    
-    const filename = `${quotation.quote_number}_${quotation.client_name.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
-    pdf.save(filename);
+    const element = document.querySelector('.quotation-document') as HTMLElement | null;
+    if (!element) throw new Error('Quotation document not found');
+    const filename = `${quotation.quote_number}_${safeFileSegment(quotation.client_name)}.pdf`;
+    await saveElementAsPdf(element, filename);
   } catch (error) {
     console.error('Error generating PDF:', error);
     throw new Error('Failed to generate PDF');
@@ -399,36 +429,10 @@ export const generateQuotationHTML = (quotation: Quotation): string => {
 
 export const generateInvoicePDF = async (invoice: Invoice): Promise<void> => {
   try {
-    const element = document.querySelector('.invoice-document') as HTMLElement;
-    if (!element) {
-      throw new Error('Invoice document not found');
-    }
-
-    const canvas = await html2canvas(element, {
-      scale: 2,
-      useCORS: true,
-      allowTaint: true,
-      backgroundColor: '#ffffff',
-      height: element.scrollHeight,
-      width: element.scrollWidth,
-    });
-
-    const imgData = canvas.toDataURL('image/png');
-    const pdf = new jsPDF('p', 'mm', 'a4');
-
-    const pdfWidth = pdf.internal.pageSize.getWidth();
-    const pdfHeight = pdf.internal.pageSize.getHeight();
-    const imgWidth = canvas.width;
-    const imgHeight = canvas.height;
-
-    const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
-    const imgX = (pdfWidth - imgWidth * ratio) / 2;
-    const imgY = 0;
-
-    pdf.addImage(imgData, 'PNG', imgX, imgY, imgWidth * ratio, imgHeight * ratio);
-
-    const filename = `${invoice.invoice_number}_${invoice.client_name.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
-    pdf.save(filename);
+    const element = document.querySelector('.invoice-document') as HTMLElement | null;
+    if (!element) throw new Error('Invoice document not found');
+    const filename = `${invoice.invoice_number}_${safeFileSegment(invoice.client_name)}.pdf`;
+    await saveElementAsPdf(element, filename);
   } catch (error) {
     console.error('Error generating PDF:', error);
     throw new Error('Failed to generate PDF');
@@ -437,34 +441,13 @@ export const generateInvoicePDF = async (invoice: Invoice): Promise<void> => {
 
 export const generateDeliveryNotePDF = async (deliveryNote: DeliveryNote): Promise<void> => {
   try {
-    const element = document.querySelector('.delivery-note-document') as HTMLElement;
-    if (!element) {
-      throw new Error('Delivery note document not found');
-    }
-
-    const canvas = await html2canvas(element, {
-      scale: 2,
-      useCORS: true,
-      allowTaint: true,
-      backgroundColor: '#ffffff',
-      height: element.scrollHeight,
-      width: element.scrollWidth,
-    });
-
-    const imgData = canvas.toDataURL('image/png');
-    const pdf = new jsPDF('p', 'mm', 'a4');
-
-    const pdfWidth = pdf.internal.pageSize.getWidth();
-    const pdfHeight = pdf.internal.pageSize.getHeight();
-    const ratio = Math.min(pdfWidth / canvas.width, pdfHeight / canvas.height);
-    const imgX = (pdfWidth - canvas.width * ratio) / 2;
-
-    pdf.addImage(imgData, 'PNG', imgX, 0, canvas.width * ratio, canvas.height * ratio);
-
-    const filename = `${deliveryNote.delivery_note_number}_${deliveryNote.client_name.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
-    pdf.save(filename);
+    const element = document.querySelector('.delivery-note-document') as HTMLElement | null;
+    if (!element) throw new Error('Delivery note document not found');
+    const filename = `${deliveryNote.delivery_note_number}_${safeFileSegment(deliveryNote.client_name)}.pdf`;
+    await saveElementAsPdf(element, filename);
   } catch (error) {
     console.error('Error generating delivery note PDF:', error);
     throw new Error('Failed to generate PDF');
   }
 };
+

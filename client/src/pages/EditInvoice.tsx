@@ -100,13 +100,22 @@ const EditInvoice: React.FC = () => {
     e.preventDefault();
     if (!id || !selectedCompany || !invoiceData.items || invoiceData.items.length === 0) return;
 
+    if (!invoiceData.invoice_number?.trim()) {
+      alert('Please enter an invoice number.');
+      return;
+    }
+
     setLoading(true);
     try {
       await updateInvoice(parseInt(id), invoiceData as Partial<Invoice>);
       navigate(`/invoice/${id}`);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating invoice:', error);
-      alert('Failed to update invoice. Please try again.');
+      const message =
+        error?.response?.data?.error ||
+        error?.response?.data?.message ||
+        'Failed to update invoice. Please try again.';
+      alert(message);
     } finally {
       setLoading(false);
     }

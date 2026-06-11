@@ -217,6 +217,13 @@ const QuotationView: React.FC = () => {
           logo_url: quotation.company_quote_logo || quotation.company_logo,
           primary_color: quotation.primary_color,
           secondary_color: quotation.secondary_color,
+          // Back-calculate the rates from the stored amounts so the saved
+          // document shows the same "VAT (X%)" / "PPDA (X%)" labels as the
+          // live preview did.
+          vat_rate: quotation.vat_rate
+            ?? (quotation.subtotal ? (quotation.vat_amount || 0) / quotation.subtotal : undefined),
+          ppda_rate: quotation.ppda_rate
+            ?? (quotation.subtotal ? (quotation.ppda_amount || 0) / quotation.subtotal : undefined),
         }}
       />
     </div>

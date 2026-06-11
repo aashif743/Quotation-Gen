@@ -193,6 +193,92 @@ async function migrate() {
     }
   }
 
+  // 3f. clients table + client_id columns (per-company "real client" file)
+  if (!(await tableExists('clients'))) {
+    console.log('  • Creating `clients` table...');
+    await db.query(`
+      CREATE TABLE \`clients\` (
+        \`id\` INT PRIMARY KEY AUTO_INCREMENT,
+        \`company_id\` INT NOT NULL,
+        \`name\` VARCHAR(255) NOT NULL,
+        \`contact_person\` VARCHAR(255),
+        \`email\` VARCHAR(255),
+        \`phone\` VARCHAR(50),
+        \`address\` TEXT,
+        \`tax_id\` VARCHAR(50),
+        \`notes\` TEXT,
+        \`created_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        \`updated_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (\`company_id\`) REFERENCES \`companies\`(\`id\`) ON DELETE CASCADE,
+        UNIQUE KEY \`unique_client_per_company\` (\`company_id\`, \`name\`)
+      ) ENGINE=InnoDB
+    `);
+  } else {
+    console.log('  • clients already present, skipping.');
+  }
+
+  // Add client_id to documents that reference clients
+  for (const tableName of ['quotations', 'invoices', 'delivery_notes']) {
+    if (!(await columnExists(tableName, 'client_id'))) {
+      console.log(`  • Adding \`client_id\` column to ${tableName}...`);
+      await db.query(`ALTER TABLE \`${tableName}\` ADD COLUMN \`client_id\` INT NULL`);
+      try {
+        await db.query(
+          `ALTER TABLE \`${tableName}\` ADD CONSTRAINT \`fk_${tableName}_client_id\` ` +
+          `FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON DELETE SET NULL`
+        );
+        console.log(`  • Added FK ${tableName}.client_id → clients.id`);
+      } catch (err) {
+        console.warn(`  ⚠️  Could not add FK on ${tableName}.client_id:`, err.message);
+      }
+    } else {
+      console.log(`  • ${tableName}.client_id already present, skipping.`);
+    }
+  }
+
+  // Backfill clients from existing documents. Group by (company_id, client_name)
+  // so the same recurring customer gets a single client row. Skip rows that
+  // already have client_id set so re-running is safe.
+  console.log('  • Backfilling clients from existing documents...');
+  const docTables = ['quotations', 'invoices', 'delivery_notes'];
+  for (const docTable of docTables) {
+    const [rows] = await db.query(`
+      SELECT DISTINCT d.company_id, d.client_name,
+             MIN(d.client_address) AS client_address,
+             MIN(d.client_email)   AS client_email,
+             MIN(d.client_phone)   AS client_phone
+        FROM \`${docTable}\` d
+       WHERE d.client_id IS NULL AND d.client_name IS NOT NULL AND d.client_name <> ''
+       GROUP BY d.company_id, d.client_name
+    `);
+    let created = 0;
+    let linked = 0;
+    for (const r of rows) {
+      // Get-or-create the client.
+      const [existing] = await db.execute(
+        'SELECT id FROM clients WHERE company_id = ? AND name = ?',
+        [r.company_id, r.client_name]
+      );
+      let clientId;
+      if (existing.length > 0) {
+        clientId = existing[0].id;
+      } else {
+        const [ins] = await db.execute(
+          'INSERT INTO clients (company_id, name, address, email, phone) VALUES (?, ?, ?, ?, ?)',
+          [r.company_id, r.client_name, r.client_address || null, r.client_email || null, r.client_phone || null]
+        );
+        clientId = ins.insertId;
+        created++;
+      }
+      const [upd] = await db.execute(
+        `UPDATE \`${docTable}\` SET client_id = ? WHERE company_id = ? AND client_name = ? AND client_id IS NULL`,
+        [clientId, r.company_id, r.client_name]
+      );
+      linked += upd.affectedRows;
+    }
+    console.log(`    ${docTable}: created ${created} client(s), linked ${linked} row(s)`);
+  }
+
   // 4. Backfill created_by from each row's company owner so existing records
   //    are attributed to the user who originally owned the company.
   const [qBackfill] = await db.query(

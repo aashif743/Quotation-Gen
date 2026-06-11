@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useCompany } from '../context/CompanyContext';
 import { useAuth } from '../context/AuthContext';
-import { QuotationItem, Quotation } from '../types';
-import { createQuotation, getNextQuoteNumber } from '../services/api';
+import { QuotationItem, Quotation, Client } from '../types';
+import { createQuotation, getNextQuoteNumber, getClient } from '../services/api';
 import {
   calculateSubtotal,
   calculateVAT,
@@ -33,6 +33,7 @@ const draftKey = (userId: number, companyId: number) =>
 
 const NewQuotation: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { selectedCompany } = useCompany();
   const { user } = useAuth();
   const [showPreview, setShowPreview] = useState(true);
@@ -117,6 +118,39 @@ const NewQuotation: React.FC = () => {
       /* quota exceeded, etc. — ignore */
     }
   }, [quotationData, user?.id]);
+
+  // When the user picks an existing client from the ClientPicker autocomplete,
+  // we batch-update name + contact fields + the client_id link in one setState
+  // so the form doesn't re-render four times.
+  const handleClientSelected = (client: Client) => {
+    setQuotationData((prev) => ({
+      ...prev,
+      client_id: client.id,
+      client_name: client.name,
+      client_address: client.address || prev.client_address || '',
+      client_email: client.email || prev.client_email || '',
+      client_phone: client.phone || prev.client_phone || '',
+    }));
+  };
+
+  // "New Quotation for this client" coming from the Client detail page is a
+  // navigation to `/new-quotation?clientId=123`. Resolve it once on mount and
+  // apply, then strip the query param so a refresh doesn't keep re-applying.
+  useEffect(() => {
+    const clientIdParam = searchParams.get('clientId');
+    if (!clientIdParam) return;
+    (async () => {
+      try {
+        const client = await getClient(parseInt(clientIdParam, 10));
+        handleClientSelected(client);
+        searchParams.delete('clientId');
+        setSearchParams(searchParams, { replace: true });
+      } catch {
+        /* invalid id — silently ignore */
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleInputChange = (field: string, value: any) => {
     setQuotationData((prev) => {
@@ -287,6 +321,7 @@ const NewQuotation: React.FC = () => {
             quotationData={quotationData}
             onInputChange={handleInputChange}
             onItemsChange={handleItemsChange}
+            onClientSelected={handleClientSelected}
           />
         </div>
 
