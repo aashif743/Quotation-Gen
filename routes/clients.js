@@ -25,20 +25,42 @@ router.get('/', async (req, res) => {
     }
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
+    // Single round-trip with grouped LEFT JOINs (one subquery per related
+    // table) — much faster than five correlated subqueries per row,
+    // especially against a remote Hostinger DB where each round-trip costs
+    // 100-300ms.
     const [rows] = await db.execute(
       `
       SELECT c.id, c.company_id, c.name, c.contact_person, c.email, c.phone,
              c.address, c.tax_id, c.notes, c.created_at, c.updated_at,
-             (SELECT COUNT(*) FROM quotations    q WHERE q.client_id = c.id) AS quotation_count,
-             (SELECT COUNT(*) FROM invoices      i WHERE i.client_id = c.id) AS invoice_count,
-             (SELECT COUNT(*) FROM delivery_notes d WHERE d.client_id = c.id) AS delivery_note_count,
-             (SELECT IFNULL(SUM(i.grand_total), 0) FROM invoices i WHERE i.client_id = c.id) AS total_invoiced,
+             IFNULL(q.cnt, 0)   AS quotation_count,
+             IFNULL(i.cnt, 0)   AS invoice_count,
+             IFNULL(d.cnt, 0)   AS delivery_note_count,
+             IFNULL(i.total, 0) AS total_invoiced,
              GREATEST(
-               IFNULL((SELECT MAX(q.created_at) FROM quotations    q WHERE q.client_id = c.id), '1970-01-01'),
-               IFNULL((SELECT MAX(i.created_at) FROM invoices      i WHERE i.client_id = c.id), '1970-01-01'),
-               IFNULL((SELECT MAX(d.created_at) FROM delivery_notes d WHERE d.client_id = c.id), '1970-01-01')
+               IFNULL(q.latest, '1970-01-01'),
+               IFNULL(i.latest, '1970-01-01'),
+               IFNULL(d.latest, '1970-01-01')
              ) AS last_activity
         FROM clients c
+        LEFT JOIN (
+          SELECT client_id, COUNT(*) AS cnt, MAX(created_at) AS latest
+            FROM quotations
+           WHERE client_id IS NOT NULL
+           GROUP BY client_id
+        ) q ON q.client_id = c.id
+        LEFT JOIN (
+          SELECT client_id, COUNT(*) AS cnt, SUM(grand_total) AS total, MAX(created_at) AS latest
+            FROM invoices
+           WHERE client_id IS NOT NULL
+           GROUP BY client_id
+        ) i ON i.client_id = c.id
+        LEFT JOIN (
+          SELECT client_id, COUNT(*) AS cnt, MAX(created_at) AS latest
+            FROM delivery_notes
+           WHERE client_id IS NOT NULL
+           GROUP BY client_id
+        ) d ON d.client_id = c.id
         ${whereSql}
        ORDER BY c.name
       `,

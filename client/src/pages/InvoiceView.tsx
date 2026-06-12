@@ -361,35 +361,17 @@ const InvoiceView: React.FC = () => {
             </div>
           </div>
 
-          {(invoice.notes || invoice.terms_conditions) && (
-            <div className="space-y-6">
-              {invoice.notes && (
-                <div>
-                  <h4
-                    className="text-lg font-semibold mb-2"
-                    style={{ color: colors.primary }}
-                  >
-                    Notes
-                  </h4>
-                  <div className="text-sm text-gray-600 whitespace-pre-wrap">
-                    {invoice.notes}
-                  </div>
-                </div>
-              )}
-
-              {invoice.terms_conditions && (
-                <div>
-                  <h4
-                    className="text-lg font-semibold mb-2"
-                    style={{ color: colors.primary }}
-                  >
-                    Terms & Conditions
-                  </h4>
-                  <div className="text-sm text-gray-600 whitespace-pre-wrap">
-                    {invoice.terms_conditions}
-                  </div>
-                </div>
-              )}
+          {invoice.notes && (
+            <div>
+              <h4
+                className="text-lg font-semibold mb-2"
+                style={{ color: colors.primary }}
+              >
+                Notes
+              </h4>
+              <div className="text-sm text-gray-600 whitespace-pre-wrap">
+                {invoice.notes}
+              </div>
             </div>
           )}
 

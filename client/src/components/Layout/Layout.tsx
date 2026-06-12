@@ -2,7 +2,7 @@ import React, { ReactNode, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useCompany } from '../../context/CompanyContext';
 import { useAuth } from '../../context/AuthContext';
-import CompanySelector from './CompanySelector';
+import CompanySelector, { CompanyThumb } from './CompanySelector';
 import {
   Home,
   FileText,
@@ -20,6 +20,42 @@ import {
   Truck,
   Briefcase,
 } from 'lucide-react';
+
+// Banner-style header logo with cascading fallback so a broken/404 image
+// never leaves a blank gap in the header:
+//   1) admin-uploaded thumbnail (logo_url) — tried first
+//   2) bundled brand logo (quote_logo_url) — fallback if (1) fails to load
+//   3) round CompanyThumb (which falls back to initials) — final safety net
+const HeaderLogo: React.FC<{ company: NonNullable<ReturnType<typeof useCompany>['selectedCompany']> }> = ({ company }) => {
+  // 0 = uploaded thumbnail, 1 = bundled brand logo, 2 = thumb fallback.
+  const [stage, setStage] = React.useState(0);
+  // Reset to stage 0 whenever the company changes.
+  React.useEffect(() => {
+    setStage(0);
+  }, [company.id]);
+
+  const candidates = React.useMemo(
+    () => [company.logo_url, company.quote_logo_url].filter(Boolean) as string[],
+    [company.logo_url, company.quote_logo_url]
+  );
+
+  if (stage >= candidates.length) {
+    return <CompanyThumb company={company} size="lg" />;
+  }
+
+  return (
+    <img
+      key={candidates[stage]}
+      src={candidates[stage]}
+      alt={`${company.name} logo`}
+      className="object-contain max-h-14 w-auto"
+      loading="eager"
+      decoding="async"
+      draggable={false}
+      onError={() => setStage((s) => s + 1)}
+    />
+  );
+};
 
 interface LayoutProps {
   children: ReactNode;
@@ -217,19 +253,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   {selectedCompany?.address}
                 </p>
               </div>
-              {/* Header shows the real logo (banner-style, not a cropped
-                  thumbnail) — falls back to the bundled brand logo when
-                  no thumbnail has been uploaded. */}
-              {selectedCompany && (selectedCompany.logo_url || selectedCompany.quote_logo_url) && (
-                <img
-                  src={selectedCompany.logo_url || selectedCompany.quote_logo_url}
-                  alt={`${selectedCompany.name} logo`}
-                  className="object-contain max-h-14 w-auto"
-                  loading="eager"
-                  decoding="async"
-                  draggable={false}
-                />
-              )}
+              {selectedCompany && <HeaderLogo company={selectedCompany} />}
             </div>
           </header>
 

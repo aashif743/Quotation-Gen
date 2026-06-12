@@ -236,7 +236,7 @@ router.post('/from-quotation/:quotationId', async (req, res) => {
       quotation.ppda_amount,
       quotation.grand_total,
       quotation.notes,
-      quotation.terms_conditions
+      null // terms_conditions intentionally not copied — invoices no longer use T&C
     ]);
 
     const invoiceId = invoiceResult.insertId;

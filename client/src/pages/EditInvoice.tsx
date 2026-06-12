@@ -205,9 +205,14 @@ const EditInvoice: React.FC = () => {
               <input
                 type="text"
                 value={invoiceData.invoice_number || ''}
-                className="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg text-gray-600"
-                disabled
+                onChange={(e) => handleInputChange('invoice_number', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                placeholder="e.g. EH-INV-0001"
+                required
               />
+              <p className="mt-1 text-xs text-gray-500">
+                Auto-generated when created. Edit if needed.
+              </p>
             </div>
 
             <div>
@@ -434,18 +439,6 @@ const EditInvoice: React.FC = () => {
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Terms & Conditions
-              </label>
-              <textarea
-                value={invoiceData.terms_conditions || ''}
-                onChange={(e) => handleInputChange('terms_conditions', e.target.value)}
-                rows={4}
-                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500`}
-                placeholder="Terms and conditions for this invoice"
-              />
-            </div>
           </div>
         </div>
       </div>

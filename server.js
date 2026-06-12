@@ -1,4 +1,5 @@
 const express = require('express');
+const compression = require('compression');
 const cors = require('cors');
 const session = require('express-session');
 const MySQLStore = require('express-mysql-session')(session);
@@ -21,6 +22,10 @@ const isProd = process.env.NODE_ENV === 'production';
 if (isProd) {
   app.set('trust proxy', 1);
 }
+
+// gzip all eligible responses — big win for the React JS/CSS bundles
+// (typically 70%+ size reduction) and JSON API responses.
+app.use(compression());
 
 // In production the React build is served from this same origin so CORS is
 // not needed at all. In development the React dev server runs on a different
