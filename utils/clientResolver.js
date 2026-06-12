@@ -22,11 +22,14 @@ async function resolveClientId(connection, payload) {
   );
   if (existing.length > 0) return existing[0].id;
 
+  // Record who first created this client so the Clients page can scope by
+  // role (staff see only their own clients + clients they have docs for).
   const [ins] = await connection.execute(
-    `INSERT INTO clients (company_id, name, address, email, phone)
-     VALUES (?, ?, ?, ?, ?)`,
+    `INSERT INTO clients (company_id, created_by, name, address, email, phone)
+     VALUES (?, ?, ?, ?, ?, ?)`,
     [
       company_id,
+      payload.created_by || null,
       name,
       payload.client_address || null,
       payload.client_email || null,

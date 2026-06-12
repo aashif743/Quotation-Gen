@@ -118,6 +118,7 @@ router.post('/', async (req, res) => {
 
     const resolvedClientId = await resolveClientId(connection, {
       company_id, client_id, client_name, client_address, client_email, client_phone,
+      created_by: req.user.id,
     });
 
     const [invoiceResult] = await connection.execute(`

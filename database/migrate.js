@@ -193,6 +193,22 @@ async function migrate() {
     }
   }
 
+  // 3g. clients.created_by (added 2026-06-12) — drives role-based scoping so
+  //     staff only see clients they created or have documents for.
+  if (await tableExists('clients') && !(await columnExists('clients', 'created_by'))) {
+    console.log('  • Adding `created_by` column to clients...');
+    await db.query('ALTER TABLE `clients` ADD COLUMN `created_by` INT NULL AFTER `company_id`');
+    try {
+      await db.query(
+        'ALTER TABLE `clients` ADD CONSTRAINT `fk_clients_created_by` ' +
+          'FOREIGN KEY (`created_by`) REFERENCES `users`(`id`) ON DELETE SET NULL'
+      );
+      console.log('  • Added FK clients.created_by → users.id');
+    } catch (err) {
+      console.warn('  ⚠️  Could not add FK on clients.created_by:', err.message);
+    }
+  }
+
   // 3f. clients table + client_id columns (per-company "real client" file)
   if (!(await tableExists('clients'))) {
     console.log('  • Creating `clients` table...');

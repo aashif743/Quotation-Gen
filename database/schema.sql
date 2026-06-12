@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS `companies` (
 CREATE TABLE IF NOT EXISTS `clients` (
     `id` INT PRIMARY KEY AUTO_INCREMENT,
     `company_id` INT NOT NULL,
+    `created_by` INT,
     `name` VARCHAR(255) NOT NULL,
     `contact_person` VARCHAR(255),
     `email` VARCHAR(255),
@@ -49,6 +50,7 @@ CREATE TABLE IF NOT EXISTS `clients` (
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (`company_id`) REFERENCES `companies`(`id`) ON DELETE CASCADE,
+    FOREIGN KEY (`created_by`) REFERENCES `users`(`id`) ON DELETE SET NULL,
     UNIQUE KEY `unique_client_per_company` (`company_id`, `name`)
 ) ENGINE=InnoDB;
 

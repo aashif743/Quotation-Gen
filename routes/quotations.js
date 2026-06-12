@@ -119,6 +119,7 @@ router.post('/', async (req, res) => {
     // customer in the Clients page. Pass-through null if no client name.
     const resolvedClientId = await resolveClientId(connection, {
       company_id, client_id, client_name, client_address, client_email, client_phone,
+      created_by: req.user.id,
     });
 
     const [quotationResult] = await connection.execute(`

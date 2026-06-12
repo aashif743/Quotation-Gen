@@ -10,9 +10,17 @@ router.use(isAuthenticated);
 // Listing endpoint also powers the autocomplete on the New Quotation form.
 // Each row includes counts and a "last activity" timestamp so the Clients
 // page can render the summary table without further round-trips.
+//
+// Role scoping (added 2026-06-12): staff see only the clients they
+// created OR clients they have at least one document for. Counts and totals
+// in their view also reflect only their own documents. Admins see
+// everything.
 router.get('/', async (req, res) => {
   try {
     const { company_id, q } = req.query;
+    const isAdmin = req.user.role === 'admin';
+    const userId = req.user.id;
+
     const params = [];
     const where = [];
     if (company_id) {
@@ -23,16 +31,30 @@ router.get('/', async (req, res) => {
       where.push('c.name LIKE ?');
       params.push(`%${q}%`);
     }
+
+    // Per-row visibility predicate. Inlining the user id everywhere keeps
+    // the EXISTS short-circuits efficient at the DB level.
+    if (!isAdmin) {
+      where.push(`(
+        c.created_by = ?
+        OR EXISTS (SELECT 1 FROM quotations    qx WHERE qx.client_id = c.id AND qx.created_by = ?)
+        OR EXISTS (SELECT 1 FROM invoices      ix WHERE ix.client_id = c.id AND ix.created_by = ?)
+        OR EXISTS (SELECT 1 FROM delivery_notes dx WHERE dx.client_id = c.id AND dx.created_by = ?)
+      )`);
+      params.push(userId, userId, userId, userId);
+    }
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
-    // Single round-trip with grouped LEFT JOINs (one subquery per related
-    // table) — much faster than five correlated subqueries per row,
-    // especially against a remote Hostinger DB where each round-trip costs
-    // 100-300ms.
+    // The aggregate subqueries themselves are also filtered by created_by
+    // for staff — so the counts/totals they see only reflect their own
+    // documents, never another staff's or the admin's.
+    const docFilter = isAdmin ? '' : 'AND created_by = ?';
+    const docParams = isAdmin ? [] : [userId, userId, userId];
+
     const [rows] = await db.execute(
       `
       SELECT c.id, c.company_id, c.name, c.contact_person, c.email, c.phone,
-             c.address, c.tax_id, c.notes, c.created_at, c.updated_at,
+             c.address, c.tax_id, c.notes, c.created_at, c.updated_at, c.created_by,
              IFNULL(q.cnt, 0)   AS quotation_count,
              IFNULL(i.cnt, 0)   AS invoice_count,
              IFNULL(d.cnt, 0)   AS delivery_note_count,
@@ -46,25 +68,26 @@ router.get('/', async (req, res) => {
         LEFT JOIN (
           SELECT client_id, COUNT(*) AS cnt, MAX(created_at) AS latest
             FROM quotations
-           WHERE client_id IS NOT NULL
+           WHERE client_id IS NOT NULL ${docFilter}
            GROUP BY client_id
         ) q ON q.client_id = c.id
         LEFT JOIN (
           SELECT client_id, COUNT(*) AS cnt, SUM(grand_total) AS total, MAX(created_at) AS latest
             FROM invoices
-           WHERE client_id IS NOT NULL
+           WHERE client_id IS NOT NULL ${docFilter}
            GROUP BY client_id
         ) i ON i.client_id = c.id
         LEFT JOIN (
           SELECT client_id, COUNT(*) AS cnt, MAX(created_at) AS latest
             FROM delivery_notes
-           WHERE client_id IS NOT NULL
+           WHERE client_id IS NOT NULL ${docFilter}
            GROUP BY client_id
         ) d ON d.client_id = c.id
         ${whereSql}
        ORDER BY c.name
       `,
-      params
+      // Subquery params come first (in JOIN order), then the WHERE params.
+      [...docParams, ...params]
     );
     res.json(rows);
   } catch (error) {
@@ -74,20 +97,48 @@ router.get('/', async (req, res) => {
 });
 
 // GET /api/clients/:id — full record with stats.
+// Staff role: 404 unless they created this client or have at least one
+// document referencing it. Their stats only reflect their own documents.
 router.get('/:id', async (req, res) => {
   try {
+    const isAdmin = req.user.role === 'admin';
+    const userId = req.user.id;
+    const clientId = req.params.id;
+
+    if (!isAdmin) {
+      const [allowed] = await db.execute(
+        `SELECT 1 FROM clients c
+          WHERE c.id = ? AND (
+            c.created_by = ?
+            OR EXISTS (SELECT 1 FROM quotations    qx WHERE qx.client_id = c.id AND qx.created_by = ?)
+            OR EXISTS (SELECT 1 FROM invoices      ix WHERE ix.client_id = c.id AND ix.created_by = ?)
+            OR EXISTS (SELECT 1 FROM delivery_notes dx WHERE dx.client_id = c.id AND dx.created_by = ?)
+          )
+          LIMIT 1`,
+        [clientId, userId, userId, userId, userId]
+      );
+      if (allowed.length === 0) {
+        return res.status(404).json({ error: 'Client not found' });
+      }
+    }
+
+    const docFilter = isAdmin ? '' : 'AND created_by = ?';
+    const subParams = isAdmin
+      ? [clientId, clientId, clientId, clientId, clientId, clientId]
+      : [clientId, userId, clientId, userId, clientId, userId, clientId, userId, clientId, userId];
+
     const [rows] = await db.execute(
       `
       SELECT c.*,
-             (SELECT COUNT(*) FROM quotations    q WHERE q.client_id = c.id) AS quotation_count,
-             (SELECT COUNT(*) FROM invoices      i WHERE i.client_id = c.id) AS invoice_count,
-             (SELECT COUNT(*) FROM delivery_notes d WHERE d.client_id = c.id) AS delivery_note_count,
-             (SELECT IFNULL(SUM(q.grand_total), 0) FROM quotations q WHERE q.client_id = c.id) AS total_quoted,
-             (SELECT IFNULL(SUM(i.grand_total), 0) FROM invoices i WHERE i.client_id = c.id) AS total_invoiced
+             (SELECT COUNT(*) FROM quotations    q WHERE q.client_id = ? ${docFilter}) AS quotation_count,
+             (SELECT COUNT(*) FROM invoices      i WHERE i.client_id = ? ${docFilter}) AS invoice_count,
+             (SELECT COUNT(*) FROM delivery_notes d WHERE d.client_id = ? ${docFilter}) AS delivery_note_count,
+             (SELECT IFNULL(SUM(q.grand_total), 0) FROM quotations q WHERE q.client_id = ? ${docFilter}) AS total_quoted,
+             (SELECT IFNULL(SUM(i.grand_total), 0) FROM invoices i WHERE i.client_id = ? ${docFilter}) AS total_invoiced
         FROM clients c
        WHERE c.id = ?
       `,
-      [req.params.id]
+      subParams
     );
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Client not found' });
@@ -165,9 +216,9 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ message: 'company_id and name are required.' });
     }
     const [result] = await db.execute(
-      `INSERT INTO clients (company_id, name, contact_person, email, phone, address, tax_id, notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [company_id, name.trim(), contact_person || null, email || null, phone || null,
+      `INSERT INTO clients (company_id, created_by, name, contact_person, email, phone, address, tax_id, notes)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [company_id, req.user.id, name.trim(), contact_person || null, email || null, phone || null,
        address || null, tax_id || null, notes || null]
     );
     const [created] = await db.execute('SELECT * FROM clients WHERE id = ?', [result.insertId]);
