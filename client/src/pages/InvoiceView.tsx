@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getInvoice } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import { Invoice } from '../types';
 import { formatCurrency, formatNumber } from '../utils/calculations';
 import { generateInvoicePDF } from '../utils/pdfGenerator';
@@ -20,6 +21,7 @@ import {
 const InvoiceView: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user, isAdmin } = useAuth();
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -124,13 +126,16 @@ const InvoiceView: React.FC = () => {
         </button>
 
         <div className="flex items-center space-x-4">
-          <button
-            onClick={() => navigate(`/edit-invoice/${id}`)}
-            className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50"
-          >
-            <Edit2 className="h-4 w-4 mr-2" />
-            Edit
-          </button>
+          {/* Admin can edit anything; staff can edit their own invoices. */}
+          {(isAdmin || (user && invoice.created_by === user.id)) && (
+            <button
+              onClick={() => navigate(`/edit-invoice/${id}`)}
+              className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50"
+            >
+              <Edit2 className="h-4 w-4 mr-2" />
+              Edit
+            </button>
+          )}
 
           <button
             onClick={handlePrint}

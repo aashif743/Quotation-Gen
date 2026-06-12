@@ -252,6 +252,14 @@ export const createDeliveryNoteFromQuotation = async (quotationId: number): Prom
   return response.data;
 };
 
+export const updateDeliveryNote = async (
+  id: number,
+  data: Partial<DeliveryNote>
+): Promise<DeliveryNote> => {
+  const response = await api.put(`/delivery-notes/${id}`, data);
+  return response.data;
+};
+
 export const deleteDeliveryNote = async (id: number): Promise<void> => {
   await api.delete(`/delivery-notes/${id}`);
 };

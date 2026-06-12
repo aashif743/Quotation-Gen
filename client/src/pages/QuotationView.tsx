@@ -10,7 +10,7 @@ import { Download, Edit2, ArrowLeft, Printer, FileText, Truck } from 'lucide-rea
 const QuotationView: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { isAdmin } = useAuth();
+  const { user, isAdmin } = useAuth();
   const [quotation, setQuotation] = useState<Quotation | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -122,7 +122,8 @@ const QuotationView: React.FC = () => {
         </button>
         
         <div className="flex items-center space-x-4">
-          {isAdmin && (
+          {/* Admin can edit anything; staff can edit their own quotations. */}
+          {(isAdmin || (user && quotation.created_by === user.id)) && (
             <button
               onClick={() => navigate(`/edit-quotation/${id}`)}
               className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50"

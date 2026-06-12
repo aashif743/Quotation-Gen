@@ -178,8 +178,20 @@ router.post('/', async (req, res) => {
   }
 });
 
-// Staff are view-only; only admins may edit or delete quotations.
-router.put('/:id', isAdmin, async (req, res) => {
+// Staff may edit their own quotations; admins may edit any. Delete remains
+// admin-only.
+router.put('/:id', async (req, res) => {
+  const [check] = await db.execute(
+    'SELECT created_by FROM quotations WHERE id = ?',
+    [req.params.id]
+  );
+  if (check.length === 0) {
+    return res.status(404).json({ error: 'Quotation not found' });
+  }
+  if (req.user.role !== 'admin' && check[0].created_by !== req.user.id) {
+    return res.status(403).json({ error: 'You can only edit your own quotations.' });
+  }
+
   const connection = await db.getConnection();
   
   try {

@@ -271,8 +271,20 @@ router.post('/from-quotation/:quotationId', async (req, res) => {
   }
 });
 
-// Update invoice (staff are view-only; admins only)
-router.put('/:id', isAdmin, async (req, res) => {
+// Update invoice — staff may edit their own; admins may edit any. Delete
+// remains admin-only.
+router.put('/:id', async (req, res) => {
+  const [check] = await db.execute(
+    'SELECT created_by FROM invoices WHERE id = ?',
+    [req.params.id]
+  );
+  if (check.length === 0) {
+    return res.status(404).json({ error: 'Invoice not found' });
+  }
+  if (req.user.role !== 'admin' && check[0].created_by !== req.user.id) {
+    return res.status(403).json({ error: 'You can only edit your own invoices.' });
+  }
+
   const connection = await db.getConnection();
 
   try {

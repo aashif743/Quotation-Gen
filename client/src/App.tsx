@@ -14,6 +14,7 @@ import EditQuotation from './pages/EditQuotation';
 import EditInvoice from './pages/EditInvoice';
 import DeliveryNoteView from './pages/DeliveryNoteView';
 import DeliveryNoteHistory from './pages/DeliveryNoteHistory';
+import EditDeliveryNote from './pages/EditDeliveryNote';
 import Clients from './pages/Clients';
 import ClientDetail from './pages/ClientDetail';
 import UserManagement from './pages/UserManagement';
@@ -109,6 +110,7 @@ function AppRoutes() {
                   <Route path="/edit-invoice/:id" element={<EditInvoice />} />
                   <Route path="/delivery-note/:id" element={<DeliveryNoteView />} />
                   <Route path="/delivery-history" element={<DeliveryNoteHistory />} />
+                  <Route path="/edit-delivery-note/:id" element={<EditDeliveryNote />} />
                   <Route path="/clients" element={<Clients />} />
                   <Route path="/clients/:id" element={<ClientDetail />} />
                   <Route
