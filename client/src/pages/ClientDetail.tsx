@@ -6,10 +6,12 @@ import {
   getClientInvoices,
   getClientDeliveryNotes,
   updateClient,
+  getPaymentsForInvoice,
 } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { Client, ClientDocSummary } from '../types';
+import { Client, ClientDocSummary, Payment } from '../types';
 import { formatCurrency } from '../utils/calculations';
+import RecordPaymentModal from '../components/Payment/RecordPaymentModal';
 import {
   ArrowLeft,
   FileText,
@@ -29,6 +31,7 @@ import {
   DollarSign,
   CheckCircle2,
   Clock,
+  AlertCircle,
 } from 'lucide-react';
 
 type Tab = 'quotations' | 'invoices' | 'delivery-notes';
@@ -36,7 +39,7 @@ type Tab = 'quotations' | 'invoices' | 'delivery-notes';
 const ClientDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
 
   const [client, setClient] = useState<Client | null>(null);
   const [loading, setLoading] = useState(true);
@@ -48,11 +51,23 @@ const ClientDetail: React.FC = () => {
   const [deliveryNotes, setDeliveryNotes] = useState<ClientDocSummary[] | null>(null);
   const [tabLoading, setTabLoading] = useState(false);
 
+  // The invoice the user is currently recording a payment for.
+  const [payingInvoice, setPayingInvoice] = useState<ClientDocSummary | null>(null);
+  // For editing the latest payment when the user clicks the Paid pill.
+  const [editingPaymentFor, setEditingPaymentFor] = useState<{
+    doc: ClientDocSummary;
+    payment: Payment;
+  } | null>(null);
+  const [loadingPaymentForDocId, setLoadingPaymentForDocId] = useState<number | null>(null);
+
   // Inline edit
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Client>>({});
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
+
+  // Profile details are collapsed by default — the tabs are the primary focus.
+  const [showProfile, setShowProfile] = useState(false);
 
   const cid = id ? parseInt(id, 10) : NaN;
 
@@ -97,6 +112,46 @@ const ClientDetail: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, cid]);
 
+  // Decides what to do when the user clicks the status pill on an invoice
+  // row: open the record modal for pending/partial, or fetch the latest
+  // payment and open the edit modal when already paid.
+  const handlePaymentPillClick = async (doc: ClientDocSummary) => {
+    const status = doc.payment_status || 'pending';
+    if (status !== 'paid') {
+      setPayingInvoice(doc);
+      return;
+    }
+    setLoadingPaymentForDocId(doc.id);
+    try {
+      const list = await getPaymentsForInvoice(doc.id);
+      if (!list.length) {
+        alert('No payments are recorded for this invoice yet.');
+        return;
+      }
+      setEditingPaymentFor({ doc, payment: list[0] });
+    } catch (e: any) {
+      alert(e?.response?.data?.error || 'Could not load payments.');
+    } finally {
+      setLoadingPaymentForDocId(null);
+    }
+  };
+
+  // After a payment is recorded, refresh both the client totals (Total Paid /
+  // Outstanding stat cards) and the invoices tab so the new status pill shows.
+  const refreshAfterPayment = async () => {
+    if (Number.isNaN(cid)) return;
+    try {
+      const [c, inv] = await Promise.all([
+        getClient(cid),
+        getClientInvoices(cid),
+      ]);
+      setClient(c);
+      setInvoices(inv);
+    } catch (e) {
+      console.error('Error refreshing client after payment:', e);
+    }
+  };
+
   const handleSaveEdit = async () => {
     if (!client) return;
     setSaving(true);
@@ -129,36 +184,106 @@ const ClientDetail: React.FC = () => {
     );
   }
 
+  const outstanding = Math.max(
+    0,
+    Number(client.total_invoiced || 0) - Number(client.total_paid || 0)
+  );
+
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
+    <div className="max-w-7xl mx-auto space-y-4">
       <button
         onClick={() => navigate(-1)}
-        className="inline-flex items-center text-gray-600 hover:text-gray-900"
+        className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900"
       >
-        <ArrowLeft className="h-4 w-4 mr-2" />
+        <ArrowLeft className="h-4 w-4 mr-1.5" />
         Back
       </button>
 
-      {/* Top: contact card + summary stats */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Contact card */}
-        <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900 flex items-center">
-              <Briefcase className="h-5 w-5 mr-2 text-gray-500" />
-              Client Profile
-            </h2>
+      {/* Compact header: name + contact line + actions, with a mini stats strip
+          underneath and an expandable details section. Keeps the screen real
+          estate for the documents tabs below. */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="px-5 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          <div className="flex items-start space-x-3 min-w-0 flex-1">
+            <div className="p-2 bg-indigo-50 rounded-lg flex-shrink-0">
+              <Briefcase className="h-5 w-5 text-indigo-600" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <h1 className="text-lg font-bold text-gray-900 truncate">{client.name}</h1>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5 text-xs text-gray-600">
+                {client.contact_person && <span>{client.contact_person}</span>}
+                {client.email && (
+                  <span className="inline-flex items-center">
+                    <Mail className="h-3 w-3 mr-1 text-gray-400" />
+                    {client.email}
+                  </span>
+                )}
+                {client.phone && (
+                  <span className="inline-flex items-center">
+                    <Phone className="h-3 w-3 mr-1 text-gray-400" />
+                    {client.phone}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setShowProfile((v) => !v)}
+              className="inline-flex items-center px-3 py-1.5 text-xs font-medium border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50"
+            >
+              {showProfile ? 'Hide details' : 'Show details'}
+            </button>
+            <Link
+              to={`/clients/${client.id}/statement`}
+              className="inline-flex items-center px-3 py-1.5 text-xs font-medium border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50"
+            >
+              <FileText className="h-3.5 w-3.5 mr-1.5" />
+              Statement
+            </Link>
+            <Link
+              to={`/new-quotation?clientId=${client.id}`}
+              className="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700"
+            >
+              <Plus className="h-3.5 w-3.5 mr-1.5" />
+              New Quotation
+            </Link>
             {isAdmin && !editing && (
               <button
-                onClick={() => setEditing(true)}
-                className="inline-flex items-center px-3 py-1.5 text-sm border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50"
+                onClick={() => {
+                  setEditing(true);
+                  setShowProfile(true);
+                }}
+                className="inline-flex items-center px-3 py-1.5 text-xs font-medium border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50"
               >
-                <Edit2 className="h-4 w-4 mr-1.5" />
+                <Edit2 className="h-3.5 w-3.5 mr-1.5" />
                 Edit
               </button>
             )}
+          </div>
+        </div>
+
+        {/* Compact stats strip — six tiles in one horizontal row on desktop. */}
+        <div className="grid grid-cols-3 lg:grid-cols-6 divide-x divide-y lg:divide-y-0 divide-gray-200 border-t border-gray-200 bg-gray-50/40">
+          <MiniStat label="Quotations" value={(client.quotation_count ?? 0).toString()} icon={FileText} color="text-blue-600" />
+          <MiniStat label="Invoices" value={(client.invoice_count ?? 0).toString()} icon={Receipt} color="text-green-600" />
+          <MiniStat label="Delivery Notes" value={(client.delivery_note_count ?? 0).toString()} icon={Truck} color="text-amber-600" />
+          <MiniStat label="Invoiced" value={formatCurrency(Number(client.total_invoiced || 0))} icon={DollarSign} color="text-purple-600" />
+          <MiniStat label="Paid" value={formatCurrency(Number(client.total_paid || 0))} icon={CheckCircle2} color="text-emerald-600" />
+          <MiniStat
+            label="Outstanding"
+            value={formatCurrency(outstanding)}
+            icon={AlertCircle}
+            color={outstanding > 0 ? 'text-red-600' : 'text-gray-600'}
+          />
+        </div>
+
+        {/* Expandable details — only rendered when the user opens it or starts editing. */}
+        {showProfile && (
+          <div className="border-t border-gray-200 px-5 py-4 bg-white">
             {editing && (
-              <div className="flex items-center space-x-2">
+              <div className="mb-3 flex items-center justify-end space-x-2">
                 <button
                   onClick={() => {
                     setEditing(false);
@@ -180,69 +305,23 @@ const ClientDetail: React.FC = () => {
                 </button>
               </div>
             )}
-          </div>
-
-          {saveError && (
-            <div className="px-6 py-3 bg-red-50 text-red-700 text-sm border-b border-red-100">
-              {saveError}
-            </div>
-          )}
-
-          <div className="p-6">
+            {saveError && (
+              <div className="mb-3 px-3 py-2 bg-red-50 text-red-700 text-sm rounded-lg border border-red-100">
+                {saveError}
+              </div>
+            )}
             {editing ? (
               <EditForm values={editForm} onChange={setEditForm} />
             ) : (
               <DisplayForm client={client} />
             )}
           </div>
-        </div>
-
-        {/* Stats column */}
-        <div className="space-y-3">
-          <StatCard
-            label="Quotations"
-            value={(client.quotation_count ?? 0).toString()}
-            icon={FileText}
-            color="text-blue-600"
-            bg="bg-blue-50"
-          />
-          <StatCard
-            label="Invoices"
-            value={(client.invoice_count ?? 0).toString()}
-            icon={Receipt}
-            color="text-green-600"
-            bg="bg-green-50"
-          />
-          <StatCard
-            label="Delivery Notes"
-            value={(client.delivery_note_count ?? 0).toString()}
-            icon={Truck}
-            color="text-amber-600"
-            bg="bg-amber-50"
-          />
-          <StatCard
-            label="Total Invoiced"
-            value={formatCurrency(Number(client.total_invoiced || 0))}
-            icon={DollarSign}
-            color="text-purple-600"
-            bg="bg-purple-50"
-            truncate
-          />
-        </div>
+        )}
       </div>
 
-      {/* CTA */}
-      <Link
-        to={`/new-quotation?clientId=${client.id}`}
-        className="inline-flex items-center px-4 py-2 rounded-lg text-white bg-indigo-600 hover:bg-indigo-700"
-      >
-        <Plus className="h-5 w-5 mr-2" />
-        New Quotation for {client.name}
-      </Link>
-
-      {/* Tabs */}
+      {/* Documents tabs — the primary content area. */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="flex border-b border-gray-200 overflow-x-auto">
+        <div className="flex border-b border-gray-200 overflow-x-auto bg-gradient-to-b from-gray-50 to-white">
           <TabButton
             active={tab === 'quotations'}
             onClick={() => setTab('quotations')}
@@ -266,7 +345,38 @@ const ClientDetail: React.FC = () => {
           />
         </div>
 
-        <div>
+        {payingInvoice && (
+          <RecordPaymentModal
+            invoice={{
+              id: payingInvoice.id,
+              invoice_number: payingInvoice.number,
+              grand_total: payingInvoice.grand_total ?? 0,
+              amount_paid: payingInvoice.amount_paid,
+              balance_due: payingInvoice.balance_due,
+              client_name: client.name,
+            }}
+            onClose={() => setPayingInvoice(null)}
+            onRecorded={refreshAfterPayment}
+          />
+        )}
+
+        {editingPaymentFor && (
+          <RecordPaymentModal
+            invoice={{
+              id: editingPaymentFor.doc.id,
+              invoice_number: editingPaymentFor.doc.number,
+              grand_total: editingPaymentFor.doc.grand_total ?? 0,
+              amount_paid: editingPaymentFor.doc.amount_paid,
+              balance_due: editingPaymentFor.doc.balance_due,
+              client_name: client.name,
+            }}
+            existingPayment={editingPaymentFor.payment}
+            onClose={() => setEditingPaymentFor(null)}
+            onRecorded={refreshAfterPayment}
+          />
+        )}
+
+        <div className="min-h-[60vh]">
           {tabLoading ? (
             <div className="p-12 text-center">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-300 mx-auto" />
@@ -284,6 +394,10 @@ const ClientDetail: React.FC = () => {
               emptyMessage="No invoices for this client yet."
               detailPathPrefix="/invoice"
               showTotal
+              showPayment
+              onRecordPayment={handlePaymentPillClick}
+              canRecord={(doc) => isAdmin || (!!user && doc.created_by === user.id)}
+              loadingPaymentForDocId={loadingPaymentForDocId}
             />
           ) : (
             <DocTable
@@ -379,27 +493,26 @@ const TextField: React.FC<{ label: string; value: string; onChange: (v: string) 
   </div>
 );
 
-const StatCard: React.FC<{
+// Compact horizontal stat tile used inside the header strip.
+const MiniStat: React.FC<{
   label: string;
   value: string;
   icon: React.ComponentType<{ className?: string }>;
   color: string;
-  bg: string;
-  truncate?: boolean;
-}> = ({ label, value, icon: Icon, color, bg, truncate }) => (
-  <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 flex items-center">
-    <div className={`p-2.5 rounded-lg ${bg} flex-shrink-0`}>
-      <Icon className={`h-5 w-5 ${color}`} />
-    </div>
-    <div className="ml-3 min-w-0 flex-1">
-      <p className="text-xs text-gray-500 uppercase tracking-wide">{label}</p>
-      <p
-        className={`text-xl font-bold text-gray-900 ${truncate ? 'truncate' : ''}`}
-        title={value}
-      >
-        {value}
+}> = ({ label, value, icon: Icon, color }) => (
+  <div className="px-3 py-2 min-w-0">
+    <div className="flex items-center space-x-1.5">
+      <Icon className={`h-3.5 w-3.5 ${color} flex-shrink-0`} />
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500 truncate">
+        {label}
       </p>
     </div>
+    <p
+      className="text-sm font-bold text-gray-900 truncate tabular-nums mt-0.5"
+      title={value}
+    >
+      {value}
+    </p>
   </div>
 );
 
@@ -412,14 +525,14 @@ const TabButton: React.FC<{
 }> = ({ active, onClick, icon: Icon, label, count }) => (
   <button
     onClick={onClick}
-    className={`flex-1 px-4 py-3 flex items-center justify-center space-x-2 text-sm font-medium transition-colors border-b-2 ${
+    className={`flex-1 px-6 py-4 flex items-center justify-center space-x-2.5 text-base font-semibold transition-colors border-b-2 ${
       active ? 'border-indigo-600 text-indigo-700 bg-indigo-50/50' : 'border-transparent text-gray-600 hover:bg-gray-50'
     }`}
   >
-    <Icon className="h-4 w-4" />
+    <Icon className="h-5 w-5" />
     <span>{label}</span>
     <span
-      className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+      className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
         active ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-600'
       }`}
     >
@@ -434,7 +547,12 @@ const DocTable: React.FC<{
   detailPathPrefix: string;
   showTotal?: boolean;
   showSigned?: boolean;
-}> = ({ docs, emptyMessage, detailPathPrefix, showTotal, showSigned }) => {
+  showPayment?: boolean;
+  onRecordPayment?: (doc: ClientDocSummary) => void;
+  canRecord?: (doc: ClientDocSummary) => boolean;
+  loadingPaymentForDocId?: number | null;
+}> = ({ docs, emptyMessage, detailPathPrefix, showTotal, showSigned, showPayment, onRecordPayment, canRecord, loadingPaymentForDocId }) => {
+  const navigate = useNavigate();
   if (docs.length === 0) {
     return <p className="p-12 text-center text-gray-500 text-sm">{emptyMessage}</p>;
   }
@@ -451,16 +569,21 @@ const DocTable: React.FC<{
             {showTotal && (
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
             )}
+            {showPayment && (
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Payment</th>
+            )}
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created by</th>
           </tr>
         </thead>
         <tbody className="bg-white divide-y divide-gray-200">
           {docs.map((d) => (
-            <tr key={d.id} className="hover:bg-gray-50">
+            <tr
+              key={d.id}
+              onClick={() => navigate(`${detailPathPrefix}/${d.id}`)}
+              className="hover:bg-gray-50 cursor-pointer"
+            >
               <td className="px-6 py-3">
-                <Link to={`${detailPathPrefix}/${d.id}`} className="text-sm font-medium text-indigo-700 hover:underline">
-                  {d.number}
-                </Link>
+                <span className="text-sm font-medium text-indigo-700">{d.number}</span>
               </td>
               <td className="px-6 py-3 text-sm text-gray-700">
                 <div className="inline-flex items-center">
@@ -488,12 +611,67 @@ const DocTable: React.FC<{
                   {formatCurrency(Number(d.grand_total || 0))}
                 </td>
               )}
+              {showPayment && (
+                <td className="px-6 py-3">
+                  <PaymentStatusPill
+                    status={d.payment_status || 'pending'}
+                    canRecord={!!onRecordPayment && (canRecord ? canRecord(d) : true)}
+                    loading={loadingPaymentForDocId === d.id}
+                    onClick={() => onRecordPayment && onRecordPayment(d)}
+                  />
+                </td>
+              )}
               <td className="px-6 py-3 text-sm text-gray-600">{d.created_by_name || '—'}</td>
             </tr>
           ))}
         </tbody>
       </table>
     </div>
+  );
+};
+
+// Status pill that doubles as the payment trigger. Clicking it (when the
+// user has permission) opens the modal — in create mode for pending/partial
+// invoices, or in edit mode against the latest payment for paid invoices.
+// Stops propagation so it doesn't bubble to the row navigation.
+const PaymentStatusPill: React.FC<{
+  status: 'pending' | 'partial' | 'paid';
+  canRecord: boolean;
+  loading?: boolean;
+  onClick: () => void;
+}> = ({ status, canRecord, loading, onClick }) => {
+  const styles =
+    status === 'paid'
+      ? 'bg-green-100 text-green-700'
+      : status === 'partial'
+        ? 'bg-amber-100 text-amber-700'
+        : 'bg-red-100 text-red-700';
+  const label = status[0].toUpperCase() + status.slice(1);
+  const interactive = canRecord;
+  return (
+    <button
+      type="button"
+      disabled={!interactive || loading}
+      onClick={(e) => {
+        e.stopPropagation();
+        if (interactive) onClick();
+      }}
+      title={
+        interactive
+          ? status === 'paid'
+            ? 'Click to edit the latest payment'
+            : 'Click to record a payment'
+          : undefined
+      }
+      className={`inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-full ${styles} ${
+        interactive ? 'cursor-pointer hover:brightness-95 hover:shadow-sm' : 'cursor-default'
+      } ${loading ? 'opacity-60' : ''}`}
+    >
+      {loading && (
+        <span className="mr-1.5 h-3 w-3 animate-spin rounded-full border-b-2 border-current" />
+      )}
+      {label}
+    </button>
   );
 };
 

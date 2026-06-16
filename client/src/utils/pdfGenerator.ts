@@ -3,18 +3,47 @@ import jsPDF from 'jspdf';
 import { Quotation, Invoice, DeliveryNote } from '../types';
 
 /**
+ * Wait until every <img> inside the element has finished loading (or failed).
+ * Without this, html2canvas can capture before the company logo has loaded,
+ * producing a shorter canvas than expected — which then breaks the per-page
+ * slicing math and "swallows" the content that should have spilled to page 2.
+ */
+async function waitForImages(element: HTMLElement): Promise<void> {
+  const imgs = Array.from(element.querySelectorAll('img'));
+  await Promise.all(
+    imgs.map((img) => {
+      // `complete` is true for cached or already-decoded images.
+      if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+      return new Promise<void>((resolve) => {
+        const done = () => resolve();
+        img.addEventListener('load', done, { once: true });
+        // Resolve on error too — we don't want a 404 logo to block the PDF.
+        img.addEventListener('error', done, { once: true });
+      });
+    })
+  );
+  // Wait one more animation frame so the browser has laid out the final size.
+  await new Promise<void>((r) => requestAnimationFrame(() => r()));
+}
+
+/**
  * Capture the given DOM element and save it as a multi-page A4 PDF.
  *
- * Previously the whole document was squeezed onto a single A4 page (with the
- * text getting smaller as more items were added). This now scales the image
- * to **A4 width only** and slices it vertically into as many A4 pages as
- * needed — the text stays at its proper size and a long quotation simply
- * spans multiple pages.
+ * The previous version added the entire image to every page with a Y offset
+ * and relied on the PDF viewer to clip the parts above the page. That works
+ * in Acrobat but silently fails or shows nothing in some browsers/viewers and
+ * also bloats the file. We now slice the captured canvas into one separate
+ * per-page canvas and add each slice as its own image — no clipping needed,
+ * works in every viewer.
  */
 async function saveElementAsPdf(
   element: HTMLElement,
   filename: string
 ): Promise<void> {
+  // Make sure every image (especially the company logo) is fully loaded
+  // first — otherwise the captured height varies per company.
+  await waitForImages(element);
+
   // Capture the element at 2x device pixels for a sharp PDF.
   const canvas = await html2canvas(element, {
     scale: 2,
@@ -23,34 +52,56 @@ async function saveElementAsPdf(
     backgroundColor: '#ffffff',
     height: element.scrollHeight,
     width: element.scrollWidth,
+    // html2canvas otherwise inherits scroll position, which can shift the
+    // captured viewport on long documents.
+    scrollX: 0,
+    scrollY: 0,
+    windowWidth: element.scrollWidth,
+    windowHeight: element.scrollHeight,
   });
-  const imgData = canvas.toDataURL('image/png');
+
   const pdf = new jsPDF('p', 'mm', 'a4');
+  const pageWidthMm = pdf.internal.pageSize.getWidth();   // 210mm
+  const pageHeightMm = pdf.internal.pageSize.getHeight(); // 297mm
 
-  // Scale the image to A4 width — height becomes whatever maintains the
-  // captured aspect ratio.
-  const pageWidth = pdf.internal.pageSize.getWidth();   // 210mm
-  const pageHeight = pdf.internal.pageSize.getHeight(); // 297mm
-  const widthScale = pageWidth / canvas.width;
-  const totalHeight = canvas.height * widthScale;
+  // How many canvas pixels correspond to one mm in the output PDF.
+  const pxPerMm = canvas.width / pageWidthMm;
+  // The height of one A4 page, in canvas pixels.
+  const pageHeightPx = Math.floor(pageHeightMm * pxPerMm);
 
-  if (totalHeight <= pageHeight) {
-    // Fits on a single page — center vertically with 0 top margin.
-    pdf.addImage(imgData, 'PNG', 0, 0, pageWidth, totalHeight);
-  } else {
-    // Multi-page slicing: the entire image is re-added each page, offset
-    // upward by however much has already been printed. The parts above the
-    // page boundary are clipped by jsPDF automatically.
-    let printedHeight = 0;
-    let pageIndex = 0;
-    // Small overlap (0.5mm) hides hairline gaps caused by pixel rounding.
-    const overlap = 0.5;
-    while (printedHeight < totalHeight - 0.1) {
-      if (pageIndex > 0) pdf.addPage();
-      pdf.addImage(imgData, 'PNG', 0, -printedHeight, pageWidth, totalHeight);
-      printedHeight += pageHeight - overlap;
-      pageIndex++;
-    }
+  // Single-page fast path: no slicing needed.
+  if (canvas.height <= pageHeightPx) {
+    const heightMm = canvas.height / pxPerMm;
+    pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, pageWidthMm, heightMm);
+    pdf.save(filename);
+    return;
+  }
+
+  // Multi-page: cut the source canvas into per-page slices. Each slice is its
+  // own canvas that we render to a PNG and add as the page background.
+  let offsetPx = 0;
+  let pageIndex = 0;
+  while (offsetPx < canvas.height) {
+    const sliceHeightPx = Math.min(pageHeightPx, canvas.height - offsetPx);
+
+    const slice = document.createElement('canvas');
+    slice.width = canvas.width;
+    slice.height = sliceHeightPx;
+    const ctx = slice.getContext('2d');
+    if (!ctx) throw new Error('Could not get 2D context for slice canvas');
+
+    // Fill white so transparent regions of the source don't render as black.
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, slice.width, slice.height);
+    // Draw the source canvas shifted up so the page's chunk lands at y=0.
+    ctx.drawImage(canvas, 0, -offsetPx);
+
+    const sliceHeightMm = sliceHeightPx / pxPerMm;
+    if (pageIndex > 0) pdf.addPage();
+    pdf.addImage(slice.toDataURL('image/png'), 'PNG', 0, 0, pageWidthMm, sliceHeightMm);
+
+    offsetPx += pageHeightPx;
+    pageIndex++;
   }
 
   pdf.save(filename);

@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useCompany } from '../context/CompanyContext';
 import { useAuth } from '../context/AuthContext';
-import { getInvoices, deleteInvoice } from '../services/api';
-import { Invoice } from '../types';
+import { getInvoices, deleteInvoice, getPaymentsForInvoice } from '../services/api';
+import { Invoice, Payment } from '../types';
 import { formatCurrency } from '../utils/calculations';
+import RecordPaymentModal from '../components/Payment/RecordPaymentModal';
 import {
   FileText,
   Search,
@@ -17,13 +18,54 @@ import {
 
 const InvoiceHistory: React.FC = () => {
   const { selectedCompany } = useCompany();
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [filteredInvoices, setFilteredInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [dateFilter, setDateFilter] = useState('all');
   const [sortBy, setSortBy] = useState('newest');
+  // Which invoice the user is recording a payment for (null = modal closed).
+  const [payingInvoice, setPayingInvoice] = useState<Invoice | null>(null);
+  // For editing the most recent payment on an already-paid invoice.
+  const [editingPaymentFor, setEditingPaymentFor] = useState<{
+    invoice: Invoice;
+    payment: Payment;
+  } | null>(null);
+  // Set while we fetch the payment list for a given invoice so the pill can
+  // show a tiny spinner instead of flickering.
+  const [loadingPaidInvoiceId, setLoadingPaidInvoiceId] = useState<number | null>(null);
+
+  // Reload the list silently after a payment so the status pill + balance refresh.
+  const reloadInvoices = async () => {
+    if (!selectedCompany) return;
+    try {
+      const data = await getInvoices(selectedCompany.id);
+      setInvoices(data);
+    } catch (err) {
+      console.error('Error reloading invoices:', err);
+    }
+  };
+
+  // Click handler for the status pill on a fully-paid invoice: fetch its
+  // payments and open the modal in edit mode for the most recent one so the
+  // user can correct an entry without leaving the list.
+  const openEditForPaidInvoice = async (invoice: Invoice) => {
+    if (!invoice.id) return;
+    setLoadingPaidInvoiceId(invoice.id);
+    try {
+      const list = await getPaymentsForInvoice(invoice.id);
+      if (!list.length) {
+        alert('No payments are recorded for this invoice yet.');
+        return;
+      }
+      setEditingPaymentFor({ invoice, payment: list[0] });
+    } catch (err: any) {
+      alert(err?.response?.data?.error || 'Could not load payments.');
+    } finally {
+      setLoadingPaidInvoiceId(null);
+    }
+  };
 
   useEffect(() => {
     const loadInvoices = async () => {
@@ -280,6 +322,9 @@ const InvoiceHistory: React.FC = () => {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Total
                   </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Payment
+                  </th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Actions
                   </th>
@@ -344,6 +389,53 @@ const InvoiceHistory: React.FC = () => {
                         {formatCurrency(invoice.grand_total)}
                       </div>
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {(() => {
+                        const status = invoice.payment_status || 'pending';
+                        const styles =
+                          status === 'paid'
+                            ? 'bg-green-100 text-green-700'
+                            : status === 'partial'
+                              ? 'bg-amber-100 text-amber-700'
+                              : 'bg-red-100 text-red-700';
+                        const label = status[0].toUpperCase() + status.slice(1);
+                        // Same access rule as the detail page: admin or the user
+                        // who created the invoice may record or edit payments.
+                        const canRecord = isAdmin || (user && invoice.created_by === user.id);
+                        const interactive = !!canRecord;
+                        const isLoadingThis = loadingPaidInvoiceId === invoice.id;
+                        return (
+                          <button
+                            type="button"
+                            disabled={!interactive || isLoadingThis}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (!interactive) return;
+                              if (status === 'paid') {
+                                openEditForPaidInvoice(invoice);
+                              } else {
+                                setPayingInvoice(invoice);
+                              }
+                            }}
+                            title={
+                              interactive
+                                ? status === 'paid'
+                                  ? 'Click to edit the latest payment'
+                                  : 'Click to record a payment'
+                                : undefined
+                            }
+                            className={`inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-full ${styles} ${
+                              interactive ? 'cursor-pointer hover:brightness-95 hover:shadow-sm' : 'cursor-default'
+                            } ${isLoadingThis ? 'opacity-60' : ''}`}
+                          >
+                            {isLoadingThis && (
+                              <span className="mr-1.5 h-3 w-3 animate-spin rounded-full border-b-2 border-current" />
+                            )}
+                            {label}
+                          </button>
+                        );
+                      })()}
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center justify-end space-x-2">
                         <Link
@@ -382,6 +474,37 @@ const InvoiceHistory: React.FC = () => {
           )}
         </div>
       </div>
+
+      {payingInvoice && payingInvoice.id && (
+        <RecordPaymentModal
+          invoice={{
+            id: payingInvoice.id,
+            invoice_number: payingInvoice.invoice_number,
+            grand_total: payingInvoice.grand_total,
+            amount_paid: payingInvoice.amount_paid,
+            balance_due: payingInvoice.balance_due,
+            client_name: payingInvoice.client_name,
+          }}
+          onClose={() => setPayingInvoice(null)}
+          onRecorded={reloadInvoices}
+        />
+      )}
+
+      {editingPaymentFor && editingPaymentFor.invoice.id && (
+        <RecordPaymentModal
+          invoice={{
+            id: editingPaymentFor.invoice.id,
+            invoice_number: editingPaymentFor.invoice.invoice_number,
+            grand_total: editingPaymentFor.invoice.grand_total,
+            amount_paid: editingPaymentFor.invoice.amount_paid,
+            balance_due: editingPaymentFor.invoice.balance_due,
+            client_name: editingPaymentFor.invoice.client_name,
+          }}
+          existingPayment={editingPaymentFor.payment}
+          onClose={() => setEditingPaymentFor(null)}
+          onRecorded={reloadInvoices}
+        />
+      )}
     </div>
   );
 };

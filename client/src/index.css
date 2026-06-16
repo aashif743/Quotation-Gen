@@ -21,28 +21,39 @@ code {
   .no-print {
     display: none !important;
   }
-  
-  .quotation-document {
+
+  .quotation-document,
+  .invoice-document,
+  .delivery-note-document {
     box-shadow: none !important;
     margin: 0 !important;
     border: none !important;
+    /* Critical: allow the document to flow across multiple pages. Previously
+       we had `page-break-inside: avoid` here which forced the browser to keep
+       the entire document on one page — that's why long item lists from some
+       companies appeared truncated or didn't spill onto page 2. */
+    page-break-inside: auto;
+    break-inside: auto;
   }
-  
+
   body {
     background: white !important;
   }
-  
-  /* Ensure proper page breaks */
-  .quotation-document {
-    page-break-inside: avoid;
-  }
-  
+
+  /* Avoid splitting in the middle of an item row when printing — nicer
+     pagination on long documents. */
+  table { page-break-inside: auto; break-inside: auto; }
+  thead { display: table-header-group; }
+  tfoot { display: table-footer-group; }
+  tr    { page-break-inside: avoid; break-inside: avoid; }
+
   /* Force background colors and images to print */
   * {
     -webkit-print-color-adjust: exact !important;
     color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
-  
+
   /* Set specific dimensions for A4 printing */
   @page {
     size: A4;

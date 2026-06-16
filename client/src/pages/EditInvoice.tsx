@@ -12,6 +12,7 @@ import {
   formatNumber
 } from '../utils/calculations';
 import { Save, ArrowLeft, Plus, Trash2, Calculator } from 'lucide-react';
+import CurrencyInput from '../components/common/CurrencyInput';
 
 const EditInvoice: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -350,13 +351,10 @@ const EditInvoice: React.FC = () => {
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Unit Price (MWK) *
                       </label>
-                      <input
-                        type="number"
-                        value={item.unit_price}
-                        onChange={(e) => updateItem(index, 'unit_price', e.target.value)}
-                        className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500`}
-                        min="0"
-                        step="0.01"
+                      <CurrencyInput
+                        value={Number(item.unit_price || 0)}
+                        onChange={(n) => updateItem(index, 'unit_price', n)}
+                        className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-right tabular-nums`}
                         required
                       />
                     </div>

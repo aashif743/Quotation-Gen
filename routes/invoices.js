@@ -15,10 +15,22 @@ router.get('/', async (req, res) => {
   try {
     const { company_id } = req.query;
     let query = `
-      SELECT i.*, c.name as company_name, u.name as created_by_name
+      SELECT i.*, c.name as company_name, u.name as created_by_name,
+             IFNULL(p.paid, 0) AS amount_paid,
+             (i.grand_total - IFNULL(p.paid, 0)) AS balance_due,
+             CASE
+               WHEN IFNULL(p.paid, 0) >= i.grand_total THEN 'paid'
+               WHEN IFNULL(p.paid, 0) > 0                  THEN 'partial'
+               ELSE 'pending'
+             END AS payment_status
       FROM invoices i
       JOIN companies c ON i.company_id = c.id
       LEFT JOIN users u ON i.created_by = u.id
+      LEFT JOIN (
+        SELECT invoice_id, SUM(amount) AS paid
+          FROM payments
+         GROUP BY invoice_id
+      ) p ON p.invoice_id = i.id
     `;
     const conditions = [];
     const queryParams = [];
@@ -56,10 +68,22 @@ router.get('/:id', async (req, res) => {
              c.logo_url as company_logo,
              c.quote_logo_url as company_quote_logo,
              c.primary_color, c.secondary_color,
-             u.name as created_by_name
+             u.name as created_by_name,
+             IFNULL(p.paid, 0) AS amount_paid,
+             (i.grand_total - IFNULL(p.paid, 0)) AS balance_due,
+             CASE
+               WHEN IFNULL(p.paid, 0) >= i.grand_total THEN 'paid'
+               WHEN IFNULL(p.paid, 0) > 0                  THEN 'partial'
+               ELSE 'pending'
+             END AS payment_status
       FROM invoices i
       JOIN companies c ON i.company_id = c.id
       LEFT JOIN users u ON i.created_by = u.id
+      LEFT JOIN (
+        SELECT invoice_id, SUM(amount) AS paid
+          FROM payments
+         GROUP BY invoice_id
+      ) p ON p.invoice_id = i.id
       WHERE i.id = ?
     `, [req.params.id]);
 

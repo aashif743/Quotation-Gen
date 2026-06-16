@@ -4,6 +4,7 @@ import { QuotationItem, Quotation, Client } from '../../types';
 import { Plus, Trash2, Calculator } from 'lucide-react';
 import { formatCurrency, formatNumber } from '../../utils/calculations';
 import ClientPicker from './ClientPicker';
+import CurrencyInput from '../common/CurrencyInput';
 
 interface QuotationFormProps {
   quotationData: Partial<Quotation>;
@@ -333,16 +334,11 @@ const QuotationForm: React.FC<QuotationFormProps> = ({
                       <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-gray-400">
                         MWK
                       </span>
-                      <input
-                        type="number"
-                        inputMode="decimal"
-                        value={item.unit_price === 0 ? '' : item.unit_price}
-                        onChange={(e) => updateItem(index, 'unit_price', e.target.value)}
-                        onWheel={(e) => e.currentTarget.blur()}
+                      <CurrencyInput
+                        value={Number(item.unit_price || 0)}
+                        onChange={(n) => updateItem(index, 'unit_price', n)}
                         className="w-full rounded-lg border border-gray-300 bg-white py-2.5 pl-12 pr-3 text-right text-sm tabular-nums focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                         placeholder="0.00"
-                        min="0"
-                        step="any"
                         required
                       />
                     </div>

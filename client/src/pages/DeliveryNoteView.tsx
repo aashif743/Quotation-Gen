@@ -178,47 +178,48 @@ const DeliveryNoteView: React.FC = () => {
 
   return (
     <div className="max-w-4xl mx-auto">
-      <div className="mb-6 flex items-center justify-between no-print">
+      {/* Action bar — uniform compact buttons, same height/padding/icon size. */}
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3 no-print">
         <button
           onClick={() => navigate(-1)}
-          className="inline-flex items-center px-4 py-2 text-gray-600 hover:text-gray-900"
+          className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900"
         >
-          <ArrowLeft className="h-4 w-4 mr-2" />
+          <ArrowLeft className="h-4 w-4 mr-1.5" />
           Back
         </button>
 
-        <div className="flex items-center space-x-4">
+        <div className="flex flex-wrap items-center gap-2">
           {/* Admin can edit anything; staff can edit their own delivery notes. */}
           {(isAdmin || (user && dn.created_by === user.id)) && (
             <button
               onClick={() => navigate(`/edit-delivery-note/${id}`)}
-              className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50"
+              className="inline-flex items-center px-3 py-1.5 text-sm font-medium border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition-colors"
             >
-              <Edit2 className="h-4 w-4 mr-2" />
+              <Edit2 className="h-4 w-4 mr-1.5" />
               Edit
             </button>
           )}
           <button
             onClick={handlePrint}
-            className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50"
+            className="inline-flex items-center px-3 py-1.5 text-sm font-medium border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition-colors"
           >
-            <Printer className="h-4 w-4 mr-2" />
+            <Printer className="h-4 w-4 mr-1.5" />
             Print
           </button>
           <button
             onClick={handleDownloadPDF}
             disabled={generating}
-            className="inline-flex items-center px-6 py-2 text-white rounded-lg hover:shadow-lg hover:opacity-90 disabled:opacity-50"
+            className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white rounded-lg shadow-sm hover:opacity-90 transition-all disabled:opacity-50"
             style={{ backgroundColor: primary }}
           >
             {generating ? (
               <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-1.5" />
                 Generating...
               </>
             ) : (
               <>
-                <Download className="h-4 w-4 mr-2" />
+                <Download className="h-4 w-4 mr-1.5" />
                 Download PDF
               </>
             )}

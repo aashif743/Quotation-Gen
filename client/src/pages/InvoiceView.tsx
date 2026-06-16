@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getInvoice } from '../services/api';
+import { getInvoice, getPaymentsForInvoice, deletePayment } from '../services/api';
+import RecordPaymentModal from '../components/Payment/RecordPaymentModal';
 import { useAuth } from '../context/AuthContext';
-import { Invoice } from '../types';
+import { Invoice, Payment } from '../types';
 import { formatCurrency, formatNumber } from '../utils/calculations';
 import { generateInvoicePDF } from '../utils/pdfGenerator';
 import {
@@ -15,7 +16,14 @@ import {
   Calendar,
   Clock,
   Building2,
-  Printer
+  Printer,
+  CreditCard,
+  Plus,
+  Pencil,
+  Trash2,
+  CheckCircle2,
+  AlertCircle,
+  XCircle,
 } from 'lucide-react';
 
 const InvoiceView: React.FC = () => {
@@ -26,22 +34,46 @@ const InvoiceView: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
 
+  // Payment state
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [paymentsLoading, setPaymentsLoading] = useState(true);
+  const [showPaymentForm, setShowPaymentForm] = useState(false);
+  // When set, the modal opens in edit mode for this payment.
+  const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
+
+  // Reload both the invoice (to refresh status/balance) and the payment list.
+  const loadAll = async (invoiceId: number) => {
+    const [inv, pays] = await Promise.all([
+      getInvoice(invoiceId),
+      getPaymentsForInvoice(invoiceId).catch(() => [] as Payment[]),
+    ]);
+    setInvoice(inv);
+    setPayments(pays);
+  };
+
   useEffect(() => {
-    const loadInvoice = async () => {
-      if (!id) return;
-
-      try {
-        const data = await getInvoice(parseInt(id));
-        setInvoice(data);
-      } catch (error) {
-        console.error('Error loading invoice:', error);
-      } finally {
+    if (!id) return;
+    setLoading(true);
+    setPaymentsLoading(true);
+    loadAll(parseInt(id))
+      .catch((err) => console.error('Error loading invoice:', err))
+      .finally(() => {
         setLoading(false);
-      }
-    };
-
-    loadInvoice();
+        setPaymentsLoading(false);
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  const handleDeletePayment = async (paymentId: number) => {
+    if (!invoice?.id) return;
+    if (!window.confirm('Delete this payment? The invoice status will recalculate.')) return;
+    try {
+      await deletePayment(paymentId);
+      await loadAll(invoice.id);
+    } catch (err: any) {
+      alert(err?.response?.data?.error || 'Could not delete payment.');
+    }
+  };
 
   const handleDownloadPDF = async () => {
     if (!invoice) return;
@@ -116,54 +148,71 @@ const InvoiceView: React.FC = () => {
 
   return (
     <div className="max-w-4xl mx-auto">
-      <div className="mb-6 flex items-center justify-between no-print">
+      {/* Action bar — uniform compact buttons, same height/padding/icon size. */}
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3 no-print">
         <button
           onClick={() => navigate(-1)}
-          className="inline-flex items-center px-4 py-2 text-gray-600 hover:text-gray-900 transition-colors"
+          className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900"
         >
-          <ArrowLeft className="h-4 w-4 mr-2" />
+          <ArrowLeft className="h-4 w-4 mr-1.5" />
           Back
         </button>
 
-        <div className="flex items-center space-x-4">
+        <div className="flex flex-wrap items-center gap-2">
           {/* Admin can edit anything; staff can edit their own invoices. */}
           {(isAdmin || (user && invoice.created_by === user.id)) && (
             <button
               onClick={() => navigate(`/edit-invoice/${id}`)}
-              className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50"
+              className="inline-flex items-center px-3 py-1.5 text-sm font-medium border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition-colors"
             >
-              <Edit2 className="h-4 w-4 mr-2" />
+              <Edit2 className="h-4 w-4 mr-1.5" />
               Edit
             </button>
           )}
 
           <button
             onClick={handlePrint}
-            className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50"
+            className="inline-flex items-center px-3 py-1.5 text-sm font-medium border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition-colors"
           >
-            <Printer className="h-4 w-4 mr-2" />
+            <Printer className="h-4 w-4 mr-1.5" />
             Print
           </button>
 
           <button
             onClick={handleDownloadPDF}
             disabled={generating}
-            className="inline-flex items-center px-6 py-2 text-white rounded-lg hover:shadow-lg hover:opacity-90 transition-all disabled:opacity-50"
+            className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white rounded-lg shadow-sm hover:opacity-90 transition-all disabled:opacity-50"
             style={getButtonStyle()}
           >
             {generating ? (
               <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-1.5" />
                 Generating...
               </>
             ) : (
               <>
-                <Download className="h-4 w-4 mr-2" />
+                <Download className="h-4 w-4 mr-1.5" />
                 Download PDF
               </>
             )}
           </button>
         </div>
+      </div>
+
+      {/* Payment tracking section — outside the .invoice-document so it
+          doesn't appear in the PDF or print. */}
+      <div className="mb-6 no-print">
+        <PaymentPanel
+          invoice={invoice}
+          payments={payments}
+          loading={paymentsLoading}
+          isAdmin={isAdmin}
+          currentUserId={user?.id ?? null}
+          canRecord={isAdmin || (user && invoice.created_by === user.id)}
+          onAddClick={() => setShowPaymentForm(true)}
+          onEditPayment={(p) => setEditingPayment(p)}
+          onDeletePayment={handleDeletePayment}
+        />
       </div>
 
       <div className="invoice-document bg-white shadow-lg rounded-lg overflow-hidden">
@@ -388,6 +437,178 @@ const InvoiceView: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {showPaymentForm && invoice.id && (
+        <RecordPaymentModal
+          invoice={{
+            id: invoice.id,
+            invoice_number: invoice.invoice_number,
+            grand_total: invoice.grand_total,
+            amount_paid: invoice.amount_paid,
+            balance_due: invoice.balance_due,
+            client_name: invoice.client_name,
+          }}
+          onClose={() => setShowPaymentForm(false)}
+          onRecorded={() => loadAll(invoice.id!)}
+        />
+      )}
+
+      {editingPayment && invoice.id && (
+        <RecordPaymentModal
+          invoice={{
+            id: invoice.id,
+            invoice_number: invoice.invoice_number,
+            grand_total: invoice.grand_total,
+            amount_paid: invoice.amount_paid,
+            balance_due: invoice.balance_due,
+            client_name: invoice.client_name,
+          }}
+          existingPayment={editingPayment}
+          onClose={() => setEditingPayment(null)}
+          onRecorded={() => loadAll(invoice.id!)}
+        />
+      )}
+    </div>
+  );
+};
+
+const STATUS_LABEL: Record<string, { label: string; bg: string; text: string; Icon: React.ComponentType<{ className?: string }> }> = {
+  paid:    { label: 'Paid',     bg: 'bg-green-100',  text: 'text-green-700',  Icon: CheckCircle2 },
+  partial: { label: 'Partial',  bg: 'bg-amber-100',  text: 'text-amber-700',  Icon: AlertCircle },
+  pending: { label: 'Pending',  bg: 'bg-red-100',    text: 'text-red-700',    Icon: XCircle },
+};
+
+const PaymentPanel: React.FC<{
+  invoice: Invoice;
+  payments: Payment[];
+  loading: boolean;
+  isAdmin: boolean;
+  currentUserId: number | null;
+  canRecord: boolean | null;
+  onAddClick: () => void;
+  onEditPayment: (payment: Payment) => void;
+  onDeletePayment: (id: number) => void;
+}> = ({ invoice, payments, loading, isAdmin, currentUserId, canRecord, onAddClick, onEditPayment, onDeletePayment }) => {
+  const status = invoice.payment_status || 'pending';
+  const meta = STATUS_LABEL[status] || STATUS_LABEL.pending;
+  const total = Number(invoice.grand_total || 0);
+  const paid = Number(invoice.amount_paid || 0);
+  const balance = Number(invoice.balance_due ?? (total - paid));
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+      {/* Header strip with status + record button */}
+      <div className="px-5 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-gray-200 bg-gray-50">
+        <div className="flex items-center space-x-3">
+          <CreditCard className="h-5 w-5 text-gray-500 flex-shrink-0" />
+          <div>
+            <h2 className="text-base font-semibold text-gray-900">Payments</h2>
+            <p className="text-xs text-gray-500">
+              {payments.length} payment{payments.length === 1 ? '' : 's'} recorded
+            </p>
+          </div>
+          <span
+            className={`inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-full ml-2 ${meta.bg} ${meta.text}`}
+          >
+            <meta.Icon className="h-3.5 w-3.5 mr-1" />
+            {meta.label}
+          </span>
+        </div>
+
+        {canRecord && balance > 0 && (
+          <button
+            onClick={onAddClick}
+            className="inline-flex items-center px-4 py-2 rounded-lg text-white bg-green-600 hover:bg-green-700 shadow-sm"
+          >
+            <Plus className="h-4 w-4 mr-1.5" />
+            Record Payment
+          </button>
+        )}
+      </div>
+
+      {/* Summary row */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-gray-200">
+        <div className="px-5 py-3">
+          <p className="text-[11px] uppercase tracking-wide text-gray-500">Total invoiced</p>
+          <p className="text-lg font-bold text-gray-900 tabular-nums">{formatCurrency(total)}</p>
+        </div>
+        <div className="px-5 py-3">
+          <p className="text-[11px] uppercase tracking-wide text-gray-500">Amount paid</p>
+          <p className="text-lg font-bold text-green-700 tabular-nums">{formatCurrency(paid)}</p>
+        </div>
+        <div className="px-5 py-3">
+          <p className="text-[11px] uppercase tracking-wide text-gray-500">Balance due</p>
+          <p className={`text-lg font-bold tabular-nums ${balance > 0 ? 'text-red-600' : 'text-gray-900'}`}>
+            {formatCurrency(balance)}
+          </p>
+        </div>
+      </div>
+
+      {/* Payments list */}
+      {loading ? (
+        <div className="p-6 text-center">
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-300 mx-auto" />
+        </div>
+      ) : payments.length === 0 ? (
+        <div className="p-6 text-center text-sm text-gray-500">
+          No payments recorded yet for this invoice.
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-5 py-2 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                <th className="px-5 py-2 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">Method</th>
+                <th className="px-5 py-2 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">Reference</th>
+                <th className="px-5 py-2 text-right text-[11px] font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                <th className="px-5 py-2 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">Recorded by</th>
+                <th className="px-5 py-2"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200 bg-white">
+              {payments.map((p) => {
+                // Admin can act on any payment; staff can act on payments they
+                // themselves recorded (matches the backend access rule).
+                const canAct = isAdmin || p.recorded_by === currentUserId;
+                return (
+                  <tr key={p.id} className="hover:bg-gray-50">
+                    <td className="px-5 py-2 text-sm text-gray-900 whitespace-nowrap">
+                      {new Date(p.payment_date).toLocaleDateString()}
+                    </td>
+                    <td className="px-5 py-2 text-sm text-gray-700">{p.method || '—'}</td>
+                    <td className="px-5 py-2 text-sm text-gray-700">{p.reference || '—'}</td>
+                    <td className="px-5 py-2 text-sm text-right font-semibold text-green-700 tabular-nums">
+                      {formatCurrency(Number(p.amount))}
+                    </td>
+                    <td className="px-5 py-2 text-sm text-gray-600">{p.recorded_by_name || '—'}</td>
+                    <td className="px-5 py-2 text-right whitespace-nowrap">
+                      {canAct && (
+                        <div className="inline-flex items-center space-x-1">
+                          <button
+                            onClick={() => onEditPayment(p)}
+                            className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg"
+                            title="Edit this payment"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => onDeletePayment(p.id)}
+                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                            title="Delete this payment"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 };

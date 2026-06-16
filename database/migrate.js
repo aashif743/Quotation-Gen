@@ -193,6 +193,33 @@ async function migrate() {
     }
   }
 
+  // 3h. payments table (added 2026-06-12) — records partial / full payments
+  //     made against invoices. Payment status (pending/partial/paid) is
+  //     computed on read by comparing SUM(payments.amount) to
+  //     invoice.grand_total.
+  if (!(await tableExists('payments'))) {
+    console.log('  • Creating `payments` table...');
+    await db.query(`
+      CREATE TABLE \`payments\` (
+        \`id\` INT PRIMARY KEY AUTO_INCREMENT,
+        \`invoice_id\` INT NOT NULL,
+        \`amount\` DECIMAL(15,2) NOT NULL,
+        \`payment_date\` DATE NOT NULL,
+        \`method\` VARCHAR(50),
+        \`reference\` VARCHAR(100),
+        \`notes\` TEXT,
+        \`recorded_by\` INT,
+        \`created_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (\`invoice_id\`) REFERENCES \`invoices\`(\`id\`) ON DELETE CASCADE,
+        FOREIGN KEY (\`recorded_by\`) REFERENCES \`users\`(\`id\`) ON DELETE SET NULL,
+        INDEX \`idx_payment_invoice\` (\`invoice_id\`),
+        INDEX \`idx_payment_date\` (\`payment_date\`)
+      ) ENGINE=InnoDB
+    `);
+  } else {
+    console.log('  • payments already present, skipping.');
+  }
+
   // 3g. clients.created_by (added 2026-06-12) — drives role-based scoping so
   //     staff only see clients they created or have documents for.
   if (await tableExists('clients') && !(await columnExists('clients', 'created_by'))) {

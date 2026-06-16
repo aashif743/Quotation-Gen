@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useCompany } from '../context/CompanyContext';
 import { useAuth } from '../context/AuthContext';
 import { getClients, createClient, deleteClient } from '../services/api';
@@ -22,6 +22,7 @@ import {
 const Clients: React.FC = () => {
   const { selectedCompany } = useCompany();
   const { isAdmin } = useAuth();
+  const navigate = useNavigate();
 
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
@@ -224,15 +225,18 @@ const Clients: React.FC = () => {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {filtered.map((c) => (
-                  <tr key={c.id} className="hover:bg-gray-50">
+                  <tr
+                    key={c.id}
+                    onClick={() => navigate(`/clients/${c.id}`)}
+                    className="hover:bg-gray-50 cursor-pointer"
+                  >
                     <td className="px-6 py-4">
-                      <Link
-                        to={`/clients/${c.id}`}
-                        className="text-sm font-semibold text-gray-900 hover:underline"
+                      <div
+                        className="text-sm font-semibold"
                         style={{ color: primary }}
                       >
                         {c.name}
-                      </Link>
+                      </div>
                       {c.address && <div className="text-xs text-gray-500 mt-0.5 truncate max-w-xs">{c.address}</div>}
                     </td>
                     <td className="px-6 py-4">
@@ -273,7 +277,10 @@ const Clients: React.FC = () => {
                     <td className="px-6 py-4 text-right">
                       {isAdmin && (
                         <button
-                          onClick={() => setToDelete(c)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setToDelete(c);
+                          }}
                           className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
                           title="Delete client"
                         >

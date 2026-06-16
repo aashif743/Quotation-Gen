@@ -19,6 +19,7 @@ export interface Client {
   delivery_note_count?: number;
   total_invoiced?: number;
   total_quoted?: number;
+  total_paid?: number;
   last_activity?: string | null;
 }
 
@@ -33,6 +34,10 @@ export interface ClientDocSummary {
   created_at: string;
   created_by?: number;
   created_by_name?: string;
+  // Populated for invoices (used by the Client detail tab)
+  amount_paid?: number;
+  balance_due?: number;
+  payment_status?: PaymentStatus;
 }
 
 export interface User {
@@ -168,6 +173,26 @@ export interface Invoice {
   company_quote_logo?: string;
   primary_color?: string;
   secondary_color?: string;
+
+  // Payment fields populated by the backend
+  amount_paid?: number;
+  balance_due?: number;
+  payment_status?: PaymentStatus;
+}
+
+export type PaymentStatus = 'pending' | 'partial' | 'paid';
+
+export interface Payment {
+  id: number;
+  invoice_id: number;
+  amount: number;
+  payment_date: string;
+  method?: string | null;
+  reference?: string | null;
+  notes?: string | null;
+  recorded_by?: number | null;
+  recorded_by_name?: string | null;
+  created_at?: string;
 }
 
 export interface DeliveryNoteItem {

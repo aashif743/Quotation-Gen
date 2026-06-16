@@ -1,5 +1,5 @@
 SET FOREIGN_KEY_CHECKS = 0;
-DROP TABLE IF EXISTS `users`, `companies`, `quotations`, `quotation_items`, `invoices`, `invoice_items`, `delivery_notes`, `delivery_note_items`, `clients`;
+DROP TABLE IF EXISTS `users`, `companies`, `quotations`, `quotation_items`, `invoices`, `invoice_items`, `delivery_notes`, `delivery_note_items`, `clients`, `payments`;
 SET FOREIGN_KEY_CHECKS = 1;
 
 CREATE TABLE IF NOT EXISTS `users` (
@@ -130,6 +130,26 @@ CREATE TABLE IF NOT EXISTS `invoice_items` (
     `sort_order` INT DEFAULT 0,
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (`invoice_id`) REFERENCES `invoices`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- Payments are recorded against invoices. A pending invoice has zero
+-- payments; a partial invoice has SUM(payments.amount) < grand_total; a paid
+-- invoice has SUM(payments.amount) >= grand_total. The application computes
+-- those statuses on read so historical recalc isn't needed.
+CREATE TABLE IF NOT EXISTS `payments` (
+    `id` INT PRIMARY KEY AUTO_INCREMENT,
+    `invoice_id` INT NOT NULL,
+    `amount` DECIMAL(15,2) NOT NULL,
+    `payment_date` DATE NOT NULL,
+    `method` VARCHAR(50),
+    `reference` VARCHAR(100),
+    `notes` TEXT,
+    `recorded_by` INT,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (`invoice_id`) REFERENCES `invoices`(`id`) ON DELETE CASCADE,
+    FOREIGN KEY (`recorded_by`) REFERENCES `users`(`id`) ON DELETE SET NULL,
+    INDEX `idx_payment_invoice` (`invoice_id`),
+    INDEX `idx_payment_date` (`payment_date`)
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS `delivery_notes` (

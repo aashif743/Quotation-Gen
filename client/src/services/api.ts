@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { Company, Quotation, Invoice, DeliveryNote, User, AuthStatus, ManagedUser, UserRole, Client, ClientDocSummary } from '../types';
+import { Company, Quotation, Invoice, DeliveryNote, User, AuthStatus, ManagedUser, UserRole, Client, ClientDocSummary, Payment } from '../types';
 
 // Use a relative base so the same build works in development (proxied by CRA
 // to the local Express server) and in production (served by the same Express
@@ -320,4 +320,81 @@ export const getClientInvoices = async (id: number): Promise<ClientDocSummary[]>
 export const getClientDeliveryNotes = async (id: number): Promise<ClientDocSummary[]> => {
   const response = await api.get(`/clients/${id}/delivery-notes`);
   return response.data;
+};
+
+// Client statement (payment tracking report for a date range)
+export interface ClientStatement {
+  client: {
+    id: number;
+    company_id: number;
+    name: string;
+    contact_person?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    address?: string | null;
+    tax_id?: string | null;
+  } | null;
+  period: { from: string; to: string };
+  opening_balance: number;
+  total_invoiced: number;
+  total_paid: number;
+  closing_balance: number;
+  invoices: Array<{
+    id: number;
+    invoice_number: string;
+    date: string;
+    grand_total: number;
+    amount_paid: number;
+    balance_due: number;
+    payment_status: 'pending' | 'partial' | 'paid';
+  }>;
+  payments: Array<{
+    id: number;
+    amount: number;
+    payment_date: string;
+    method?: string | null;
+    reference?: string | null;
+    notes?: string | null;
+    invoice_id: number;
+    invoice_number: string;
+    recorded_by_name?: string | null;
+  }>;
+}
+
+export const getClientStatement = async (
+  id: number,
+  from: string,
+  to: string
+): Promise<ClientStatement> => {
+  const response = await api.get(`/clients/${id}/statement`, {
+    params: { from, to },
+  });
+  return response.data;
+};
+
+// Payments API
+export const getPaymentsForInvoice = async (invoiceId: number): Promise<Payment[]> => {
+  const response = await api.get('/payments', { params: { invoice_id: invoiceId } });
+  return response.data;
+};
+
+export const recordPayment = async (data: {
+  invoice_id: number;
+  amount: number;
+  payment_date: string;
+  method?: string;
+  reference?: string;
+  notes?: string;
+}): Promise<Payment> => {
+  const response = await api.post('/payments', data);
+  return response.data;
+};
+
+export const updatePayment = async (id: number, data: Partial<Payment>): Promise<Payment> => {
+  const response = await api.put(`/payments/${id}`, data);
+  return response.data;
+};
+
+export const deletePayment = async (id: number): Promise<void> => {
+  await api.delete(`/payments/${id}`);
 };

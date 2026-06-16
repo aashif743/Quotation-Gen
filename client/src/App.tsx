@@ -17,6 +17,7 @@ import DeliveryNoteHistory from './pages/DeliveryNoteHistory';
 import EditDeliveryNote from './pages/EditDeliveryNote';
 import Clients from './pages/Clients';
 import ClientDetail from './pages/ClientDetail';
+import ClientStatementPage from './pages/ClientStatement';
 import UserManagement from './pages/UserManagement';
 import Storage from './pages/Storage';
 import Login from './pages/Login';
@@ -113,6 +114,7 @@ function AppRoutes() {
                   <Route path="/edit-delivery-note/:id" element={<EditDeliveryNote />} />
                   <Route path="/clients" element={<Clients />} />
                   <Route path="/clients/:id" element={<ClientDetail />} />
+                  <Route path="/clients/:id/statement" element={<ClientStatementPage />} />
                   <Route
                     path="/users"
                     element={
