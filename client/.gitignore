@@ -8,8 +8,9 @@
 # testing
 /coverage
 
-# production
-/build
+# production — intentionally tracked so `git pull` deploys the latest
+# compiled UI on shared hosts that don't run `npm run build` on deploy.
+# /build
 
 # misc
 .DS_Store

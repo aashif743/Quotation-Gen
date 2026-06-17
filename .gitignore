@@ -2,8 +2,12 @@
 node_modules/
 client/node_modules/
 
-# Build output
-client/build/
+# Build output is intentionally tracked so a `git pull` on Hostinger
+# is a complete deploy — no `npm run build` step required on the server.
+# (Hostinger's git auto-deploy doesn't reliably trigger postinstall, so
+# we ship the compiled bundle directly. Rebuild locally with
+# `npm run build` from /client before pushing UI changes.)
+# client/build/
 
 # Environment
 .env
