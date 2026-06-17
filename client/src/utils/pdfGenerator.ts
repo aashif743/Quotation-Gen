@@ -44,20 +44,50 @@ async function saveElementAsPdf(
   // first — otherwise the captured height varies per company.
   await waitForImages(element);
 
+  // Measure the *real* rendered box of the live element. We use this both for
+  // the capture region and to force the clone to be the same size — html2canvas
+  // doesn't honor the CSS `aspect-ratio` property used by the document layouts,
+  // so without an explicit pixel height the cloned root collapses to its
+  // natural content height and the captured canvas ends up with content in the
+  // top portion and empty white below (which is what makes quotations look like
+  // they aren't filling the A4 page).
+  const rect = element.getBoundingClientRect();
+  const captureWidth = Math.ceil(rect.width);
+  const captureHeight = Math.ceil(rect.height);
+
   // Capture the element at 2x device pixels for a sharp PDF.
   const canvas = await html2canvas(element, {
     scale: 2,
     useCORS: true,
     allowTaint: true,
     backgroundColor: '#ffffff',
-    height: element.scrollHeight,
-    width: element.scrollWidth,
+    width: captureWidth,
+    height: captureHeight,
     // html2canvas otherwise inherits scroll position, which can shift the
     // captured viewport on long documents.
     scrollX: 0,
     scrollY: 0,
-    windowWidth: element.scrollWidth,
-    windowHeight: element.scrollHeight,
+    windowWidth: captureWidth,
+    windowHeight: captureHeight,
+    // Pin the cloned root to exactly the same pixel size as the live element.
+    // This is what makes flex-based templates (`flex-1` content + `mt-auto`
+    // footer) actually fill the A4 page in the captured image, since the
+    // browser inside html2canvas's iframe ignores `aspect-ratio`.
+    onclone: (clonedDoc) => {
+      const root = clonedDoc.querySelector<HTMLElement>(
+        '.quotation-document, .invoice-document, .delivery-note-document'
+      );
+      if (!root) return;
+      root.style.width = `${captureWidth}px`;
+      root.style.height = `${captureHeight}px`;
+      root.style.minHeight = `${captureHeight}px`;
+      root.style.maxWidth = 'none';
+      root.style.boxSizing = 'border-box';
+      // The shadow/rounded corners are decorative — they don't belong in the
+      // exported PDF and the rounding clips part of the document edge.
+      root.style.boxShadow = 'none';
+      root.style.borderRadius = '0';
+    },
   });
 
   const pdf = new jsPDF('p', 'mm', 'a4');
