@@ -133,7 +133,7 @@ const DeliveryNoteDocument: React.FC<DeliveryNoteDocumentProps> = ({
         </table>
 
         {/* Signature block — always pinned to bottom of the page */}
-        <div className="mt-auto pt-12">
+        <div className="mt-auto pt-12" data-pdf-keep>
           <div className="grid grid-cols-2 gap-12">
             <div>
               <p className="text-xs font-semibold uppercase tracking-widest mb-12" style={{ color: primary }}>

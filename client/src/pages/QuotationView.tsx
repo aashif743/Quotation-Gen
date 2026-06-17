@@ -208,7 +208,7 @@ const QuotationView: React.FC = () => {
       )}
 
       <QuotationDocument
-        rootClassName="quotation-document shadow-lg rounded-lg overflow-hidden"
+        rootClassName="quotation-document shadow-lg rounded-lg"
         template={quotation.company_template}
         data={quotation}
         company={{

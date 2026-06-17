@@ -215,7 +215,7 @@ const InvoiceView: React.FC = () => {
         />
       </div>
 
-      <div className="invoice-document bg-white shadow-lg rounded-lg overflow-hidden">
+      <div className="invoice-document bg-white shadow-lg rounded-lg">
         <div
           className="px-8 py-6"
           style={{ backgroundColor: colors.bg }}

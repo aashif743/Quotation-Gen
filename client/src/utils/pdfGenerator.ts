@@ -44,6 +44,10 @@ async function saveElementAsPdf(
   // first — otherwise the captured height varies per company.
   await waitForImages(element);
 
+  // capture scale — must match the value passed to html2canvas below so the
+  // canvas-pixel maths line up.
+  const CAPTURE_SCALE = 1.5;
+
   // Measure the *real* rendered box of the live element. We use this both for
   // the capture region and to force the clone to be the same size — html2canvas
   // doesn't honor the CSS `aspect-ratio` property used by the document layouts,
@@ -71,7 +75,7 @@ async function saveElementAsPdf(
   // old `scale: 2` produced ~217 DPI which is overkill and roughly quadruples
   // the raw pixel count vs the file size we actually need.
   const canvas = await html2canvas(element, {
-    scale: 1.5,
+    scale: CAPTURE_SCALE,
     useCORS: true,
     allowTaint: true,
     backgroundColor: '#ffffff',
@@ -125,6 +129,12 @@ async function saveElementAsPdf(
   // extra page at the end.
   const HEIGHT_TOLERANCE_PX = 8;
 
+  // Build a sorted list of canvas-Y values where it's *safe* to put a page
+  // break — i.e. between table rows (or any element tagged `data-pdf-keep`),
+  // never through the middle of one. The slicer below uses this to round each
+  // page boundary down to the nearest safe Y so an item is never cut in half.
+  const safeBreakYs = collectSafeBreakPoints(element, CAPTURE_SCALE, canvas.height);
+
   // Single-page fast path: no slicing needed.
   if (canvas.height <= pageHeightPx + HEIGHT_TOLERANCE_PX) {
     const heightMm = canvas.height / pxPerMm;
@@ -140,13 +150,34 @@ async function saveElementAsPdf(
     return;
   }
 
-  // Multi-page: cut the source canvas into per-page slices. Each slice is its
-  // own canvas that we render to a JPEG and add as the page background.
+  // Multi-page: cut the source canvas into per-page slices, snapping each cut
+  // line to the nearest safe break point so a table row is never split between
+  // two pages. Each slice becomes one PDF page.
   let offsetPx = 0;
   let pageIndex = 0;
   while (canvas.height - offsetPx > HEIGHT_TOLERANCE_PX) {
-    const sliceHeightPx = Math.min(pageHeightPx, canvas.height - offsetPx);
+    const remaining = canvas.height - offsetPx;
+    let sliceEnd: number;
 
+    if (remaining <= pageHeightPx + HEIGHT_TOLERANCE_PX) {
+      // Last page — take everything left, no snapping needed.
+      sliceEnd = canvas.height;
+    } else {
+      // Aim for a full A4 page, but snap to the largest safe break Y that
+      // sits within the [offsetPx + 1, idealEnd] window. If none is found
+      // (e.g. a single row taller than a page) we fall back to the ideal end
+      // so we still make progress instead of looping forever.
+      const idealEnd = offsetPx + pageHeightPx;
+      let bestBreak = -1;
+      for (const by of safeBreakYs) {
+        if (by > offsetPx + HEIGHT_TOLERANCE_PX && by <= idealEnd + HEIGHT_TOLERANCE_PX) {
+          if (by > bestBreak) bestBreak = by;
+        }
+      }
+      sliceEnd = bestBreak > 0 ? bestBreak : idealEnd;
+    }
+
+    const sliceHeightPx = sliceEnd - offsetPx;
     const slice = document.createElement('canvas');
     slice.width = canvas.width;
     slice.height = sliceHeightPx;
@@ -170,11 +201,46 @@ async function saveElementAsPdf(
       'FAST'
     );
 
-    offsetPx += pageHeightPx;
+    offsetPx = sliceEnd;
     pageIndex++;
   }
 
   pdf.save(filename);
+}
+
+/**
+ * Find Y-coordinates (in canvas pixels) where it's safe to insert a page
+ * break — i.e. between rows of a table, or between elements explicitly tagged
+ * with `data-pdf-keep` (a sentinel the document templates use for blocks like
+ * the totals card and the bottom notes/terms section that shouldn't be split).
+ *
+ * Returns a sorted ascending list including 0 and the canvas's full height
+ * as boundary points.
+ */
+function collectSafeBreakPoints(
+  element: HTMLElement,
+  scale: number,
+  canvasHeight: number
+): number[] {
+  const elemTop = element.getBoundingClientRect().top;
+  const ys = new Set<number>();
+  ys.add(0);
+  ys.add(canvasHeight);
+
+  // Every <tr> within the captured element is treated as a no-break unit.
+  // The Y just below a row is a safe place to break to the next page.
+  // We also pick up any element flagged with `data-pdf-keep` so document
+  // templates can opt sections in by adding the attribute.
+  const selectors = 'tr, [data-pdf-keep]';
+  element.querySelectorAll<HTMLElement>(selectors).forEach((node) => {
+    const rect = node.getBoundingClientRect();
+    const bottomRel = rect.bottom - elemTop;
+    if (bottomRel <= 0) return;
+    const yCanvas = Math.round(bottomRel * scale);
+    if (yCanvas > 0 && yCanvas <= canvasHeight) ys.add(yCanvas);
+  });
+
+  return Array.from(ys).sort((a, b) => a - b);
 }
 
 const safeFileSegment = (s: string) => s.replace(/[^a-zA-Z0-9]/g, '_');

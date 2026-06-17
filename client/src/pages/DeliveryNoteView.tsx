@@ -401,7 +401,7 @@ const DeliveryNoteView: React.FC = () => {
       </div>
 
       <DeliveryNoteDocument
-        rootClassName="delivery-note-document shadow-lg rounded-lg overflow-hidden"
+        rootClassName="delivery-note-document shadow-lg rounded-lg"
         data={dn}
         company={{
           name: dn.company_name || '',

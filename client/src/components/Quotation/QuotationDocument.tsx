@@ -110,7 +110,7 @@ const QuotationDocument: React.FC<QuotationDocumentProps> = ({
   const hasNotes = !!data.notes;
   const hasTerms = !!data.terms_conditions;
   const BottomBlock = (
-    <div className="mt-auto pt-10 text-center">
+    <div className="mt-auto pt-10 text-center" data-pdf-keep>
       {(hasNotes || hasTerms) && (
         <div className="max-w-3xl mx-auto mb-8">
           <div
@@ -218,7 +218,7 @@ const QuotationDocument: React.FC<QuotationDocumentProps> = ({
         </table>
 
         <div className="flex justify-end">
-          <div className="w-80 rounded-lg overflow-hidden border" style={{ borderColor: tint(0.2) }}>
+          <div className="w-80 rounded-lg overflow-hidden border" data-pdf-keep style={{ borderColor: tint(0.2) }}>
             <div className="p-4 space-y-2 text-sm bg-gray-50">
               <div className="flex justify-between"><span className="text-gray-600">Subtotal</span><span className="font-medium">{formatCurrency(data.subtotal || 0)}</span></div>
               <div className="flex justify-between"><span className="text-gray-600">{vatLabel}</span><span className="font-medium">{formatCurrency(data.vat_amount || 0)}</span></div>
@@ -311,7 +311,7 @@ const QuotationDocument: React.FC<QuotationDocumentProps> = ({
         </table>
 
         <div className="flex justify-end">
-          <div className="w-80 rounded-2xl p-5" style={{ backgroundColor: tint(0.08) }}>
+          <div className="w-80 rounded-2xl p-5" data-pdf-keep style={{ backgroundColor: tint(0.08) }}>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between"><span className="text-gray-600">Subtotal</span><span className="font-medium">{formatCurrency(data.subtotal || 0)}</span></div>
               <div className="flex justify-between"><span className="text-gray-600">{vatLabel}</span><span className="font-medium">{formatCurrency(data.vat_amount || 0)}</span></div>
@@ -389,16 +389,18 @@ const QuotationDocument: React.FC<QuotationDocumentProps> = ({
           </tbody>
         </table>
 
-        <div className="flex justify-end mb-2">
-          <div className="w-80 space-y-2 text-sm">
-            <div className="flex justify-between"><span className="text-gray-600">Subtotal</span><span>{formatCurrency(data.subtotal || 0)}</span></div>
-            <div className="flex justify-between"><span className="text-gray-600">{vatLabel}</span><span>{formatCurrency(data.vat_amount || 0)}</span></div>
-            <div className="flex justify-between"><span className="text-gray-600">{ppdaLabel}</span><span>{formatCurrency(data.ppda_amount || 0)}</span></div>
+        <div data-pdf-keep>
+          <div className="flex justify-end mb-2">
+            <div className="w-80 space-y-2 text-sm">
+              <div className="flex justify-between"><span className="text-gray-600">Subtotal</span><span>{formatCurrency(data.subtotal || 0)}</span></div>
+              <div className="flex justify-between"><span className="text-gray-600">{vatLabel}</span><span>{formatCurrency(data.vat_amount || 0)}</span></div>
+              <div className="flex justify-between"><span className="text-gray-600">{ppdaLabel}</span><span>{formatCurrency(data.ppda_amount || 0)}</span></div>
+            </div>
           </div>
-        </div>
-        <div className="flex justify-between items-center px-6 py-4" style={{ backgroundColor: primary, color: secondary }}>
-          <span className="uppercase tracking-widest text-sm">Grand Total</span>
-          <span className="text-2xl font-semibold">{formatCurrency(data.grand_total || 0)}</span>
+          <div className="flex justify-between items-center px-6 py-4" style={{ backgroundColor: primary, color: secondary }}>
+            <span className="uppercase tracking-widest text-sm">Grand Total</span>
+            <span className="text-2xl font-semibold">{formatCurrency(data.grand_total || 0)}</span>
+          </div>
         </div>
 
         {company.bank_details && (
@@ -486,7 +488,7 @@ const QuotationDocument: React.FC<QuotationDocumentProps> = ({
         </div>
 
         <div className="flex justify-end">
-          <div className="w-96 overflow-hidden rounded">
+          <div className="w-96 overflow-hidden rounded" data-pdf-keep>
             <div style={{ backgroundColor: '#0f172a', color: '#ffffff' }}>
               <div className="px-5 py-3 flex justify-between text-sm border-b border-white/10"><span className="opacity-80">Subtotal</span><span className="font-semibold">{formatCurrency(data.subtotal || 0)}</span></div>
               <div className="px-5 py-3 flex justify-between text-sm border-b border-white/10"><span className="opacity-80">{vatLabel}</span><span className="font-semibold">{formatCurrency(data.vat_amount || 0)}</span></div>
