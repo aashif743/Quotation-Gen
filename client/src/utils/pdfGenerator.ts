@@ -53,7 +53,18 @@ async function saveElementAsPdf(
   // they aren't filling the A4 page).
   const rect = element.getBoundingClientRect();
   const captureWidth = Math.ceil(rect.width);
-  const captureHeight = Math.ceil(rect.height);
+  // One A4 page worth of pixels at the current rendered width. Used as the
+  // minimum capture height so short documents still fill a full A4 page.
+  // Floor (not ceil) so the captured canvas, once scaled, matches the
+  // per-page pixel count exactly — avoids a 1-pixel phantom second page.
+  const singlePageHeightPx = Math.floor(captureWidth * 297 / 210);
+  // For long documents the on-screen element is clipped (the doc root uses
+  // `overflow-hidden` + `aspect-ratio`), so `rect.height` reports a single A4
+  // page even when there are many items. `scrollHeight` is the natural content
+  // height including the overflow — using the larger of the two ensures every
+  // item is in the captured canvas and the multi-page slicer can split it into
+  // multiple PDF pages.
+  const captureHeight = Math.max(singlePageHeightPx, element.scrollHeight);
 
   // Capture at 1.5x device pixels — that's ~160 DPI on A4 which is still well
   // above print clarity for text and keeps the JPEG inside the PDF small. The
@@ -109,9 +120,13 @@ async function saveElementAsPdf(
   const pxPerMm = canvas.width / pageWidthMm;
   // The height of one A4 page, in canvas pixels.
   const pageHeightPx = Math.floor(pageHeightMm * pxPerMm);
+  // A few-pixel forgiveness so subpixel rounding between html2canvas's scaled
+  // capture and our per-page maths doesn't trip us into producing a near-empty
+  // extra page at the end.
+  const HEIGHT_TOLERANCE_PX = 8;
 
   // Single-page fast path: no slicing needed.
-  if (canvas.height <= pageHeightPx) {
+  if (canvas.height <= pageHeightPx + HEIGHT_TOLERANCE_PX) {
     const heightMm = canvas.height / pxPerMm;
     pdf.addImage(
       canvas.toDataURL('image/jpeg', JPEG_QUALITY),
@@ -129,7 +144,7 @@ async function saveElementAsPdf(
   // own canvas that we render to a JPEG and add as the page background.
   let offsetPx = 0;
   let pageIndex = 0;
-  while (offsetPx < canvas.height) {
+  while (canvas.height - offsetPx > HEIGHT_TOLERANCE_PX) {
     const sliceHeightPx = Math.min(pageHeightPx, canvas.height - offsetPx);
 
     const slice = document.createElement('canvas');
