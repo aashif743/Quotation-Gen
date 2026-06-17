@@ -85,27 +85,6 @@ export const deleteUser = async (id: number): Promise<void> => {
   await api.delete(`/users/${id}`);
 };
 
-// Admin: storage usage
-export interface StorageUsage {
-  database: {
-    name: string;
-    tables: {
-      name: string;
-      row_count: number;
-      data_bytes: number;
-      index_bytes: number;
-      size_bytes: number;
-    }[];
-    total_bytes: number;
-  };
-  uploads: { directory: string; file_count: number; total_bytes: number };
-}
-
-export const getStorageUsage = async (): Promise<StorageUsage> => {
-  const response = await api.get('/admin/storage');
-  return response.data;
-};
-
 export const getGoogleAuthUrl = (): string => {
   return `${API_BASE_URL}/auth/google`;
 };

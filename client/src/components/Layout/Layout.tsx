@@ -16,7 +16,6 @@ import {
   ShieldCheck,
   PanelLeftClose,
   PanelLeftOpen,
-  HardDrive,
   Truck,
   Briefcase,
 } from 'lucide-react';
@@ -132,7 +131,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     ...(isAdmin
       ? [
           { to: '/users', icon: Users, label: 'User Management' },
-          { to: '/storage', icon: HardDrive, label: 'Storage Usage' },
           { to: '/settings', icon: Settings, label: 'Company Settings' },
         ]
       : []),

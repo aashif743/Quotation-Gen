@@ -19,7 +19,6 @@ import Clients from './pages/Clients';
 import ClientDetail from './pages/ClientDetail';
 import ClientStatementPage from './pages/ClientStatement';
 import UserManagement from './pages/UserManagement';
-import Storage from './pages/Storage';
 import Login from './pages/Login';
 
 // Protected Route wrapper
@@ -120,14 +119,6 @@ function AppRoutes() {
                     element={
                       <AdminRoute>
                         <UserManagement />
-                      </AdminRoute>
-                    }
-                  />
-                  <Route
-                    path="/storage"
-                    element={
-                      <AdminRoute>
-                        <Storage />
                       </AdminRoute>
                     }
                   />
