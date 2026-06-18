@@ -5,6 +5,7 @@ import { CompanyProvider } from './context/CompanyContext';
 import Layout from './components/Layout/Layout';
 import Dashboard from './pages/Dashboard';
 import NewQuotation from './pages/NewQuotation';
+import NewInvoice from './pages/NewInvoice';
 import QuotationHistory from './pages/QuotationHistory';
 import InvoiceHistory from './pages/InvoiceHistory';
 import Settings from './pages/Settings';
@@ -101,6 +102,7 @@ function AppRoutes() {
                 <Routes>
                   <Route path="/" element={<Dashboard />} />
                   <Route path="/new-quotation" element={<NewQuotation />} />
+                  <Route path="/new-invoice" element={<NewInvoice />} />
                   <Route path="/history" element={<QuotationHistory />} />
                   <Route path="/invoice-history" element={<InvoiceHistory />} />
                   <Route path="/settings" element={<Settings />} />

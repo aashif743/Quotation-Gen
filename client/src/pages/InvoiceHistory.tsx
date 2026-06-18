@@ -13,7 +13,8 @@ import {
   User,
   Eye,
   Trash2,
-  Filter
+  Filter,
+  Plus
 } from 'lucide-react';
 
 const InvoiceHistory: React.FC = () => {
@@ -205,6 +206,14 @@ const InvoiceHistory: React.FC = () => {
               : `Your invoices for ${selectedCompany.name}`}
           </p>
         </div>
+        <Link
+          to="/new-invoice"
+          className="inline-flex items-center px-4 py-2 rounded-lg text-white shadow-sm hover:opacity-90"
+          style={{ backgroundColor: primaryColor }}
+        >
+          <Plus className="h-5 w-5 mr-2" />
+          New Invoice
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

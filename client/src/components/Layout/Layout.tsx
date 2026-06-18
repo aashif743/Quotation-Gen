@@ -124,6 +124,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const navItems = [
     { to: '/', icon: Home, label: 'Dashboard' },
     { to: '/new-quotation', icon: FileText, label: 'New Quotation' },
+    { to: '/new-invoice', icon: Receipt, label: 'New Invoice' },
     { to: '/history', icon: History, label: 'Quotation History' },
     { to: '/invoice-history', icon: Receipt, label: 'Invoice History' },
     { to: '/delivery-history', icon: Truck, label: 'Delivery Notes' },

@@ -249,6 +249,13 @@ const ClientDetail: React.FC = () => {
               <Plus className="h-3.5 w-3.5 mr-1.5" />
               New Quotation
             </Link>
+            <Link
+              to={`/new-invoice?clientId=${client.id}`}
+              className="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-lg text-white bg-green-600 hover:bg-green-700"
+            >
+              <Plus className="h-3.5 w-3.5 mr-1.5" />
+              New Invoice
+            </Link>
             {isAdmin && !editing && (
               <button
                 onClick={() => {
