@@ -16,45 +16,72 @@ code {
     monospace;
 }
 
-/* Print Styles */
+/* Print Styles
+   ------------
+   Goal: when the user clicks the Print button on a Quotation / Invoice /
+   Delivery Note view, only the actual document prints — no sidebar, no page
+   header, no action buttons, no payment panel, no gray app background.
+   Everything that isn't part of the document is marked `.no-print` (the
+   sidebar and the in-app header are tagged in Layout.tsx; the back/edit/
+   print/download bars and the payment / signed-copy / "prepared by" lines
+   are tagged inside each view page).
+*/
 @media print {
+  /* Hide anything explicitly marked as chrome. */
   .no-print {
     display: none !important;
   }
 
+  /* Reset the page so the document fills the printable area. The app shell
+     (white surface inside a gray page background) isn't relevant on paper. */
+  html, body {
+    background: white !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* The Layout wraps page content in `<main class="p-6">` for screen — drop
+     that padding on print so the doc starts at the top-left of the page. */
+  main {
+    padding: 0 !important;
+  }
+
+  /* The page-view container around the document (e.g. `max-w-4xl mx-auto`)
+     constrains screen width but the print page already constrains the
+     printable area; remove the constraint so the document fills available
+     width and isn't centered-with-margins inside it. */
   .quotation-document,
   .invoice-document,
   .delivery-note-document {
     box-shadow: none !important;
     margin: 0 !important;
     border: none !important;
-    /* Critical: allow the document to flow across multiple pages. Previously
-       we had `page-break-inside: avoid` here which forced the browser to keep
-       the entire document on one page — that's why long item lists from some
-       companies appeared truncated or didn't spill onto page 2. */
+    border-radius: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    /* Allow the document to flow across multiple pages. (Previously
+       `page-break-inside: avoid` here forced the browser to keep the entire
+       document on one page, which clipped long item lists.) */
     page-break-inside: auto;
     break-inside: auto;
   }
 
-  body {
-    background: white !important;
-  }
-
-  /* Avoid splitting in the middle of an item row when printing — nicer
-     pagination on long documents. */
+  /* Table pagination: header row repeats on every page, individual rows stay
+     intact (never split mid-row). */
   table { page-break-inside: auto; break-inside: auto; }
   thead { display: table-header-group; }
   tfoot { display: table-footer-group; }
   tr    { page-break-inside: avoid; break-inside: avoid; }
 
-  /* Force background colors and images to print */
+  /* Force background colors / brand accents to render in the printed copy.
+     Without this most browsers strip background colors to save ink. */
   * {
     -webkit-print-color-adjust: exact !important;
     color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
 
-  /* Set specific dimensions for A4 printing */
+  /* A4 portrait, half-inch printer margin all round. */
   @page {
     size: A4;
     margin: 0.5in;
