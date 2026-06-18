@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { Invoice, Payment } from '../types';
 import { formatCurrency, formatNumber } from '../utils/calculations';
 import { generateInvoicePDF } from '../utils/pdfGenerator';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import {
   Download,
   Edit2,
@@ -63,6 +64,13 @@ const InvoiceView: React.FC = () => {
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  // Browser tab + any leaked print header gets a meaningful title.
+  useDocumentTitle(
+    invoice
+      ? `Invoice ${invoice.invoice_number}${invoice.client_name ? ` — ${invoice.client_name}` : ''}`
+      : null
+  );
 
   const handleDeletePayment = async (paymentId: number) => {
     if (!invoice?.id) return;

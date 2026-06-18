@@ -81,10 +81,23 @@ code {
     print-color-adjust: exact !important;
   }
 
-  /* A4 portrait, half-inch printer margin all round. */
+  /* A4 portrait, half-inch printer margin all round. Margin boxes are blanked
+     so browsers that support `@page` margin-box content (Firefox + some
+     Chromium variants) suppress the auto-injected URL / date / page-number
+     headers and footers. Chrome and Safari ignore these but the user can
+     still untick "Headers and footers" in their print dialog's
+     "More settings" — pairing that with our document title (set per page via
+     useDocumentTitle) so even leaked headers read something useful instead
+     of "React App". */
   @page {
     size: A4;
     margin: 0.5in;
+    @top-left      { content: ""; }
+    @top-center    { content: ""; }
+    @top-right     { content: ""; }
+    @bottom-left   { content: ""; }
+    @bottom-center { content: ""; }
+    @bottom-right  { content: ""; }
   }
 }
 /* Hide the up/down spinner arrows on number inputs across the app so the

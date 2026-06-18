@@ -8,6 +8,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { DeliveryNote } from '../types';
 import { generateDeliveryNotePDF } from '../utils/pdfGenerator';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import DeliveryNoteDocument from '../components/Delivery/DeliveryNoteDocument';
 import {
   Download,
@@ -51,6 +52,13 @@ const DeliveryNoteView: React.FC = () => {
     };
     load();
   }, [id]);
+
+  // Browser tab + any leaked print header gets a meaningful title.
+  useDocumentTitle(
+    dn
+      ? `Delivery Note ${dn.delivery_note_number}${dn.client_name ? ` — ${dn.client_name}` : ''}`
+      : null
+  );
 
   // Prevent the browser from opening the file when the user misses the drop
   // zone — without these handlers it would navigate away from the page.

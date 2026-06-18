@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { Quotation } from '../types';
 import { generatePDF } from '../utils/pdfGenerator';
 import QuotationDocument from '../components/Quotation/QuotationDocument';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { Download, Edit2, ArrowLeft, Printer, FileText, Truck } from 'lucide-react';
 
 const QuotationView: React.FC = () => {
@@ -33,6 +34,15 @@ const QuotationView: React.FC = () => {
 
     loadQuotation();
   }, [id]);
+
+  // Tab title (and any print-header text) becomes e.g. "Quotation QT-0001 —
+  // Acme Co." instead of the default app name. Browsers that inject the page
+  // title into the print header will at least show something useful.
+  useDocumentTitle(
+    quotation
+      ? `Quotation ${quotation.quote_number}${quotation.client_name ? ` — ${quotation.client_name}` : ''}`
+      : null
+  );
 
   const handleDownloadPDF = async () => {
     if (!quotation) return;
