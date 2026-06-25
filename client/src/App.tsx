@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { CompanyProvider } from './context/CompanyContext';
+import { ThemeProvider } from './context/ThemeContext';
 import Layout from './components/Layout/Layout';
 import Dashboard from './pages/Dashboard';
 import NewQuotation from './pages/NewQuotation';
@@ -136,11 +137,13 @@ function AppRoutes() {
 
 function App() {
   return (
-    <Router>
-      <AuthProvider>
-        <AppRoutes />
-      </AuthProvider>
-    </Router>
+    <ThemeProvider>
+      <Router>
+        <AuthProvider>
+          <AppRoutes />
+        </AuthProvider>
+      </Router>
+    </ThemeProvider>
   );
 }
 

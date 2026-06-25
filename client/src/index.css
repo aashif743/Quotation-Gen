@@ -9,6 +9,160 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background-color: #f9fafb; /* gray-50 — light mode page bg */
+  color: #111827;            /* gray-900 — light mode body text */
+}
+html.dark body {
+  background-color: #0f172a; /* slate-900 — dark mode page bg */
+  color: #e5e7eb;            /* gray-200 — dark mode body text */
+}
+
+/* ---------------------------------------------------------------------------
+   Dark-mode chrome defaults
+   ---------------------------------------------------------------------------
+   The app uses light-mode utility classes (`bg-white`, `text-gray-900`,
+   `border-gray-200`, …) throughout dozens of files. To avoid touching every
+   file, these blanket rules under `html.dark` re-skin those classes.
+   Document elements (.quotation-document / .invoice-document /
+   .delivery-note-document) and their descendants are then re-pinned to the
+   light palette in the *Document protection* block below — those descendant
+   rules use two class selectors so their specificity beats the `html.dark`
+   rules above, which keeps the on-screen preview and the PDF output light.
+   --------------------------------------------------------------------------- */
+
+/* Surfaces */
+html.dark .bg-white    { background-color: #1f2937 !important; }  /* gray-800 */
+html.dark .bg-gray-50  { background-color: #111827 !important; }  /* gray-900 */
+html.dark .bg-gray-100 { background-color: #1f2937 !important; }  /* gray-800 */
+
+/* Borders & dividers */
+html.dark .border-gray-200,
+html.dark .border-gray-300 { border-color: #374151 !important; } /* gray-700 */
+html.dark .divide-gray-200 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #374151 !important;
+}
+
+/* Text */
+html.dark .text-gray-900 { color: #f3f4f6 !important; } /* gray-100 */
+html.dark .text-gray-800 { color: #e5e7eb !important; } /* gray-200 */
+html.dark .text-gray-700 { color: #d1d5db !important; } /* gray-300 */
+html.dark .text-gray-600 { color: #9ca3af !important; } /* gray-400 */
+html.dark .text-gray-500 { color: #9ca3af !important; } /* gray-400 */
+html.dark .text-gray-400 { color: #6b7280 !important; } /* gray-500 */
+
+/* Form controls */
+html.dark input,
+html.dark select,
+html.dark textarea {
+  background-color: #111827 !important;
+  color: #f3f4f6 !important;
+  border-color: #374151 !important;
+}
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+  color: #6b7280 !important;
+}
+
+/* Hover states */
+html.dark .hover\:bg-gray-50:hover,
+html.dark .hover\:bg-gray-100:hover {
+  background-color: rgba(55, 65, 81, 0.6) !important; /* gray-700/60 */
+}
+
+/* Scrollbar: tint to match dark surfaces. Firefox uses `scrollbar-color`,
+   WebKit/Blink browsers use the ::-webkit-scrollbar pseudo-elements. */
+html.dark {
+  scrollbar-color: #4b5563 #1f2937;
+}
+html.dark ::-webkit-scrollbar { width: 10px; height: 10px; }
+html.dark ::-webkit-scrollbar-track { background: #1f2937; }
+html.dark ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 5px; }
+html.dark ::-webkit-scrollbar-thumb:hover { background: #6b7280; }
+
+/* Soft badge backgrounds — bump opacity so colored pills still pop. */
+html.dark .bg-blue-50    { background-color: rgba(59, 130, 246, 0.18) !important; }
+html.dark .bg-green-50   { background-color: rgba(16, 185, 129, 0.18) !important; }
+html.dark .bg-amber-50,
+html.dark .bg-yellow-50  { background-color: rgba(245, 158, 11, 0.18) !important; }
+html.dark .bg-red-50     { background-color: rgba(239, 68, 68, 0.18) !important; }
+html.dark .bg-indigo-50  { background-color: rgba(99, 102, 241, 0.18) !important; }
+html.dark .bg-purple-50  { background-color: rgba(168, 85, 247, 0.18) !important; }
+html.dark .bg-emerald-50 { background-color: rgba(16, 185, 129, 0.18) !important; }
+
+/* ---------------------------------------------------------------------------
+   Document protection — keep .quotation-document, .invoice-document, and
+   .delivery-note-document (and everything inside them) on the light palette
+   regardless of theme.
+   The leading `html` element selector here is a specificity booster: each
+   rule below matches `html.dark .bg-white` (specificity 0,2,1) by adding an
+   extra type selector. With equal specificity, source order decides — these
+   come last, so they win, and the dark-mode rules above don't leak into the
+   on-screen preview or the captured PDF.
+   The combined-class form (`.invoice-document.bg-white`) is needed because
+   each document root carries both classes on the same element.
+   --------------------------------------------------------------------------- */
+html .quotation-document,
+html .invoice-document,
+html .delivery-note-document {
+  color-scheme: light !important;
+  background-color: #ffffff !important;
+  color: #1f2937 !important;
+}
+/* Combined classes on the root element */
+html .quotation-document.bg-white,
+html .invoice-document.bg-white,
+html .delivery-note-document.bg-white   { background-color: #ffffff !important; }
+html .quotation-document.text-gray-800,
+html .invoice-document.text-gray-800,
+html .delivery-note-document.text-gray-800 { color: #1f2937 !important; }
+/* Descendants */
+html .quotation-document .bg-white,
+html .invoice-document .bg-white,
+html .delivery-note-document .bg-white   { background-color: #ffffff !important; }
+html .quotation-document .bg-gray-50,
+html .invoice-document .bg-gray-50,
+html .delivery-note-document .bg-gray-50  { background-color: #f9fafb !important; }
+html .quotation-document .bg-gray-100,
+html .invoice-document .bg-gray-100,
+html .delivery-note-document .bg-gray-100 { background-color: #f3f4f6 !important; }
+html .quotation-document .text-gray-900,
+html .invoice-document .text-gray-900,
+html .delivery-note-document .text-gray-900 { color: #111827 !important; }
+html .quotation-document .text-gray-800,
+html .invoice-document .text-gray-800,
+html .delivery-note-document .text-gray-800 { color: #1f2937 !important; }
+html .quotation-document .text-gray-700,
+html .invoice-document .text-gray-700,
+html .delivery-note-document .text-gray-700 { color: #374151 !important; }
+html .quotation-document .text-gray-600,
+html .invoice-document .text-gray-600,
+html .delivery-note-document .text-gray-600 { color: #4b5563 !important; }
+html .quotation-document .text-gray-500,
+html .invoice-document .text-gray-500,
+html .delivery-note-document .text-gray-500 { color: #6b7280 !important; }
+html .quotation-document .text-gray-400,
+html .invoice-document .text-gray-400,
+html .delivery-note-document .text-gray-400 { color: #9ca3af !important; }
+html .quotation-document .border-gray-200,
+html .invoice-document .border-gray-200,
+html .delivery-note-document .border-gray-200 { border-color: #e5e7eb !important; }
+html .quotation-document .border-gray-300,
+html .invoice-document .border-gray-300,
+html .delivery-note-document .border-gray-300 { border-color: #d1d5db !important; }
+/* The document's own form inputs (if any) should also keep the light palette
+   so a captured preview matches the PDF. */
+html .quotation-document input,
+html .quotation-document textarea,
+html .quotation-document select,
+html .invoice-document input,
+html .invoice-document textarea,
+html .invoice-document select,
+html .delivery-note-document input,
+html .delivery-note-document textarea,
+html .delivery-note-document select {
+  background-color: #ffffff !important;
+  color: #1f2937 !important;
+  border-color: #d1d5db !important;
 }
 
 code {

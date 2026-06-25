@@ -2,6 +2,7 @@ import React, { ReactNode, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useCompany } from '../../context/CompanyContext';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import CompanySelector, { CompanyThumb } from './CompanySelector';
 import {
   Home,
@@ -18,6 +19,8 @@ import {
   PanelLeftOpen,
   Truck,
   Briefcase,
+  Sun,
+  Moon,
 } from 'lucide-react';
 
 // Banner-style header logo with cascading fallback so a broken/404 image
@@ -65,6 +68,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const navigate = useNavigate();
   const { selectedCompany } = useCompany();
   const { user, logout, isAdmin } = useAuth();
+  const { theme, toggle: toggleTheme } = useTheme();
+  const isDark = theme === 'dark';
 
   const [collapsed, setCollapsed] = useState<boolean>(
     () => localStorage.getItem('sidebarCollapsed') === 'true'
@@ -100,14 +105,18 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const getNavItemClass = (path: string) => {
     const base = `flex items-center ${collapsed ? 'justify-center px-0' : 'space-x-3 px-4'} py-3 rounded-lg transition-colors`;
     const isActive = location.pathname === path;
-    return isActive ? base : `${base} text-gray-600 hover:bg-gray-100`;
+    return isActive
+      ? base
+      : `${base} text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800`;
   };
 
   const getNavItemStyle = (path: string): React.CSSProperties => {
     const isActive = location.pathname === path;
     if (!isActive || !selectedCompany) return {};
+    // Bump the tint a touch in dark mode so the active item still reads
+    // clearly against the dark sidebar background.
     return {
-      backgroundColor: hexToRgba(primaryColor, 0.15),
+      backgroundColor: hexToRgba(primaryColor, isDark ? 0.22 : 0.15),
       color: primaryColor,
       borderLeft: collapsed ? undefined : `4px solid ${primaryColor}`,
     };
@@ -115,9 +124,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const getSidebarStyle = (): React.CSSProperties => {
     if (!selectedCompany) return {};
+    const baseColor = isDark ? '#1f2937' /* gray-800 */ : '#ffffff';
     return {
-      background: `linear-gradient(to right, ${hexToRgba(primaryColor, 0.05)}, white)`,
-      borderColor: hexToRgba(primaryColor, 0.2),
+      background: `linear-gradient(to right, ${hexToRgba(primaryColor, 0.05)}, ${baseColor})`,
+      borderColor: hexToRgba(primaryColor, isDark ? 0.3 : 0.2),
     };
   };
 
@@ -138,10 +148,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-900 transition-colors">
       <div className="flex">
         <div
-          className={`${collapsed ? 'w-20' : 'w-64'} sticky top-0 h-screen self-start shrink-0 border-r shadow-sm bg-white transition-all duration-300 no-print`}
+          className={`${collapsed ? 'w-20' : 'w-64'} sticky top-0 h-screen self-start shrink-0 border-r shadow-sm bg-white dark:bg-gray-800 dark:border-gray-700 transition-all duration-300 no-print`}
           style={getSidebarStyle()}
         >
           <div className={`flex flex-col h-full ${collapsed ? 'p-3' : 'p-6'}`}>
@@ -151,14 +161,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 <div className="flex items-center space-x-3 min-w-0">
                   <Building2 className="h-8 w-8 flex-shrink-0" style={{ color: primaryColor }} />
                   <div className="min-w-0">
-                    <h1 className="text-xl font-bold text-gray-900 truncate">Quotation System</h1>
-                    <p className="text-sm text-gray-600 truncate">Multi-Company Platform</p>
+                    <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100 truncate">Quotation System</h1>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 truncate">Multi-Company Platform</p>
                   </div>
                 </div>
               )}
               <button
                 onClick={toggleCollapsed}
-                className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors flex-shrink-0"
+                className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex-shrink-0"
                 title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
                 aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
               >
@@ -202,7 +212,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   </div>
                 </div>
               ) : (
-                <div className="mb-2 flex items-center space-x-3 px-3 py-2.5 rounded-lg bg-gray-50">
+                <div className="mb-2 flex items-center space-x-3 px-3 py-2.5 rounded-lg bg-gray-50 dark:bg-gray-700/60">
                   <div
                     className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
                     style={{ backgroundColor: hexToRgba(primaryColor, 0.15) }}
@@ -211,19 +221,21 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-semibold text-gray-900 truncate" title={user?.name}>
+                      <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate" title={user?.name}>
                         {user?.name}
                       </p>
                       <span
                         className={`inline-flex items-center text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full flex-shrink-0 ${
-                          isAdmin ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'
+                          isAdmin
+                            ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+                            : 'bg-gray-100 text-gray-600 dark:bg-gray-600 dark:text-gray-200'
                         }`}
                       >
                         {isAdmin && <ShieldCheck className="h-3 w-3 mr-0.5" />}
                         {user?.role}
                       </span>
                     </div>
-                    <p className="text-xs text-gray-500 truncate" title={user?.email}>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate" title={user?.email}>
                       {user?.email}
                     </p>
                   </div>
@@ -231,7 +243,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               )}
               <button
                 onClick={handleLogout}
-                className={`flex items-center ${collapsed ? 'justify-center px-0' : 'space-x-3 px-3'} py-2.5 rounded-lg transition-colors text-gray-600 hover:bg-red-50 hover:text-red-600 w-full`}
+                className={`flex items-center ${collapsed ? 'justify-center px-0' : 'space-x-3 px-3'} py-2.5 rounded-lg transition-colors text-gray-600 dark:text-gray-300 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/15 dark:hover:text-red-400 w-full`}
                 title={collapsed ? 'Sign Out' : undefined}
               >
                 <LogOut className="h-5 w-5 flex-shrink-0" />
@@ -242,21 +254,33 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         </div>
 
         <div className="flex-1">
-          <header className="bg-white border-b border-gray-200 px-6 py-4 no-print">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-semibold text-gray-900">
+          <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 no-print transition-colors">
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0">
+                <h2 className="text-2xl font-semibold text-gray-900 dark:text-gray-100 truncate">
                   {selectedCompany?.name || 'Loading...'}
                 </h2>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-gray-600 dark:text-gray-400 truncate">
                   {selectedCompany?.address}
                 </p>
               </div>
-              {selectedCompany && <HeaderLogo company={selectedCompany} />}
+              <div className="flex items-center gap-3 flex-shrink-0">
+                <button
+                  onClick={toggleTheme}
+                  className="inline-flex items-center justify-center h-10 w-10 rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                  title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+                  aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+                >
+                  {isDark
+                    ? <Sun className="h-5 w-5 text-amber-400" />
+                    : <Moon className="h-5 w-5 text-slate-700" />}
+                </button>
+                {selectedCompany && <HeaderLogo company={selectedCompany} />}
+              </div>
             </div>
           </header>
 
-          <main className="p-6">
+          <main className="p-6 text-gray-900 dark:text-gray-100 transition-colors">
             {children}
           </main>
         </div>
