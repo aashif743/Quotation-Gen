@@ -14,6 +14,7 @@ const QuotationView: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user, isAdmin } = useAuth();
+  const { theme } = useTheme();
   const [quotation, setQuotation] = useState<Quotation | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -120,7 +121,6 @@ const QuotationView: React.FC = () => {
   // Use the brightened brand color for buttons in dark mode so very dark
   // brand palettes (navy, deep maroon, …) stay visible on the dark surface.
   // The captured document itself still uses the raw `quotation.primary_color`.
-  const { theme } = useTheme();
   const primaryColor = quotation.primary_color || '#111827';
   const accentColor = brandColorFor(primaryColor, theme === 'dark');
   const getButtonStyle = (): React.CSSProperties => {

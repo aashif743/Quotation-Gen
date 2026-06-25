@@ -38,6 +38,7 @@ const NewQuotation: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { selectedCompany } = useCompany();
   const { user } = useAuth();
+  const { theme } = useTheme();
   const [showPreview, setShowPreview] = useState(true);
   const [loading, setLoading] = useState(false);
   const [quotationData, setQuotationData] = useState<Partial<Quotation>>(blankForm);
@@ -262,7 +263,6 @@ const NewQuotation: React.FC = () => {
   // Get the primary color from the selected company
   // Brightened in dark mode so dark company palettes still pop on the
   // dark surface. Document preview keeps the raw color via QuotationPreview.
-  const { theme } = useTheme();
   const primaryColor = brandColorFor(selectedCompany?.primary_color || '#4f46e5', theme === 'dark');
   const getButtonStyle = (): React.CSSProperties => ({ backgroundColor: primaryColor });
 

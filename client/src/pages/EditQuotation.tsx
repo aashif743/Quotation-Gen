@@ -19,6 +19,7 @@ const EditQuotation: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { selectedCompany } = useCompany();
+  const { theme } = useTheme();
   const [showPreview, setShowPreview] = useState(true);
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -132,7 +133,6 @@ const EditQuotation: React.FC = () => {
 
   // Get the primary color from the selected company
   // Brightened in dark mode so dark company palettes stay readable.
-  const { theme } = useTheme();
   const primaryColor = brandColorFor(selectedCompany?.primary_color || '#4f46e5', theme === 'dark');
 
   const getButtonStyle = (): React.CSSProperties => ({

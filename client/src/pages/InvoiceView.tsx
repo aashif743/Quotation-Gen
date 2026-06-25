@@ -33,6 +33,7 @@ const InvoiceView: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user, isAdmin } = useAuth();
+  const { theme } = useTheme();
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -155,7 +156,6 @@ const InvoiceView: React.FC = () => {
   // Use the brightened brand color for chrome buttons in dark mode so very
   // dark brand palettes still pop against the dark surface. The document
   // itself keeps the raw `colors.primary`.
-  const { theme } = useTheme();
   const accentColor = brandColorFor(colors.primary, theme === 'dark');
   const getButtonStyle = (): React.CSSProperties => {
     return { backgroundColor: accentColor };

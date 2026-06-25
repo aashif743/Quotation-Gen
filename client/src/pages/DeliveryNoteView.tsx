@@ -29,6 +29,7 @@ const DeliveryNoteView: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user, isAdmin } = useAuth();
+  const { theme } = useTheme();
   const [dn, setDn] = useState<DeliveryNote | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -184,7 +185,6 @@ const DeliveryNoteView: React.FC = () => {
 
   // Use the brightened brand color for chrome buttons in dark mode so very
   // dark brand palettes still pop. The document itself keeps the raw value.
-  const { theme } = useTheme();
   const rawPrimary = dn.primary_color || '#111827';
   const primary = brandColorFor(rawPrimary, theme === 'dark');
   const hasSigned = !!dn.signed_file_url;

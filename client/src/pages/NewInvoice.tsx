@@ -45,6 +45,7 @@ const NewInvoice: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { selectedCompany } = useCompany();
   const { user } = useAuth();
+  const { theme } = useTheme();
   const [loading, setLoading] = useState(false);
   const [invoiceData, setInvoiceData] = useState<Partial<Invoice>>(blankForm);
   // Tax rates are stored on the form so we can recompute totals and offer the
@@ -306,7 +307,6 @@ const NewInvoice: React.FC = () => {
   }
 
   // Brightened in dark mode so dark company palettes stay readable.
-  const { theme } = useTheme();
   const primaryColor = brandColorFor(selectedCompany.primary_color || '#4f46e5', theme === 'dark');
   const buttonStyle: React.CSSProperties = { backgroundColor: primaryColor };
   const accentTextStyle: React.CSSProperties = { color: primaryColor };
