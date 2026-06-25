@@ -12,6 +12,8 @@ import {
 import QuotationForm from '../components/Quotation/QuotationForm';
 import QuotationPreview from '../components/Quotation/QuotationPreview';
 import { Save, Eye, EyeOff, ArrowLeft } from 'lucide-react';
+import { brandColorFor } from '../utils/colors';
+import { useTheme } from '../context/ThemeContext';
 
 const EditQuotation: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -129,7 +131,9 @@ const EditQuotation: React.FC = () => {
   }
 
   // Get the primary color from the selected company
-  const primaryColor = selectedCompany?.primary_color || '#4f46e5';
+  // Brightened in dark mode so dark company palettes stay readable.
+  const { theme } = useTheme();
+  const primaryColor = brandColorFor(selectedCompany?.primary_color || '#4f46e5', theme === 'dark');
 
   const getButtonStyle = (): React.CSSProperties => ({
     backgroundColor: primaryColor,

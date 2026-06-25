@@ -5,6 +5,8 @@ import { useAuth } from '../context/AuthContext';
 import { getClients, createClient, deleteClient } from '../services/api';
 import { Client } from '../types';
 import { formatCurrency } from '../utils/calculations';
+import { brandColorFor } from '../utils/colors';
+import { useTheme } from '../context/ThemeContext';
 import {
   Users as UsersIcon,
   Search,
@@ -125,7 +127,9 @@ const Clients: React.FC = () => {
     }
   };
 
-  const primary = selectedCompany?.primary_color || '#4f46e5';
+  // Brightened in dark mode so dark company palettes stay readable.
+  const { theme } = useTheme();
+  const primary = brandColorFor(selectedCompany?.primary_color || '#4f46e5', theme === 'dark');
 
   if (!selectedCompany) {
     return <div className="text-center">Please select a company</div>;

@@ -5,6 +5,8 @@ import { useAuth } from '../context/AuthContext';
 import { getQuotations, deleteQuotation } from '../services/api';
 import { Quotation } from '../types';
 import { formatCurrency } from '../utils/calculations';
+import { brandColorFor } from '../utils/colors';
+import { useTheme } from '../context/ThemeContext';
 import { 
   FileText, 
   Search, 
@@ -116,7 +118,9 @@ const QuotationHistory: React.FC = () => {
   };
 
   // Get the primary color from the selected company
-  const primaryColor = selectedCompany?.primary_color || '#4f46e5';
+  const { theme } = useTheme();
+  // Brightened in dark mode so dark company palettes stay readable.
+  const primaryColor = brandColorFor(selectedCompany?.primary_color || '#4f46e5', theme === 'dark');
 
   // Helper to convert hex to rgba
   const hexToRgba = (hex: string, alpha: number): string => {

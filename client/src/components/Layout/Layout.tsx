@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useCompany } from '../../context/CompanyContext';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
+import { brandColorFor, hexToRgba } from '../../utils/colors';
 import CompanySelector, { CompanyThumb } from './CompanySelector';
 import {
   Home,
@@ -94,13 +95,15 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   // Get the primary color from the selected company or use default
   const primaryColor = selectedCompany?.primary_color || '#4f46e5';
-
-  // Helper to convert hex to rgba for backgrounds
-  const hexToRgba = (hex: string, alpha: number): string => {
-    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-    if (!result) return `rgba(79, 70, 229, ${alpha})`;
-    return `rgba(${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}, ${alpha})`;
-  };
+  // Theme-aware version: in dark mode this is the brightened color used for
+  // text / icons / borders that need to read against a dark surface. In
+  // light mode it's identical to `primaryColor`.
+  const accentColor = brandColorFor(primaryColor, isDark);
+  // Tint alpha for soft brand backgrounds — bumped in dark mode so the
+  // company tint doesn't disappear into the gray-800/900 surface.
+  const tintBg     = hexToRgba(primaryColor, isDark ? 0.30 : 0.15);
+  const tintGlow   = hexToRgba(primaryColor, isDark ? 0.18 : 0.05);
+  const tintBorder = hexToRgba(accentColor,  isDark ? 0.40 : 0.20);
 
   const getNavItemClass = (path: string) => {
     const base = `flex items-center ${collapsed ? 'justify-center px-0' : 'space-x-3 px-4'} py-3 rounded-lg transition-colors`;
@@ -113,12 +116,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const getNavItemStyle = (path: string): React.CSSProperties => {
     const isActive = location.pathname === path;
     if (!isActive || !selectedCompany) return {};
-    // Bump the tint a touch in dark mode so the active item still reads
-    // clearly against the dark sidebar background.
+    // Use the brightened accent for the text + border so dark brand colors
+    // (navy, deep maroon, …) stay legible against the dark tinted background.
     return {
-      backgroundColor: hexToRgba(primaryColor, isDark ? 0.22 : 0.15),
-      color: primaryColor,
-      borderLeft: collapsed ? undefined : `4px solid ${primaryColor}`,
+      backgroundColor: tintBg,
+      color: accentColor,
+      borderLeft: collapsed ? undefined : `4px solid ${accentColor}`,
     };
   };
 
@@ -126,8 +129,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     if (!selectedCompany) return {};
     const baseColor = isDark ? '#1f2937' /* gray-800 */ : '#ffffff';
     return {
-      background: `linear-gradient(to right, ${hexToRgba(primaryColor, 0.05)}, ${baseColor})`,
-      borderColor: hexToRgba(primaryColor, isDark ? 0.3 : 0.2),
+      background: `linear-gradient(to right, ${tintGlow}, ${baseColor})`,
+      borderColor: tintBorder,
     };
   };
 
@@ -159,7 +162,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             <div className={`flex items-center mb-8 ${collapsed ? 'justify-center' : 'justify-between'}`}>
               {!collapsed && (
                 <div className="flex items-center space-x-3 min-w-0">
-                  <Building2 className="h-8 w-8 flex-shrink-0" style={{ color: primaryColor }} />
+                  <Building2 className="h-8 w-8 flex-shrink-0" style={{ color: accentColor }} />
                   <div className="min-w-0">
                     <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100 truncate">Quotation System</h1>
                     <p className="text-sm text-gray-600 dark:text-gray-400 truncate">Multi-Company Platform</p>
@@ -198,7 +201,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             </nav>
 
             {/* User Info & Logout — pinned to bottom of the sidebar via mt-auto */}
-            <div className="mt-auto pt-4 border-t" style={{ borderColor: hexToRgba(primaryColor, 0.2) }}>
+            <div className="mt-auto pt-4 border-t" style={{ borderColor: tintBorder }}>
               {collapsed ? (
                 <div
                   className="mb-2 flex justify-center"
@@ -206,18 +209,18 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 >
                   <div
                     className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
-                    style={{ backgroundColor: hexToRgba(primaryColor, 0.15) }}
+                    style={{ backgroundColor: tintBg }}
                   >
-                    <User className="h-4 w-4" style={{ color: primaryColor }} />
+                    <User className="h-4 w-4" style={{ color: accentColor }} />
                   </div>
                 </div>
               ) : (
                 <div className="mb-2 flex items-center space-x-3 px-3 py-2.5 rounded-lg bg-gray-50 dark:bg-gray-700/60">
                   <div
                     className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
-                    style={{ backgroundColor: hexToRgba(primaryColor, 0.15) }}
+                    style={{ backgroundColor: tintBg }}
                   >
-                    <User className="h-4 w-4" style={{ color: primaryColor }} />
+                    <User className="h-4 w-4" style={{ color: accentColor }} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">

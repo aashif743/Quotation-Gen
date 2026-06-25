@@ -6,6 +6,8 @@ import { Quotation } from '../types';
 import { generatePDF } from '../utils/pdfGenerator';
 import QuotationDocument from '../components/Quotation/QuotationDocument';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { brandColorFor } from '../utils/colors';
+import { useTheme } from '../context/ThemeContext';
 import { Download, Edit2, ArrowLeft, Printer, FileText, Truck } from 'lucide-react';
 
 const QuotationView: React.FC = () => {
@@ -115,9 +117,14 @@ const QuotationView: React.FC = () => {
     );
   }
 
+  // Use the brightened brand color for buttons in dark mode so very dark
+  // brand palettes (navy, deep maroon, …) stay visible on the dark surface.
+  // The captured document itself still uses the raw `quotation.primary_color`.
+  const { theme } = useTheme();
   const primaryColor = quotation.primary_color || '#111827';
+  const accentColor = brandColorFor(primaryColor, theme === 'dark');
   const getButtonStyle = (): React.CSSProperties => {
-    return { backgroundColor: primaryColor };
+    return { backgroundColor: accentColor };
   };
 
   return (

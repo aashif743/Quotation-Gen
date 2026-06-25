@@ -6,6 +6,8 @@ import { getInvoices, deleteInvoice, getPaymentsForInvoice } from '../services/a
 import { Invoice, Payment } from '../types';
 import { formatCurrency } from '../utils/calculations';
 import RecordPaymentModal from '../components/Payment/RecordPaymentModal';
+import { brandColorFor } from '../utils/colors';
+import { useTheme } from '../context/ThemeContext';
 import {
   FileText,
   Search,
@@ -157,7 +159,12 @@ const InvoiceHistory: React.FC = () => {
   };
 
   // Get the primary color from the selected company
-  const primaryColor = selectedCompany?.primary_color || '#4f46e5';
+  const { theme } = useTheme();
+  // Brightened brand color for chrome (buttons, accent text) so dark
+  // company palettes stay readable on the dark surface. The raw value
+  // (`selectedCompany?.primary_color`) is preserved for anything that
+  // would end up captured into a PDF.
+  const primaryColor = brandColorFor(selectedCompany?.primary_color || '#4f46e5', theme === 'dark');
 
   // Helper to convert hex to rgba
   const hexToRgba = (hex: string, alpha: number): string => {

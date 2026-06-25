@@ -12,6 +12,8 @@ import {
 } from '../utils/calculations';
 import QuotationForm from '../components/Quotation/QuotationForm';
 import QuotationPreview from '../components/Quotation/QuotationPreview';
+import { brandColorFor } from '../utils/colors';
+import { useTheme } from '../context/ThemeContext';
 import { Save, Eye, EyeOff, Trash2 } from 'lucide-react';
 
 const blankForm = (): Partial<Quotation> => ({
@@ -258,7 +260,10 @@ const NewQuotation: React.FC = () => {
   }
 
   // Get the primary color from the selected company
-  const primaryColor = selectedCompany?.primary_color || '#4f46e5';
+  // Brightened in dark mode so dark company palettes still pop on the
+  // dark surface. Document preview keeps the raw color via QuotationPreview.
+  const { theme } = useTheme();
+  const primaryColor = brandColorFor(selectedCompany?.primary_color || '#4f46e5', theme === 'dark');
   const getButtonStyle = (): React.CSSProperties => ({ backgroundColor: primaryColor });
 
   // The preview uses the form's current tax rates so the live VAT/PPDA labels

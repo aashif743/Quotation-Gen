@@ -5,6 +5,8 @@ import { useAuth } from '../context/AuthContext';
 import { getDeliveryNotes, deleteDeliveryNote, uploadSignedDeliveryNote } from '../services/api';
 import { DeliveryNote } from '../types';
 import { Truck, Search, Calendar, User, Eye, Trash2, Filter, CheckCircle2, Clock, Upload, Loader2 } from 'lucide-react';
+import { brandColorFor } from '../utils/colors';
+import { useTheme } from '../context/ThemeContext';
 
 const DeliveryNoteHistory: React.FC = () => {
   const { selectedCompany } = useCompany();
@@ -144,7 +146,9 @@ const DeliveryNoteHistory: React.FC = () => {
     }
   };
 
-  const primary = selectedCompany?.primary_color || '#4f46e5';
+  // Brightened in dark mode so dark company palettes stay readable.
+  const { theme } = useTheme();
+  const primary = brandColorFor(selectedCompany?.primary_color || '#4f46e5', theme === 'dark');
   const hexToRgba = (hex: string, a: number) => {
     const r = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
     if (!r) return `rgba(79, 70, 229, ${a})`;

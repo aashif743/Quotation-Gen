@@ -17,6 +17,8 @@ import {
 } from '../utils/calculations';
 import ClientPicker from '../components/Quotation/ClientPicker';
 import CurrencyInput from '../components/common/CurrencyInput';
+import { brandColorFor } from '../utils/colors';
+import { useTheme } from '../context/ThemeContext';
 import { Save, ArrowLeft, Plus, Trash2, Calculator } from 'lucide-react';
 
 const blankForm = (): Partial<Invoice> => ({
@@ -303,7 +305,9 @@ const NewInvoice: React.FC = () => {
     return <div className="text-center">Please select a company</div>;
   }
 
-  const primaryColor = selectedCompany.primary_color || '#4f46e5';
+  // Brightened in dark mode so dark company palettes stay readable.
+  const { theme } = useTheme();
+  const primaryColor = brandColorFor(selectedCompany.primary_color || '#4f46e5', theme === 'dark');
   const buttonStyle: React.CSSProperties = { backgroundColor: primaryColor };
   const accentTextStyle: React.CSSProperties = { color: primaryColor };
   const items = invoiceData.items || [];

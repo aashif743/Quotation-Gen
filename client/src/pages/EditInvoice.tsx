@@ -13,6 +13,8 @@ import {
 } from '../utils/calculations';
 import { Save, ArrowLeft, Plus, Trash2, Calculator } from 'lucide-react';
 import CurrencyInput from '../components/common/CurrencyInput';
+import { brandColorFor } from '../utils/colors';
+import { useTheme } from '../context/ThemeContext';
 
 const EditInvoice: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -135,7 +137,9 @@ const EditInvoice: React.FC = () => {
   }
 
   // Get the primary color from the selected company
-  const primaryColor = selectedCompany?.primary_color || '#4f46e5';
+  // Brightened in dark mode so dark company palettes stay readable.
+  const { theme } = useTheme();
+  const primaryColor = brandColorFor(selectedCompany?.primary_color || '#4f46e5', theme === 'dark');
 
   // Helper to convert hex to rgba
   const hexToRgba = (hex: string, alpha: number): string => {

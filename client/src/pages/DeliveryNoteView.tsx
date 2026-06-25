@@ -9,6 +9,8 @@ import { useAuth } from '../context/AuthContext';
 import { DeliveryNote } from '../types';
 import { generateDeliveryNotePDF } from '../utils/pdfGenerator';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { brandColorFor } from '../utils/colors';
+import { useTheme } from '../context/ThemeContext';
 import DeliveryNoteDocument from '../components/Delivery/DeliveryNoteDocument';
 import {
   Download,
@@ -180,7 +182,11 @@ const DeliveryNoteView: React.FC = () => {
     );
   }
 
-  const primary = dn.primary_color || '#111827';
+  // Use the brightened brand color for chrome buttons in dark mode so very
+  // dark brand palettes still pop. The document itself keeps the raw value.
+  const { theme } = useTheme();
+  const rawPrimary = dn.primary_color || '#111827';
+  const primary = brandColorFor(rawPrimary, theme === 'dark');
   const hasSigned = !!dn.signed_file_url;
   const isPdf = (dn.signed_file_url || '').toLowerCase().endsWith('.pdf');
 
