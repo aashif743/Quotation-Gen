@@ -38,6 +38,13 @@ const DeliveryNoteView: React.FC = () => {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const [dragOver, setDragOver] = useState(false);
+  // Tracks whether the signed file is actually viewable. We verify the URL
+  // (status + content-type) before embedding it, because when the file is
+  // missing the server — or Hostinger's SPA rewrite — hands back the app's
+  // index.html instead of a 404. Embedding that would render the whole app
+  // inside the panel, so anything that isn't a real image/PDF becomes
+  // 'unavailable' and we show a friendly download fallback instead.
+  const [signedStatus, setSignedStatus] = useState<'checking' | 'ok' | 'unavailable'>('checking');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragCounter = useRef(0); // counts dragenter/leave across child elements
 
@@ -55,6 +62,32 @@ const DeliveryNoteView: React.FC = () => {
     };
     load();
   }, [id]);
+
+  // Whenever the signed file changes (initial load or re-upload), verify it
+  // resolves to a real image/PDF before we try to embed it. A missing file
+  // often comes back as the SPA's index.html (text/html), which we must NOT
+  // render inside the preview panel.
+  useEffect(() => {
+    const url = dn?.signed_file_url;
+    if (!url) {
+      setSignedStatus('unavailable');
+      return;
+    }
+    let cancelled = false;
+    setSignedStatus('checking');
+    fetch(url, { method: 'HEAD' })
+      .then((res) => {
+        const type = (res.headers.get('content-type') || '').toLowerCase();
+        const isFile = type.startsWith('image/') || type.includes('pdf');
+        if (!cancelled) setSignedStatus(res.ok && isFile ? 'ok' : 'unavailable');
+      })
+      .catch(() => {
+        if (!cancelled) setSignedStatus('unavailable');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [dn?.signed_file_url]);
 
   // Browser tab + any leaked print header gets a meaningful title.
   useDocumentTitle(
@@ -188,10 +221,17 @@ const DeliveryNoteView: React.FC = () => {
   const rawPrimary = dn.primary_color || '#111827';
   const primary = brandColorFor(rawPrimary, theme === 'dark');
   const hasSigned = !!dn.signed_file_url;
-  const isPdf = (dn.signed_file_url || '').toLowerCase().endsWith('.pdf');
+  const signedUrl = dn.signed_file_url || '';
+  const lowerUrl = signedUrl.toLowerCase();
+  const isPdf = lowerUrl.endsWith('.pdf');
+  // HEIC (iPhone default) can't be rendered by browsers in an <img>, so we
+  // treat it like a download-only attachment rather than an inline preview.
+  const isHeic = lowerUrl.endsWith('.heic') || lowerUrl.endsWith('.heif');
 
   return (
-    <div className="max-w-4xl mx-auto">
+    // Widen to two columns' worth of room when a signed copy is on file so the
+    // delivery note and its signed scan sit comfortably side by side.
+    <div className={`${hasSigned ? 'max-w-7xl' : 'max-w-4xl'} mx-auto`}>
       {/* Action bar — uniform compact buttons, same height/padding/icon size. */}
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3 no-print">
         <button
@@ -247,26 +287,25 @@ const DeliveryNoteView: React.FC = () => {
         </p>
       )}
 
-      {/* Signed-copy section — rendered ABOVE the document so it's the first
-          thing the user sees. `no-print` keeps it out of the printed sheet
-          and out of the captured PDF. */}
-      <div className="mb-6 no-print">
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*,application/pdf"
-          capture="environment"
-          onChange={handleFileChange}
-          className="hidden"
-        />
+      {/* Hidden file input shared by the picker and the drop zone. */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*,application/pdf"
+        capture="environment"
+        onChange={handleFileChange}
+        className="hidden"
+      />
 
-        {!hasSigned ? (
+      {!hasSigned ? (
+        /* No signed copy yet — upload prompt above, the delivery note below. */
+        <>
           <div
             onDragEnter={handleDragEnter}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
-            className={`relative bg-white border-2 border-dashed rounded-xl p-6 text-center transition-colors ${
+            className={`mb-6 no-print relative bg-white border-2 border-dashed rounded-xl p-6 text-center transition-colors ${
               dragOver ? 'border-amber-500 bg-amber-50' : 'border-gray-300 hover:border-gray-400'
             }`}
           >
@@ -313,119 +352,197 @@ const DeliveryNoteView: React.FC = () => {
             </button>
             <p className="mt-3 text-xs text-gray-400">JPG, PNG, or PDF · up to 10 MB</p>
           </div>
-        ) : (
-          <div
-            onDragEnter={handleDragEnter}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-            className="relative bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm"
-          >
-            {dragOver && (
-              <div className="absolute inset-0 z-10 bg-amber-50/95 border-2 border-dashed border-amber-500 rounded-xl flex flex-col items-center justify-center pointer-events-none">
-                <Upload className="h-10 w-10 text-amber-600 mb-2" />
-                <p className="text-base font-semibold text-amber-700">Release to replace signed copy</p>
-              </div>
-            )}
-            <div className="flex items-center justify-between px-5 py-3 bg-green-50 border-b border-green-100">
-              <div className="flex items-center space-x-3 min-w-0">
-                <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0" />
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-green-800">Signed copy on file</p>
-                  <p className="text-xs text-green-700 truncate">
-                    {dn.signed_at ? new Date(dn.signed_at).toLocaleString() : ''}
-                    {dn.signed_by_name ? ` · uploaded by ${dn.signed_by_name}` : ''}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center space-x-2 flex-shrink-0">
-                <a
-                  href={dn.signed_file_url || '#'}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center px-3 py-1.5 text-sm rounded-lg bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
-                >
-                  <ExternalLink className="h-4 w-4 mr-1.5" />
-                  Open
-                </a>
-                <button
-                  onClick={handlePickFile}
-                  disabled={uploading}
-                  className="inline-flex items-center px-3 py-1.5 text-sm rounded-lg bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 disabled:opacity-50"
-                  title="Replace with a new scan"
-                >
-                  {uploading ? (
-                    <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
-                  ) : (
-                    <RefreshCw className="h-4 w-4 mr-1.5" />
-                  )}
-                  Re-upload
-                </button>
-                {isAdmin && (
-                  <button
-                    onClick={handleRemoveSigned}
-                    className="inline-flex items-center px-3 py-1.5 text-sm rounded-lg bg-white text-red-600 border border-red-200 hover:bg-red-50"
-                    title="Remove the signed copy"
-                  >
-                    <Trash2 className="h-4 w-4 mr-1.5" />
-                    Remove
-                  </button>
-                )}
+
+          <DeliveryNoteDocument
+            rootClassName="delivery-note-document shadow-lg rounded-lg"
+            data={dn}
+            company={{
+              name: dn.company_name || '',
+              address: dn.company_address,
+              tpin: dn.company_tpin,
+              logo_url: dn.company_quote_logo || dn.company_logo,
+              primary_color: dn.primary_color,
+              secondary_color: dn.secondary_color,
+            }}
+          />
+        </>
+      ) : (
+        /* Signed copy on file — show the delivery note and the signed scan
+           side by side (stacked on small screens) so the two are easy to
+           compare. Both panels are clearly labelled. */
+        <>
+          {/* Status + actions bar for the signed copy (full width). */}
+          <div className="mb-4 no-print flex items-center justify-between flex-wrap gap-3 px-5 py-3 bg-green-50 border border-green-100 rounded-xl">
+            <div className="flex items-center space-x-3 min-w-0">
+              <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0" />
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-green-800">Signed copy on file</p>
+                <p className="text-xs text-green-700 truncate">
+                  {dn.signed_at ? new Date(dn.signed_at).toLocaleString() : ''}
+                  {dn.signed_by_name ? ` · uploaded by ${dn.signed_by_name}` : ''}
+                </p>
               </div>
             </div>
-
-            <div className="p-4 bg-gray-50">
-              {isPdf ? (
-                <div className="flex items-center justify-center bg-white border border-gray-200 rounded-lg p-8 text-center">
-                  <div>
-                    <p className="text-gray-600 mb-2">Signed PDF attached.</p>
-                    <a
-                      href={dn.signed_file_url || '#'}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center text-sm font-medium"
-                      style={{ color: primary }}
-                    >
-                      <ExternalLink className="h-4 w-4 mr-1.5" />
-                      Open PDF in new tab
-                    </a>
-                  </div>
-                </div>
-              ) : (
-                <a
-                  href={dn.signed_file_url || '#'}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block bg-white border border-gray-200 rounded-lg overflow-hidden"
-                  title="Open full size"
+            <div className="flex items-center space-x-2 flex-shrink-0">
+              <a
+                href={signedUrl || '#'}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center px-3 py-1.5 text-sm rounded-lg bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
+              >
+                <ExternalLink className="h-4 w-4 mr-1.5" />
+                Open
+              </a>
+              <button
+                onClick={handlePickFile}
+                disabled={uploading}
+                className="inline-flex items-center px-3 py-1.5 text-sm rounded-lg bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 disabled:opacity-50"
+                title="Replace with a new scan"
+              >
+                {uploading ? (
+                  <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4 mr-1.5" />
+                )}
+                Re-upload
+              </button>
+              {isAdmin && (
+                <button
+                  onClick={handleRemoveSigned}
+                  className="inline-flex items-center px-3 py-1.5 text-sm rounded-lg bg-white text-red-600 border border-red-200 hover:bg-red-50"
+                  title="Remove the signed copy"
                 >
-                  <img
-                    src={dn.signed_file_url || ''}
-                    alt="Signed delivery note"
-                    className="w-full h-auto max-h-[800px] object-contain mx-auto"
-                  />
-                </a>
-              )}
-              {uploadError && (
-                <p className="mt-3 text-sm text-red-600 text-center">{uploadError}</p>
+                  <Trash2 className="h-4 w-4 mr-1.5" />
+                  Remove
+                </button>
               )}
             </div>
           </div>
-        )}
-      </div>
+          {uploadError && (
+            <p className="mb-4 text-sm text-red-600 no-print">{uploadError}</p>
+          )}
 
-      <DeliveryNoteDocument
-        rootClassName="delivery-note-document shadow-lg rounded-lg"
-        data={dn}
-        company={{
-          name: dn.company_name || '',
-          address: dn.company_address,
-          tpin: dn.company_tpin,
-          logo_url: dn.company_quote_logo || dn.company_logo,
-          primary_color: dn.primary_color,
-          secondary_color: dn.secondary_color,
-        }}
-      />
+          {/* Two-column compare: delivery note (left) · signed copy (right).
+              `print:block` collapses the grid to a single flow on paper so the
+              (no-print) signed column dropping out doesn't leave a half-width
+              gap — only the delivery note prints. */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start print:block">
+            {/* Left — the delivery note itself */}
+            <div>
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2 no-print">
+                Delivery Note
+              </h3>
+              <DeliveryNoteDocument
+                rootClassName="delivery-note-document shadow-lg rounded-lg"
+                data={dn}
+                company={{
+                  name: dn.company_name || '',
+                  address: dn.company_address,
+                  tpin: dn.company_tpin,
+                  logo_url: dn.company_quote_logo || dn.company_logo,
+                  primary_color: dn.primary_color,
+                  secondary_color: dn.secondary_color,
+                }}
+              />
+            </div>
+
+            {/* Right — the uploaded signed scan / PDF */}
+            <div
+              onDragEnter={handleDragEnter}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              className="no-print relative lg:sticky lg:top-6"
+            >
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">
+                Signed Copy
+              </h3>
+              <div className="relative bg-gray-50 border border-gray-200 rounded-lg overflow-hidden">
+                {dragOver && (
+                  <div className="absolute inset-0 z-10 bg-amber-50/95 border-2 border-dashed border-amber-500 rounded-lg flex flex-col items-center justify-center pointer-events-none">
+                    <Upload className="h-10 w-10 text-amber-600 mb-2" />
+                    <p className="text-base font-semibold text-amber-700">Release to replace signed copy</p>
+                  </div>
+                )}
+                {signedStatus === 'checking' && !isHeic ? (
+                  <div className="flex items-center justify-center bg-white p-8 min-h-[240px]">
+                    <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+                    <span className="ml-2 text-sm text-gray-500">Loading signed copy…</span>
+                  </div>
+                ) : isHeic || signedStatus === 'unavailable' ? (
+                  <div className="flex items-center justify-center bg-white p-8 text-center min-h-[240px]">
+                    <div className="max-w-sm">
+                      <p className="text-sm font-medium text-gray-700 mb-1">
+                        {isHeic
+                          ? "This signed copy is a HEIC (iPhone) photo, which browsers can't preview here."
+                          : "The signed copy couldn't be displayed."}
+                      </p>
+                      <p className="text-xs text-gray-500 mb-4">
+                        {isHeic
+                          ? 'Download it to view, or re-upload it as a JPG/PNG for an inline preview.'
+                          : "The file isn't available on this server (it may have been uploaded on a different environment). Try downloading it, or re-upload the signed copy."}
+                      </p>
+                      <div className="flex items-center justify-center gap-2">
+                        <a
+                          href={signedUrl || '#'}
+                          download
+                          className="inline-flex items-center px-3 py-1.5 text-sm rounded-lg text-white font-medium shadow-sm hover:opacity-90"
+                          style={{ backgroundColor: primary }}
+                        >
+                          <Download className="h-4 w-4 mr-1.5" />
+                          Download
+                        </a>
+                        <a
+                          href={signedUrl || '#'}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center px-3 py-1.5 text-sm rounded-lg bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
+                        >
+                          <ExternalLink className="h-4 w-4 mr-1.5" />
+                          Open
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                ) : isPdf ? (
+                  <object data={signedUrl} type="application/pdf" className="w-full h-[800px] bg-white">
+                    <div className="flex items-center justify-center p-8 text-center">
+                      <div>
+                        <p className="text-gray-600 mb-2">Signed PDF attached.</p>
+                        <a
+                          href={signedUrl || '#'}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center text-sm font-medium"
+                          style={{ color: primary }}
+                        >
+                          <ExternalLink className="h-4 w-4 mr-1.5" />
+                          Open PDF in new tab
+                        </a>
+                      </div>
+                    </div>
+                  </object>
+                ) : (
+                  <a
+                    href={signedUrl || '#'}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block bg-white"
+                    title="Open full size"
+                  >
+                    <img
+                      src={signedUrl}
+                      alt="Signed delivery note"
+                      onError={() => setSignedStatus('unavailable')}
+                      className="w-full h-auto max-h-[800px] object-contain mx-auto"
+                    />
+                  </a>
+                )}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
 
       {!isAdmin && (
         <p className="mt-4 text-xs text-gray-400 no-print">

@@ -13,8 +13,8 @@ body {
   color: #111827;            /* gray-900 — light mode body text */
 }
 html.dark body {
-  background-color: #0f172a; /* slate-900 — dark mode page bg */
-  color: #e5e7eb;            /* gray-200 — dark mode body text */
+  background-color: #0a0e1a; /* near-black navy page bg so cards clearly float */
+  color: #e2e8f0;            /* slate-200 — dark mode body text */
 }
 
 /* ---------------------------------------------------------------------------
@@ -30,54 +30,64 @@ html.dark body {
    rules above, which keeps the on-screen preview and the PDF output light.
    --------------------------------------------------------------------------- */
 
-/* Surfaces */
-html.dark .bg-white    { background-color: #1f2937 !important; }  /* gray-800 */
-html.dark .bg-gray-50  { background-color: #111827 !important; }  /* gray-900 */
-html.dark .bg-gray-100 { background-color: #1f2937 !important; }  /* gray-800 */
+/* Surfaces — a clear elevation hierarchy so panels read as distinct cards:
+   #0a0e1a page  <  #141b2d inset  <  #1d2740 card (visibly lifted). */
+html.dark .bg-white    { background-color: #1d2740 !important; }  /* card / chrome — clearly lighter than the page */
+html.dark .bg-gray-50  { background-color: #141b2d !important; }  /* subtle inset (table headers, wells) */
+html.dark .bg-gray-100 { background-color: #2a3756 !important; }  /* stronger inset / secondary button */
 
-/* Borders & dividers */
+/* Borders & dividers — bright enough to actually outline each card. */
 html.dark .border-gray-200,
-html.dark .border-gray-300 { border-color: #374151 !important; } /* gray-700 */
+html.dark .border-gray-300 { border-color: #34405e !important; }
 html.dark .divide-gray-200 > :not([hidden]) ~ :not([hidden]) {
-  border-color: #374151 !important;
+  border-color: #34405e !important;
 }
 
-/* Text */
-html.dark .text-gray-900 { color: #f3f4f6 !important; } /* gray-100 */
-html.dark .text-gray-800 { color: #e5e7eb !important; } /* gray-200 */
-html.dark .text-gray-700 { color: #d1d5db !important; } /* gray-300 */
-html.dark .text-gray-600 { color: #9ca3af !important; } /* gray-400 */
-html.dark .text-gray-500 { color: #9ca3af !important; } /* gray-400 */
-html.dark .text-gray-400 { color: #6b7280 !important; } /* gray-500 */
+/* Give every elevated card a soft lift so it floats off the dark page
+   (flat shadows are invisible on dark, so we use a subtle ring + glow). */
+html.dark .shadow-sm,
+html.dark .shadow,
+html.dark .shadow-md {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45),
+              0 0 0 1px rgba(148, 163, 184, 0.06) !important;
+}
 
-/* Form controls */
+/* Text — slate scale, cooler and cleaner against the slate surfaces. */
+html.dark .text-gray-900 { color: #f1f5f9 !important; } /* slate-100 */
+html.dark .text-gray-800 { color: #e2e8f0 !important; } /* slate-200 */
+html.dark .text-gray-700 { color: #cbd5e1 !important; } /* slate-300 */
+html.dark .text-gray-600 { color: #94a3b8 !important; } /* slate-400 */
+html.dark .text-gray-500 { color: #94a3b8 !important; } /* slate-400 */
+html.dark .text-gray-400 { color: #64748b !important; } /* slate-500 */
+
+/* Form controls — recede below the card surface so fields read as inputs. */
 html.dark input,
 html.dark select,
 html.dark textarea {
-  background-color: #111827 !important;
-  color: #f3f4f6 !important;
-  border-color: #374151 !important;
+  background-color: #0e1424 !important; /* darker than the card so fields read as inputs */
+  color: #f1f5f9 !important;            /* slate-100 */
+  border-color: #34405e !important;
 }
 html.dark input::placeholder,
 html.dark textarea::placeholder {
-  color: #6b7280 !important;
+  color: #64748b !important;            /* slate-500 */
 }
 
 /* Hover states */
 html.dark .hover\:bg-gray-50:hover,
 html.dark .hover\:bg-gray-100:hover {
-  background-color: rgba(55, 65, 81, 0.6) !important; /* gray-700/60 */
+  background-color: rgba(51, 65, 85, 0.55) !important; /* slate-700/55 */
 }
 
 /* Scrollbar: tint to match dark surfaces. Firefox uses `scrollbar-color`,
    WebKit/Blink browsers use the ::-webkit-scrollbar pseudo-elements. */
 html.dark {
-  scrollbar-color: #4b5563 #1f2937;
+  scrollbar-color: #475569 #1d2740;
 }
 html.dark ::-webkit-scrollbar { width: 10px; height: 10px; }
-html.dark ::-webkit-scrollbar-track { background: #1f2937; }
-html.dark ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 5px; }
-html.dark ::-webkit-scrollbar-thumb:hover { background: #6b7280; }
+html.dark ::-webkit-scrollbar-track { background: #1d2740; }
+html.dark ::-webkit-scrollbar-thumb { background: #475569; border-radius: 5px; }
+html.dark ::-webkit-scrollbar-thumb:hover { background: #64748b; }
 
 /* Soft badge backgrounds — bump opacity so colored pills still pop. */
 html.dark .bg-blue-50    { background-color: rgba(59, 130, 246, 0.18) !important; }

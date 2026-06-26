@@ -112,7 +112,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     const isActive = location.pathname === path;
     return isActive
       ? base
-      : `${base} text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800`;
+      : `${base} text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700/60`;
   };
 
   const getNavItemStyle = (path: string): React.CSSProperties => {
@@ -129,7 +129,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const getSidebarStyle = (): React.CSSProperties => {
     if (!selectedCompany) return {};
-    const baseColor = isDark ? '#1f2937' /* gray-800 */ : '#ffffff';
+    const baseColor = isDark ? '#1d2740' /* dark card surface */ : '#ffffff';
     return {
       background: `linear-gradient(to right, ${tintGlow}, ${baseColor})`,
       borderColor: tintBorder,
@@ -153,10 +153,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-slate-900 transition-colors">
+    <div className="min-h-screen bg-gray-50 dark:bg-[#0a0e1a] transition-colors">
       <div className="flex">
         <div
-          className={`${collapsed ? 'w-20' : 'w-64'} sticky top-0 h-screen self-start shrink-0 border-r shadow-sm bg-white dark:bg-gray-800 dark:border-gray-700 transition-all duration-300 no-print`}
+          className={`${collapsed ? 'w-20' : 'w-64'} sticky top-0 h-screen self-start shrink-0 border-r shadow-sm bg-white dark:bg-[#1d2740] dark:border-[#34405e] transition-all duration-300 no-print`}
           style={getSidebarStyle()}
         >
           <div className={`flex flex-col h-full ${collapsed ? 'p-3' : 'p-6'}`}>
@@ -173,7 +173,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               )}
               <button
                 onClick={toggleCollapsed}
-                className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex-shrink-0"
+                className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors flex-shrink-0"
                 title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
                 aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
               >
@@ -217,7 +217,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   </div>
                 </div>
               ) : (
-                <div className="mb-2 flex items-center space-x-3 px-3 py-2.5 rounded-lg bg-gray-50 dark:bg-gray-700/60">
+                <div className="mb-2 flex items-center space-x-3 px-3 py-2.5 rounded-lg bg-gray-50 dark:bg-slate-700/50">
                   <div
                     className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
                     style={{ backgroundColor: tintBg }}
@@ -233,7 +233,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                         className={`inline-flex items-center text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full flex-shrink-0 ${
                           isAdmin
                             ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
-                            : 'bg-gray-100 text-gray-600 dark:bg-gray-600 dark:text-gray-200'
+                            : 'bg-gray-100 text-gray-600 dark:bg-slate-600 dark:text-gray-200'
                         }`}
                       >
                         {isAdmin && <ShieldCheck className="h-3 w-3 mr-0.5" />}
@@ -259,7 +259,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         </div>
 
         <div className="flex-1">
-          <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 no-print transition-colors">
+          <header className="bg-white dark:bg-[#1d2740] border-b border-gray-200 dark:border-[#34405e] px-6 py-4 no-print transition-colors">
             <div className="flex items-center justify-between gap-4">
               <div className="min-w-0">
                 <h2 className="text-2xl font-semibold text-gray-900 dark:text-gray-100 truncate">
@@ -272,7 +272,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               <div className="flex items-center gap-3 flex-shrink-0">
                 <button
                   onClick={toggleTheme}
-                  className="inline-flex items-center justify-center h-10 w-10 rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                  className="inline-flex items-center justify-center h-10 w-10 rounded-full border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
                   title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
                   aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
                 >
