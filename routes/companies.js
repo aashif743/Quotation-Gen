@@ -5,6 +5,7 @@ const fs = require('fs');
 const db = require('../config/database');
 const { isAuthenticated, isAdmin } = require('../middleware/auth');
 const { getCompanyPrefix } = require('../utils/quotePrefix');
+const { UPLOADS_ROOT } = require('../config/paths');
 
 const router = express.Router();
 
@@ -13,11 +14,12 @@ router.use(isAuthenticated);
 
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    const uploadsDir = path.join(__dirname, '../uploads');
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
+    // Persistent uploads root (outside the deployed app dir in production) so
+    // admin-uploaded logos survive redeploys.
+    if (!fs.existsSync(UPLOADS_ROOT)) {
+      fs.mkdirSync(UPLOADS_ROOT, { recursive: true });
     }
-    cb(null, uploadsDir);
+    cb(null, UPLOADS_ROOT);
   },
   filename: function (req, file, cb) {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);

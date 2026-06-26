@@ -6,15 +6,16 @@ const db = require('../config/database');
 const { isAuthenticated, isAdmin } = require('../middleware/auth');
 const { getCompanyPrefix } = require('../utils/quotePrefix');
 const { resolveClientId } = require('../utils/clientResolver');
+const { UPLOADS_ROOT, resolveUploadDiskPath } = require('../config/paths');
 
 const router = express.Router();
 
 router.use(isAuthenticated);
 
 // Multer config for uploading the signed/stamped scan or photo. Saved under
-// /uploads/signed/ so it's served by the existing static middleware at
-// /uploads/signed/<filename>.
-const SIGNED_DIR = path.join(__dirname, '..', 'uploads', 'signed');
+// <UPLOADS_ROOT>/signed/ (a persistent location outside the deployed app dir
+// in production) and served by the static middleware at /uploads/signed/.
+const SIGNED_DIR = path.join(UPLOADS_ROOT, 'signed');
 const signedStorage = multer.diskStorage({
   destination: (req, file, cb) => {
     if (!fs.existsSync(SIGNED_DIR)) fs.mkdirSync(SIGNED_DIR, { recursive: true });
@@ -362,7 +363,7 @@ router.post('/:id/signed', signedUpload.single('file'), async (req, res) => {
 
     // Delete previous signed file if replacing.
     if (dn.signed_file_url) {
-      const oldPath = path.join(__dirname, '..', dn.signed_file_url);
+      const oldPath = resolveUploadDiskPath(dn.signed_file_url);
       try { fs.unlinkSync(oldPath); } catch { /* ignore — file may already be gone */ }
     }
 
@@ -402,7 +403,7 @@ router.delete('/:id/signed', isAdmin, async (req, res) => {
     }
 
     if (rows[0].signed_file_url) {
-      const filePath = path.join(__dirname, '..', rows[0].signed_file_url);
+      const filePath = resolveUploadDiskPath(rows[0].signed_file_url);
       try { fs.unlinkSync(filePath); } catch { /* file may already be gone */ }
     }
 

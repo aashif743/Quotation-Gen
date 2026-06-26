@@ -6,6 +6,7 @@ const MySQLStore = require('express-mysql-session')(session);
 const passport = require('passport');
 const path = require('path');
 const { initializeDatabase } = require('./database/init');
+const { UPLOADS_ROOT } = require('./config/paths');
 
 // Load environment variables
 require('dotenv').config();
@@ -84,7 +85,7 @@ app.use(passport.session());
 // Static files: admin-uploaded assets. A 7-day cache stops the browser from
 // re-fetching the same logos on every page load — uploads are immutable for
 // practical purposes (a new upload gets a new filename via multer).
-app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
+app.use('/uploads', express.static(UPLOADS_ROOT, {
   maxAge: '7d',
   etag: true,
 }));
