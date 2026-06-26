@@ -99,11 +99,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   // text / icons / borders that need to read against a dark surface. In
   // light mode it's identical to `primaryColor`.
   const accentColor = brandColorFor(primaryColor, isDark);
-  // Tint alpha for soft brand backgrounds — bumped in dark mode so the
-  // company tint doesn't disappear into the gray-800/900 surface.
-  const tintBg     = hexToRgba(primaryColor, isDark ? 0.30 : 0.15);
-  const tintGlow   = hexToRgba(primaryColor, isDark ? 0.18 : 0.05);
-  const tintBorder = hexToRgba(accentColor,  isDark ? 0.40 : 0.20);
+  // Tint alpha for soft brand backgrounds — bumped a touch in dark mode so
+  // the company tint stays visible against the gray-800/900 surface without
+  // overpowering the chrome (now that the accent color itself is properly
+  // lifted by brandColorFor, the tints don't have to compensate as much).
+  const tintBg     = hexToRgba(primaryColor, isDark ? 0.22 : 0.15);
+  const tintGlow   = hexToRgba(primaryColor, isDark ? 0.12 : 0.05);
+  const tintBorder = hexToRgba(accentColor,  isDark ? 0.28 : 0.20);
 
   const getNavItemClass = (path: string) => {
     const base = `flex items-center ${collapsed ? 'justify-center px-0' : 'space-x-3 px-4'} py-3 rounded-lg transition-colors`;
