@@ -5,7 +5,7 @@ the built React app (everything else) from the same origin. Your Hostinger
 plan must support **Node.js hosting** (Premium / Business / Cloud / VPS — any
 plan with a "Node.js Setup" or shell access).
 
-## 1. One-time checks before deploying
+## 1. One-time checks before deploying 
 
 - **MySQL credentials in `.env`** are already pointed at your Hostinger DB
   (`srv1836.hstgr.io`, `u957836715_quotation_gen`). The DB will be reachable
@@ -16,6 +16,46 @@ plan with a "Node.js Setup" or shell access).
 - The `uploads/` folder holds admin-uploaded sidebar/header logos. It must
   exist and be writable at runtime; the `.gitkeep` file keeps the empty
   folder committed.
+
+## ⚠️ Data persistence — READ THIS (how we avoid losing files)
+
+User-uploaded files (signed delivery-note scans, admin logos) are **not** in
+Git. If they were stored inside the deployed app folder, every redeploy that
+rebuilds from the repo would erase them — which is how a batch of signed
+documents was lost once.
+
+**This is now handled automatically.** `config/paths.js` resolves the uploads
+root to a deploy-safe location:
+
+1. `UPLOADS_DIR` env var, if set (explicit override); else
+2. in production, `<home>/quotation_gen_data/uploads`
+   (e.g. `/home/u957836715/quotation_gen_data/uploads`) — **outside** the
+   deployed app folder, so a redeploy can never touch it; else
+3. in local dev, `./uploads`.
+
+You do **not** have to set anything for this to work in production. On startup
+the server logs the active location:
+
+```
+📁 Uploads stored at: /home/u957836715/quotation_gen_data/uploads
+```
+
+Confirm that path is **outside** your domain's `public_html` / app directory.
+If you ever want a custom location, set `UPLOADS_DIR` to an absolute path that
+lives outside the deploy folder.
+
+### Backups — the only real guarantee against *any* data loss
+
+Code keeps files out of harm's way, but the database (all quotations,
+invoices, delivery notes, clients) and the uploaded files still need backups
+to survive disk failure, accidental deletion, or a bad migration:
+
+- **Database:** enable Hostinger's automatic backups for the MySQL database,
+  **and/or** schedule a daily dump via cron:
+  `mysqldump -h <host> -u <user> -p<pass> <db> | gzip > ~/backups/db-$(date +\%F).sql.gz`
+- **Files:** back up the persistent uploads dir on the same schedule:
+  `tar czf ~/backups/uploads-$(date +\%F).tar.gz -C ~/quotation_gen_data uploads`
+- Keep at least 7–14 daily copies, and periodically download one off-server.
 
 ## 2. Push code to Hostinger
 

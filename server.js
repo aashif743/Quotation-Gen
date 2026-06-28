@@ -138,6 +138,9 @@ async function startServer() {
     app.listen(PORT, () => {
       console.log(`🚀 Server is running on port ${PORT} (${isProd ? 'production' : 'development'})`);
       console.log(`📱 API available at http://localhost:${PORT}/api`);
+      // Make the uploads location obvious in the logs — if this ever points
+      // inside the deployed app folder in production, files are at risk.
+      console.log(`📁 Uploads stored at: ${UPLOADS_ROOT}`);
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error);
