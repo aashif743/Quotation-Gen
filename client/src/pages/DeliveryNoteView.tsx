@@ -23,6 +23,7 @@ import {
   ExternalLink,
   Loader2,
   Edit2,
+  AlertTriangle,
 } from 'lucide-react';
 
 const DeliveryNoteView: React.FC = () => {
@@ -221,6 +222,10 @@ const DeliveryNoteView: React.FC = () => {
   const rawPrimary = dn.primary_color || '#111827';
   const primary = brandColorFor(rawPrimary, theme === 'dark');
   const hasSigned = !!dn.signed_file_url;
+  // A signed copy is recorded in the DB but the actual file can't be served
+  // (e.g. an older upload lost before the persistent-storage fix). Surface
+  // that clearly so the user knows to re-upload rather than thinking it's fine.
+  const signedMissing = signedStatus === 'unavailable';
   const signedUrl = dn.signed_file_url || '';
   const lowerUrl = signedUrl.toLowerCase();
   const isPdf = lowerUrl.endsWith('.pdf');
@@ -371,32 +376,51 @@ const DeliveryNoteView: React.FC = () => {
            side by side (stacked on small screens) so the two are easy to
            compare. Both panels are clearly labelled. */
         <>
-          {/* Status + actions bar for the signed copy (full width). */}
-          <div className="mb-4 no-print flex items-center justify-between flex-wrap gap-3 px-5 py-3 bg-green-50 border border-green-100 rounded-xl">
+          {/* Status + actions bar for the signed copy (full width). Turns amber
+              when the recorded file can't be served, so the user re-uploads. */}
+          <div className={`mb-4 no-print flex items-center justify-between flex-wrap gap-3 px-5 py-3 rounded-xl border ${
+            signedMissing ? 'bg-amber-50 border-amber-200' : 'bg-green-50 border-green-100'
+          }`}>
             <div className="flex items-center space-x-3 min-w-0">
-              <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0" />
+              {signedMissing ? (
+                <AlertTriangle className="h-5 w-5 text-amber-600 flex-shrink-0" />
+              ) : (
+                <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0" />
+              )}
               <div className="min-w-0">
-                <p className="text-sm font-semibold text-green-800">Signed copy on file</p>
-                <p className="text-xs text-green-700 truncate">
-                  {dn.signed_at ? new Date(dn.signed_at).toLocaleString() : ''}
-                  {dn.signed_by_name ? ` · uploaded by ${dn.signed_by_name}` : ''}
+                <p className={`text-sm font-semibold ${signedMissing ? 'text-amber-800' : 'text-green-800'}`}>
+                  {signedMissing ? 'Signed copy needs re-uploading' : 'Signed copy on file'}
+                </p>
+                <p className={`text-xs truncate ${signedMissing ? 'text-amber-700' : 'text-green-700'}`}>
+                  {signedMissing
+                    ? 'The earlier file is no longer available — please upload it again.'
+                    : `${dn.signed_at ? new Date(dn.signed_at).toLocaleString() : ''}${
+                        dn.signed_by_name ? ` · uploaded by ${dn.signed_by_name}` : ''
+                      }`}
                 </p>
               </div>
             </div>
             <div className="flex items-center space-x-2 flex-shrink-0">
-              <a
-                href={signedUrl || '#'}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center px-3 py-1.5 text-sm rounded-lg bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
-              >
-                <ExternalLink className="h-4 w-4 mr-1.5" />
-                Open
-              </a>
+              {!signedMissing && (
+                <a
+                  href={signedUrl || '#'}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center px-3 py-1.5 text-sm rounded-lg bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
+                >
+                  <ExternalLink className="h-4 w-4 mr-1.5" />
+                  Open
+                </a>
+              )}
               <button
                 onClick={handlePickFile}
                 disabled={uploading}
-                className="inline-flex items-center px-3 py-1.5 text-sm rounded-lg bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 disabled:opacity-50"
+                className={`inline-flex items-center px-3 py-1.5 text-sm rounded-lg disabled:opacity-50 ${
+                  signedMissing
+                    ? 'text-white shadow-sm hover:opacity-90'
+                    : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                }`}
+                style={signedMissing ? { backgroundColor: primary } : undefined}
                 title="Replace with a new scan"
               >
                 {uploading ? (
@@ -404,7 +428,7 @@ const DeliveryNoteView: React.FC = () => {
                 ) : (
                   <RefreshCw className="h-4 w-4 mr-1.5" />
                 )}
-                Re-upload
+                {signedMissing ? 'Upload again' : 'Re-upload'}
               </button>
               {isAdmin && (
                 <button
