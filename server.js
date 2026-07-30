@@ -124,7 +124,13 @@ if (isProd) {
   app.use(express.static(buildDir, {
     maxAge: '7d',
     setHeaders: (res, filePath) => {
-      if (filePath.includes('/static/')) {
+      // The SPA shell must NEVER be cached, or a CDN/browser keeps serving an
+      // old index.html that points at a stale JS bundle after a deploy — so
+      // new releases (and new nav items) don't show up. The hashed assets in
+      // /static/ are content-addressed and safe to cache for a year.
+      if (filePath.endsWith('index.html')) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      } else if (filePath.includes('/static/')) {
         res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
       }
     },
