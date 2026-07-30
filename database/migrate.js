@@ -322,6 +322,110 @@ async function migrate() {
     console.log(`    ${docTable}: created ${created} client(s), linked ${linked} row(s)`);
   }
 
+  // 3i. Vendors + purchases (buy side, added 2026-07). Suppliers the company
+  //     buys from, the purchases (bills) recorded against them, their line
+  //     items, and payments made OUT to vendors. Entirely additive — no
+  //     existing table or row is altered.
+  if (!(await tableExists('vendors'))) {
+    console.log('  • Creating `vendors` table...');
+    await db.query(`
+      CREATE TABLE \`vendors\` (
+        \`id\` INT PRIMARY KEY AUTO_INCREMENT,
+        \`company_id\` INT NOT NULL,
+        \`created_by\` INT,
+        \`name\` VARCHAR(255) NOT NULL,
+        \`contact_person\` VARCHAR(255),
+        \`email\` VARCHAR(255),
+        \`phone\` VARCHAR(50),
+        \`address\` TEXT,
+        \`tax_id\` VARCHAR(50),
+        \`notes\` TEXT,
+        \`created_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        \`updated_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (\`company_id\`) REFERENCES \`companies\`(\`id\`) ON DELETE CASCADE,
+        FOREIGN KEY (\`created_by\`) REFERENCES \`users\`(\`id\`) ON DELETE SET NULL,
+        UNIQUE KEY \`unique_vendor_per_company\` (\`company_id\`, \`name\`)
+      ) ENGINE=InnoDB
+    `);
+  } else {
+    console.log('  • vendors already present, skipping.');
+  }
+
+  if (!(await tableExists('purchases'))) {
+    console.log('  • Creating `purchases` table...');
+    await db.query(`
+      CREATE TABLE \`purchases\` (
+        \`id\` INT PRIMARY KEY AUTO_INCREMENT,
+        \`company_id\` INT NOT NULL,
+        \`created_by\` INT,
+        \`vendor_id\` INT,
+        \`purchase_number\` VARCHAR(50) NOT NULL,
+        \`vendor_name\` VARCHAR(255) NOT NULL,
+        \`vendor_address\` TEXT,
+        \`vendor_email\` VARCHAR(255),
+        \`vendor_phone\` VARCHAR(50),
+        \`quotation_id\` INT,
+        \`invoice_id\` INT,
+        \`date\` DATE NOT NULL,
+        \`subtotal\` DECIMAL(15,2) NOT NULL DEFAULT 0,
+        \`grand_total\` DECIMAL(15,2) NOT NULL DEFAULT 0,
+        \`notes\` TEXT,
+        \`created_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        \`updated_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (\`company_id\`) REFERENCES \`companies\`(\`id\`) ON DELETE CASCADE,
+        FOREIGN KEY (\`created_by\`) REFERENCES \`users\`(\`id\`) ON DELETE SET NULL,
+        FOREIGN KEY (\`vendor_id\`) REFERENCES \`vendors\`(\`id\`) ON DELETE SET NULL,
+        FOREIGN KEY (\`quotation_id\`) REFERENCES \`quotations\`(\`id\`) ON DELETE SET NULL,
+        FOREIGN KEY (\`invoice_id\`) REFERENCES \`invoices\`(\`id\`) ON DELETE SET NULL,
+        UNIQUE KEY \`unique_purchase_per_company\` (\`company_id\`, \`purchase_number\`)
+      ) ENGINE=InnoDB
+    `);
+  } else {
+    console.log('  • purchases already present, skipping.');
+  }
+
+  if (!(await tableExists('purchase_items'))) {
+    console.log('  • Creating `purchase_items` table...');
+    await db.query(`
+      CREATE TABLE \`purchase_items\` (
+        \`id\` INT PRIMARY KEY AUTO_INCREMENT,
+        \`purchase_id\` INT NOT NULL,
+        \`description\` TEXT NOT NULL,
+        \`quantity\` DECIMAL(10,2) NOT NULL,
+        \`unit_cost\` DECIMAL(15,2) NOT NULL,
+        \`total\` DECIMAL(15,2) NOT NULL,
+        \`sort_order\` INT DEFAULT 0,
+        \`created_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (\`purchase_id\`) REFERENCES \`purchases\`(\`id\`) ON DELETE CASCADE
+      ) ENGINE=InnoDB
+    `);
+  } else {
+    console.log('  • purchase_items already present, skipping.');
+  }
+
+  if (!(await tableExists('vendor_payments'))) {
+    console.log('  • Creating `vendor_payments` table...');
+    await db.query(`
+      CREATE TABLE \`vendor_payments\` (
+        \`id\` INT PRIMARY KEY AUTO_INCREMENT,
+        \`purchase_id\` INT NOT NULL,
+        \`amount\` DECIMAL(15,2) NOT NULL,
+        \`payment_date\` DATE NOT NULL,
+        \`method\` VARCHAR(50),
+        \`reference\` VARCHAR(100),
+        \`notes\` TEXT,
+        \`recorded_by\` INT,
+        \`created_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (\`purchase_id\`) REFERENCES \`purchases\`(\`id\`) ON DELETE CASCADE,
+        FOREIGN KEY (\`recorded_by\`) REFERENCES \`users\`(\`id\`) ON DELETE SET NULL,
+        INDEX \`idx_vpayment_purchase\` (\`purchase_id\`),
+        INDEX \`idx_vpayment_date\` (\`payment_date\`)
+      ) ENGINE=InnoDB
+    `);
+  } else {
+    console.log('  • vendor_payments already present, skipping.');
+  }
+
   // 4. Backfill created_by from each row's company owner so existing records
   //    are attributed to the user who originally owned the company.
   const [qBackfill] = await db.query(

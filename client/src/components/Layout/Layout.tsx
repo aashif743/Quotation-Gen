@@ -20,6 +20,8 @@ import {
   PanelLeftOpen,
   Truck,
   Briefcase,
+  Store,
+  ShoppingCart,
   Sun,
   Moon,
 } from 'lucide-react';
@@ -144,6 +146,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { to: '/invoice-history', icon: Receipt, label: 'Invoice History' },
     { to: '/delivery-history', icon: Truck, label: 'Delivery Notes' },
     { to: '/clients', icon: Briefcase, label: 'Clients' },
+    { to: '/vendors', icon: Store, label: 'Vendors' },
+    { to: '/purchases', icon: ShoppingCart, label: 'Purchases' },
     ...(isAdmin
       ? [
           { to: '/users', icon: Users, label: 'User Management' },

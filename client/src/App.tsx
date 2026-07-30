@@ -20,6 +20,11 @@ import EditDeliveryNote from './pages/EditDeliveryNote';
 import Clients from './pages/Clients';
 import ClientDetail from './pages/ClientDetail';
 import ClientStatementPage from './pages/ClientStatement';
+import Vendors from './pages/Vendors';
+import VendorDetail from './pages/VendorDetail';
+import NewPurchase from './pages/NewPurchase';
+import PurchaseView from './pages/PurchaseView';
+import PurchaseHistory from './pages/PurchaseHistory';
 import UserManagement from './pages/UserManagement';
 import Login from './pages/Login';
 
@@ -117,6 +122,11 @@ function AppRoutes() {
                   <Route path="/clients" element={<Clients />} />
                   <Route path="/clients/:id" element={<ClientDetail />} />
                   <Route path="/clients/:id/statement" element={<ClientStatementPage />} />
+                  <Route path="/vendors" element={<Vendors />} />
+                  <Route path="/vendors/:id" element={<VendorDetail />} />
+                  <Route path="/new-purchase" element={<NewPurchase />} />
+                  <Route path="/purchases" element={<PurchaseHistory />} />
+                  <Route path="/purchase/:id" element={<PurchaseView />} />
                   <Route
                     path="/users"
                     element={

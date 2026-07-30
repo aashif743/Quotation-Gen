@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { Company, Quotation, Invoice, DeliveryNote, User, AuthStatus, ManagedUser, UserRole, Client, ClientDocSummary, Payment } from '../types';
+import { Company, Quotation, Invoice, DeliveryNote, User, AuthStatus, ManagedUser, UserRole, Client, ClientDocSummary, Payment, Vendor, Purchase, PurchaseDocSummary } from '../types';
 
 // Use a relative base so the same build works in development (proxied by CRA
 // to the local Express server) and in production (served by the same Express
@@ -376,4 +376,84 @@ export const updatePayment = async (id: number, data: Partial<Payment>): Promise
 
 export const deletePayment = async (id: number): Promise<void> => {
   await api.delete(`/payments/${id}`);
+};
+
+// ---------------------------------------------------------------------------
+// Vendors API (buy side)
+// ---------------------------------------------------------------------------
+export const getVendors = async (companyId?: number, q?: string): Promise<Vendor[]> => {
+  const params: Record<string, any> = {};
+  if (companyId) params.company_id = companyId;
+  if (q) params.q = q;
+  const response = await api.get('/vendors', { params });
+  return response.data;
+};
+
+export const getVendor = async (id: number): Promise<Vendor> => {
+  const response = await api.get(`/vendors/${id}`);
+  return response.data;
+};
+
+export const createVendor = async (
+  data: Omit<Partial<Vendor>, 'id'> & { company_id: number; name: string }
+): Promise<Vendor> => {
+  const response = await api.post('/vendors', data);
+  return response.data;
+};
+
+export const updateVendor = async (id: number, data: Partial<Vendor>): Promise<Vendor> => {
+  const response = await api.put(`/vendors/${id}`, data);
+  return response.data;
+};
+
+export const deleteVendor = async (id: number): Promise<void> => {
+  await api.delete(`/vendors/${id}`);
+};
+
+export const getVendorPurchases = async (id: number): Promise<PurchaseDocSummary[]> => {
+  const response = await api.get(`/vendors/${id}/purchases`);
+  return response.data;
+};
+
+// ---------------------------------------------------------------------------
+// Purchases API (bills recorded against a vendor)
+// ---------------------------------------------------------------------------
+export const getPurchases = async (
+  filters: { company_id?: number; vendor_id?: number; quotation_id?: number; invoice_id?: number; q?: string } = {}
+): Promise<PurchaseDocSummary[]> => {
+  const params: Record<string, any> = {};
+  Object.entries(filters).forEach(([k, v]) => { if (v != null && v !== '') params[k] = v; });
+  const response = await api.get('/purchases', { params });
+  return response.data;
+};
+
+export const getPurchase = async (id: number): Promise<Purchase> => {
+  const response = await api.get(`/purchases/${id}`);
+  return response.data;
+};
+
+export const createPurchase = async (data: Omit<Partial<Purchase>, 'id'> & { company_id: number }): Promise<Purchase> => {
+  const response = await api.post('/purchases', data);
+  return response.data;
+};
+
+export const updatePurchase = async (id: number, data: Partial<Purchase>): Promise<Purchase> => {
+  const response = await api.put(`/purchases/${id}`, data);
+  return response.data;
+};
+
+export const deletePurchase = async (id: number): Promise<void> => {
+  await api.delete(`/purchases/${id}`);
+};
+
+export const recordVendorPayment = async (
+  purchaseId: number,
+  data: { amount: number; payment_date: string; method?: string; reference?: string; notes?: string }
+): Promise<{ amount_paid: number; balance_due: number; payment_status: 'pending' | 'partial' | 'paid' }> => {
+  const response = await api.post(`/purchases/${purchaseId}/payments`, data);
+  return response.data;
+};
+
+export const deleteVendorPayment = async (purchaseId: number, paymentId: number): Promise<void> => {
+  await api.delete(`/purchases/${purchaseId}/payments/${paymentId}`);
 };

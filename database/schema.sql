@@ -1,5 +1,5 @@
 SET FOREIGN_KEY_CHECKS = 0;
-DROP TABLE IF EXISTS `users`, `companies`, `quotations`, `quotation_items`, `invoices`, `invoice_items`, `delivery_notes`, `delivery_note_items`, `clients`, `payments`;
+DROP TABLE IF EXISTS `users`, `companies`, `quotations`, `quotation_items`, `invoices`, `invoice_items`, `delivery_notes`, `delivery_note_items`, `clients`, `payments`, `vendor_payments`, `purchase_items`, `purchases`, `vendors`;
 SET FOREIGN_KEY_CHECKS = 1;
 
 CREATE TABLE IF NOT EXISTS `users` (
@@ -185,4 +185,84 @@ CREATE TABLE IF NOT EXISTS `delivery_note_items` (
     `sort_order` INT DEFAULT 0,
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (`delivery_note_id`) REFERENCES `delivery_notes`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- Vendors are suppliers the company buys from — the buy-side mirror of
+-- `clients`. Same shape, company-scoped, unique by name per company.
+CREATE TABLE IF NOT EXISTS `vendors` (
+    `id` INT PRIMARY KEY AUTO_INCREMENT,
+    `company_id` INT NOT NULL,
+    `created_by` INT,
+    `name` VARCHAR(255) NOT NULL,
+    `contact_person` VARCHAR(255),
+    `email` VARCHAR(255),
+    `phone` VARCHAR(50),
+    `address` TEXT,
+    `tax_id` VARCHAR(50),
+    `notes` TEXT,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (`company_id`) REFERENCES `companies`(`id`) ON DELETE CASCADE,
+    FOREIGN KEY (`created_by`) REFERENCES `users`(`id`) ON DELETE SET NULL,
+    UNIQUE KEY `unique_vendor_per_company` (`company_id`, `name`)
+) ENGINE=InnoDB;
+
+-- A purchase is a bill/PO recorded against a vendor (money the company owes
+-- the vendor). It can optionally link to the client quotation/invoice it was
+-- bought for, which is what powers profit = sale − cost.
+CREATE TABLE IF NOT EXISTS `purchases` (
+    `id` INT PRIMARY KEY AUTO_INCREMENT,
+    `company_id` INT NOT NULL,
+    `created_by` INT,
+    `vendor_id` INT,
+    `purchase_number` VARCHAR(50) NOT NULL,
+    `vendor_name` VARCHAR(255) NOT NULL,
+    `vendor_address` TEXT,
+    `vendor_email` VARCHAR(255),
+    `vendor_phone` VARCHAR(50),
+    `quotation_id` INT,
+    `invoice_id` INT,
+    `date` DATE NOT NULL,
+    `subtotal` DECIMAL(15,2) NOT NULL DEFAULT 0,
+    `grand_total` DECIMAL(15,2) NOT NULL DEFAULT 0,
+    `notes` TEXT,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (`company_id`) REFERENCES `companies`(`id`) ON DELETE CASCADE,
+    FOREIGN KEY (`created_by`) REFERENCES `users`(`id`) ON DELETE SET NULL,
+    FOREIGN KEY (`vendor_id`) REFERENCES `vendors`(`id`) ON DELETE SET NULL,
+    FOREIGN KEY (`quotation_id`) REFERENCES `quotations`(`id`) ON DELETE SET NULL,
+    FOREIGN KEY (`invoice_id`) REFERENCES `invoices`(`id`) ON DELETE SET NULL,
+    UNIQUE KEY `unique_purchase_per_company` (`company_id`, `purchase_number`)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS `purchase_items` (
+    `id` INT PRIMARY KEY AUTO_INCREMENT,
+    `purchase_id` INT NOT NULL,
+    `description` TEXT NOT NULL,
+    `quantity` DECIMAL(10,2) NOT NULL,
+    `unit_cost` DECIMAL(15,2) NOT NULL,
+    `total` DECIMAL(15,2) NOT NULL,
+    `sort_order` INT DEFAULT 0,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (`purchase_id`) REFERENCES `purchases`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- Payments made OUT to vendors against a purchase — the mirror of `payments`.
+-- Payable status (pending/partial/paid) is computed on read by comparing
+-- SUM(vendor_payments.amount) to purchases.grand_total.
+CREATE TABLE IF NOT EXISTS `vendor_payments` (
+    `id` INT PRIMARY KEY AUTO_INCREMENT,
+    `purchase_id` INT NOT NULL,
+    `amount` DECIMAL(15,2) NOT NULL,
+    `payment_date` DATE NOT NULL,
+    `method` VARCHAR(50),
+    `reference` VARCHAR(100),
+    `notes` TEXT,
+    `recorded_by` INT,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (`purchase_id`) REFERENCES `purchases`(`id`) ON DELETE CASCADE,
+    FOREIGN KEY (`recorded_by`) REFERENCES `users`(`id`) ON DELETE SET NULL,
+    INDEX `idx_vpayment_purchase` (`purchase_id`),
+    INDEX `idx_vpayment_date` (`payment_date`)
 ) ENGINE=InnoDB;

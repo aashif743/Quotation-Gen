@@ -195,6 +195,102 @@ export interface Payment {
   created_at?: string;
 }
 
+// ---------------------------------------------------------------------------
+// Vendors (buy side) — suppliers the company buys from, the purchases (bills)
+// recorded against them, and the payments made OUT to them.
+// ---------------------------------------------------------------------------
+export interface Vendor {
+  id: number;
+  company_id: number;
+  name: string;
+  contact_person?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  tax_id?: string | null;
+  notes?: string | null;
+  created_at?: string;
+  updated_at?: string;
+
+  // Joined in list/detail endpoints
+  purchase_count?: number;
+  total_purchased?: number;
+  total_paid?: number;
+  balance_payable?: number;
+  last_activity?: string | null;
+}
+
+export interface PurchaseItem {
+  id?: number;
+  purchase_id?: number;
+  description: string;
+  quantity: number;
+  unit_cost: number;
+  total: number;
+  sort_order?: number;
+}
+
+export interface Purchase {
+  id?: number;
+  company_id: number;
+  vendor_id?: number | null;
+  purchase_number: string;
+  vendor_name: string;
+  vendor_address?: string;
+  vendor_email?: string;
+  vendor_phone?: string;
+  quotation_id?: number | null;
+  invoice_id?: number | null;
+  date: string;
+  subtotal: number;
+  grand_total: number;
+  notes?: string;
+  items: PurchaseItem[];
+  created_at?: string;
+  updated_at?: string;
+  created_by?: number;
+  created_by_name?: string;
+
+  // Joined / computed by GET /purchases/:id
+  quotation_number?: string | null;
+  quotation_total?: number | null;
+  invoice_number?: string | null;
+  invoice_total?: number | null;
+  amount_paid?: number;
+  balance_due?: number;
+  payment_status?: PaymentStatus;
+  payments?: VendorPayment[];
+  profit?: { sale_value: number; order_cost: number; profit: number } | null;
+}
+
+// Compact purchase row used in vendor-detail + history tables.
+export interface PurchaseDocSummary {
+  id: number;
+  number: string;
+  vendor_name: string;
+  date: string;
+  grand_total?: number;
+  created_at: string;
+  created_by?: number;
+  created_by_name?: string;
+  amount_paid?: number;
+  balance_due?: number;
+  payment_status?: PaymentStatus;
+}
+
+export interface VendorPayment {
+  id: number;
+  purchase_id: number;
+  amount: number;
+  payment_date: string;
+  method?: string | null;
+  reference?: string | null;
+  notes?: string | null;
+  recorded_by?: number | null;
+  recorded_by_name?: string | null;
+  created_at?: string;
+}
+
 export interface DeliveryNoteItem {
   id?: number;
   delivery_note_id?: number;
