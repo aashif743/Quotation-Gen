@@ -1,9 +1,9 @@
-import React, { ReactNode, useState } from 'react';
+import React, { ReactNode, useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useCompany } from '../../context/CompanyContext';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
-import { brandColorFor, hexToRgba } from '../../utils/colors';
+import { brandColorFor, hexToRgba, relativeLuminance } from '../../utils/colors';
 import CompanySelector, { CompanyThumb } from './CompanySelector';
 import {
   Home,
@@ -109,6 +109,18 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const tintBg     = hexToRgba(primaryColor, isDark ? 0.22 : 0.15);
   const tintGlow   = hexToRgba(primaryColor, isDark ? 0.12 : 0.05);
   const tintBorder = hexToRgba(accentColor,  isDark ? 0.28 : 0.20);
+
+  // Publish the active company's brand color as CSS variables so every generic
+  // accent in the app (focus rings, pickers, stat cards, buttons — see the
+  // brand-accent block in index.css) automatically matches the current logo,
+  // in both light and dark themes.
+  useEffect(() => {
+    const root = document.documentElement;
+    root.style.setProperty('--brand', accentColor);
+    root.style.setProperty('--brand-strong', primaryColor);
+    root.style.setProperty('--brand-weak', hexToRgba(primaryColor, isDark ? 0.20 : 0.10));
+    root.style.setProperty('--brand-on', relativeLuminance(primaryColor) > 0.55 ? '#0f172a' : '#ffffff');
+  }, [accentColor, primaryColor, isDark]);
 
   const getNavItemClass = (path: string) => {
     const base = `flex items-center ${collapsed ? 'justify-center px-0' : 'space-x-3 px-4'} py-3 rounded-lg transition-colors`;

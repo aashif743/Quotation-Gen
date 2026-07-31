@@ -195,7 +195,7 @@ const UserManagement: React.FC = () => {
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         {loading ? (
           <div className="p-12 text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500 mx-auto"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-400 mx-auto"></div>
             <p className="text-gray-600 mt-2">Loading users...</p>
           </div>
         ) : (

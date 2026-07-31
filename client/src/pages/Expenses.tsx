@@ -407,7 +407,7 @@ const labelCls = 'block text-sm font-medium text-gray-700 mb-1';
 
 const SummaryCard: React.FC<{ label: string; value: string; icon: React.ComponentType<{ className?: string }>; truncate?: boolean }> = ({ label, value, icon: Icon, truncate }) => (
   <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 flex items-center">
-    <div className="p-3 rounded-lg bg-green-100 flex-shrink-0"><Icon className="h-6 w-6 text-green-700" /></div>
+    <div className="p-3 rounded-lg brand-halo flex-shrink-0"><Icon className="h-6 w-6 brand-icon" /></div>
     <div className="ml-4 min-w-0 flex-1">
       <p className="text-sm font-medium text-gray-600">{label}</p>
       <p className={`text-2xl font-bold text-gray-900 ${truncate ? 'truncate text-xl' : ''}`} title={value}>{value}</p>

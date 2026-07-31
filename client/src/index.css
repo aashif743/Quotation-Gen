@@ -9,13 +9,47 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #f9fafb; /* gray-50 — light mode page bg */
-  color: #111827;            /* gray-900 — light mode body text */
+  background-color: #f1f5f9; /* slate-100 — soft, professional light page bg */
+  color: #0f172a;            /* slate-900 — light mode body text */
 }
 html.dark body {
   background-color: #0a0e1a; /* near-black navy page bg so cards clearly float */
   color: #e2e8f0;            /* slate-200 — dark mode body text */
 }
+
+/* ---------------------------------------------------------------------------
+   Brand accent system
+   ---------------------------------------------------------------------------
+   The app is multi-company: each company has its own logo/brand color. Layout
+   sets `--brand` (and tints) on <html> from the SELECTED company's color, so
+   every accent below automatically matches the active logo — in both themes.
+   `--brand` is theme-aware (brightened in dark mode by brandColorFor); the
+   defaults here are used before a company loads (e.g. the login screen).
+   --------------------------------------------------------------------------- */
+:root {
+  --brand: #4f46e5;                         /* accent (text/border/ring/button) */
+  --brand-strong: #4f46e5;                  /* raw brand color for solid buttons */
+  --brand-weak: rgba(79, 70, 229, 0.10);    /* soft tint (hovers, chips, halos) */
+  --brand-on: #ffffff;                      /* text/icon on a solid brand button */
+}
+
+/* Remap the generic indigo accent (used app-wide as focus rings, picker
+   highlights, and some buttons — never as a semantic color) onto the active
+   brand. One place, ~90 usages across 17 files pick up the company color. */
+.focus\:ring-indigo-500:focus { --tw-ring-color: var(--brand) !important; }
+.border-indigo-500,
+.border-indigo-600            { border-color: var(--brand) !important; }
+.text-indigo-600,
+.text-indigo-700              { color: var(--brand) !important; }
+.bg-indigo-600,
+.bg-indigo-700                { background-color: var(--brand-strong) !important; color: var(--brand-on) !important; }
+.hover\:bg-indigo-700:hover   { background-color: var(--brand-strong) !important; filter: brightness(0.92); }
+.bg-indigo-50,
+.bg-indigo-100                { background-color: var(--brand-weak) !important; }
+
+/* Brand-tinted stat-card icon halos (opt-in via this class on our cards). */
+.brand-halo   { background-color: var(--brand-weak) !important; }
+.brand-icon   { color: var(--brand) !important; }
 
 /* ---------------------------------------------------------------------------
    Dark-mode chrome defaults
@@ -95,7 +129,6 @@ html.dark .bg-green-50   { background-color: rgba(16, 185, 129, 0.18) !important
 html.dark .bg-amber-50,
 html.dark .bg-yellow-50  { background-color: rgba(245, 158, 11, 0.18) !important; }
 html.dark .bg-red-50     { background-color: rgba(239, 68, 68, 0.18) !important; }
-html.dark .bg-indigo-50  { background-color: rgba(99, 102, 241, 0.18) !important; }
 html.dark .bg-purple-50  { background-color: rgba(168, 85, 247, 0.18) !important; }
 html.dark .bg-emerald-50 { background-color: rgba(16, 185, 129, 0.18) !important; }
 

@@ -199,8 +199,8 @@ const VendorDetail: React.FC = () => {
 
 const Stat: React.FC<{ label: string; value: string; icon: React.ComponentType<{ className?: string }>; amber?: boolean }> = ({ label, value, icon: Icon, amber }) => (
   <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-5 flex items-center">
-    <div className={`p-3 rounded-lg flex-shrink-0 ${amber ? 'bg-amber-100' : 'bg-green-100'}`}>
-      <Icon className={`h-5 w-5 ${amber ? 'text-amber-700' : 'text-green-700'}`} />
+    <div className={`p-3 rounded-lg flex-shrink-0 ${amber ? 'bg-amber-100' : 'brand-halo'}`}>
+      <Icon className={`h-5 w-5 ${amber ? 'text-amber-700' : 'brand-icon'}`} />
     </div>
     <div className="ml-4 min-w-0">
       <p className="text-sm font-medium text-gray-600">{label}</p>
