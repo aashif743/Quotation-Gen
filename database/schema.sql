@@ -1,5 +1,5 @@
 SET FOREIGN_KEY_CHECKS = 0;
-DROP TABLE IF EXISTS `users`, `companies`, `quotations`, `quotation_items`, `invoices`, `invoice_items`, `delivery_notes`, `delivery_note_items`, `clients`, `payments`, `vendor_payments`, `purchase_items`, `purchases`, `vendors`;
+DROP TABLE IF EXISTS `users`, `companies`, `quotations`, `quotation_items`, `invoices`, `invoice_items`, `delivery_notes`, `delivery_note_items`, `clients`, `payments`, `expenses`, `vendor_payments`, `purchase_items`, `purchases`, `vendors`;
 SET FOREIGN_KEY_CHECKS = 1;
 
 CREATE TABLE IF NOT EXISTS `users` (
@@ -265,4 +265,28 @@ CREATE TABLE IF NOT EXISTS `vendor_payments` (
     FOREIGN KEY (`recorded_by`) REFERENCES `users`(`id`) ON DELETE SET NULL,
     INDEX `idx_vpayment_purchase` (`purchase_id`),
     INDEX `idx_vpayment_date` (`payment_date`)
+) ENGINE=InnoDB;
+
+-- General business expenses (rent, salaries, transport, utilities, …).
+-- Company-scoped, optionally linked to a vendor, with an optional receipt scan.
+CREATE TABLE IF NOT EXISTS `expenses` (
+    `id` INT PRIMARY KEY AUTO_INCREMENT,
+    `company_id` INT NOT NULL,
+    `created_by` INT,
+    `vendor_id` INT,
+    `expense_number` VARCHAR(50) NOT NULL,
+    `category` VARCHAR(100),
+    `description` TEXT,
+    `amount` DECIMAL(15,2) NOT NULL DEFAULT 0,
+    `date` DATE NOT NULL,
+    `payment_method` VARCHAR(50),
+    `reference` VARCHAR(100),
+    `receipt_url` VARCHAR(255),
+    `notes` TEXT,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (`company_id`) REFERENCES `companies`(`id`) ON DELETE CASCADE,
+    FOREIGN KEY (`created_by`) REFERENCES `users`(`id`) ON DELETE SET NULL,
+    FOREIGN KEY (`vendor_id`) REFERENCES `vendors`(`id`) ON DELETE SET NULL,
+    UNIQUE KEY `unique_expense_per_company` (`company_id`, `expense_number`)
 ) ENGINE=InnoDB;

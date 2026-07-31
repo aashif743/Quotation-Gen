@@ -25,6 +25,7 @@ import VendorDetail from './pages/VendorDetail';
 import NewPurchase from './pages/NewPurchase';
 import PurchaseView from './pages/PurchaseView';
 import PurchaseHistory from './pages/PurchaseHistory';
+import Expenses from './pages/Expenses';
 import UserManagement from './pages/UserManagement';
 import Login from './pages/Login';
 
@@ -127,6 +128,7 @@ function AppRoutes() {
                   <Route path="/new-purchase" element={<NewPurchase />} />
                   <Route path="/purchases" element={<PurchaseHistory />} />
                   <Route path="/purchase/:id" element={<PurchaseView />} />
+                  <Route path="/expenses" element={<Expenses />} />
                   <Route
                     path="/users"
                     element={

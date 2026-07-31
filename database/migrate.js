@@ -426,6 +426,38 @@ async function migrate() {
     console.log('  • vendor_payments already present, skipping.');
   }
 
+  // 3j. Expenses (added 2026-07) — general business costs (rent, salaries,
+  //     transport, utilities, …). Company-scoped, optionally linked to a
+  //     vendor, with an optional uploaded receipt. Additive only.
+  if (!(await tableExists('expenses'))) {
+    console.log('  • Creating `expenses` table...');
+    await db.query(`
+      CREATE TABLE \`expenses\` (
+        \`id\` INT PRIMARY KEY AUTO_INCREMENT,
+        \`company_id\` INT NOT NULL,
+        \`created_by\` INT,
+        \`vendor_id\` INT,
+        \`expense_number\` VARCHAR(50) NOT NULL,
+        \`category\` VARCHAR(100),
+        \`description\` TEXT,
+        \`amount\` DECIMAL(15,2) NOT NULL DEFAULT 0,
+        \`date\` DATE NOT NULL,
+        \`payment_method\` VARCHAR(50),
+        \`reference\` VARCHAR(100),
+        \`receipt_url\` VARCHAR(255),
+        \`notes\` TEXT,
+        \`created_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        \`updated_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (\`company_id\`) REFERENCES \`companies\`(\`id\`) ON DELETE CASCADE,
+        FOREIGN KEY (\`created_by\`) REFERENCES \`users\`(\`id\`) ON DELETE SET NULL,
+        FOREIGN KEY (\`vendor_id\`) REFERENCES \`vendors\`(\`id\`) ON DELETE SET NULL,
+        UNIQUE KEY \`unique_expense_per_company\` (\`company_id\`, \`expense_number\`)
+      ) ENGINE=InnoDB
+    `);
+  } else {
+    console.log('  • expenses already present, skipping.');
+  }
+
   // 4. Backfill created_by from each row's company owner so existing records
   //    are attributed to the user who originally owned the company.
   const [qBackfill] = await db.query(

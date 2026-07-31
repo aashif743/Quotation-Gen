@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { Company, Quotation, Invoice, DeliveryNote, User, AuthStatus, ManagedUser, UserRole, Client, ClientDocSummary, Payment, Vendor, Purchase, PurchaseDocSummary } from '../types';
+import { Company, Quotation, Invoice, DeliveryNote, User, AuthStatus, ManagedUser, UserRole, Client, ClientDocSummary, Payment, Vendor, Purchase, PurchaseDocSummary, Expense } from '../types';
 
 // Use a relative base so the same build works in development (proxied by CRA
 // to the local Express server) and in production (served by the same Express
@@ -456,4 +456,50 @@ export const recordVendorPayment = async (
 
 export const deleteVendorPayment = async (purchaseId: number, paymentId: number): Promise<void> => {
   await api.delete(`/purchases/${purchaseId}/payments/${paymentId}`);
+};
+
+// ---------------------------------------------------------------------------
+// Expenses API (general business costs)
+// ---------------------------------------------------------------------------
+export const getExpenses = async (
+  filters: { company_id?: number; from?: string; to?: string; category?: string; q?: string } = {}
+): Promise<Expense[]> => {
+  const params: Record<string, any> = {};
+  Object.entries(filters).forEach(([k, v]) => { if (v != null && v !== '') params[k] = v; });
+  const response = await api.get('/expenses', { params });
+  return response.data;
+};
+
+export const getExpense = async (id: number): Promise<Expense> => {
+  const response = await api.get(`/expenses/${id}`);
+  return response.data;
+};
+
+export const createExpense = async (
+  data: Omit<Partial<Expense>, 'id'> & { company_id: number; amount: number; date: string }
+): Promise<Expense> => {
+  const response = await api.post('/expenses', data);
+  return response.data;
+};
+
+export const updateExpense = async (id: number, data: Partial<Expense>): Promise<Expense> => {
+  const response = await api.put(`/expenses/${id}`, data);
+  return response.data;
+};
+
+export const deleteExpense = async (id: number): Promise<void> => {
+  await api.delete(`/expenses/${id}`);
+};
+
+export const uploadExpenseReceipt = async (id: number, file: File): Promise<Expense> => {
+  const formData = new FormData();
+  formData.append('file', file);
+  const response = await api.post(`/expenses/${id}/receipt`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return response.data;
+};
+
+export const deleteExpenseReceipt = async (id: number): Promise<void> => {
+  await api.delete(`/expenses/${id}/receipt`);
 };

@@ -291,6 +291,27 @@ export interface VendorPayment {
   created_at?: string;
 }
 
+// General business expense (rent, salaries, transport, …).
+export interface Expense {
+  id: number;
+  company_id: number;
+  created_by?: number;
+  vendor_id?: number | null;
+  expense_number: string;
+  category?: string | null;
+  description?: string | null;
+  amount: number;
+  date: string;
+  payment_method?: string | null;
+  reference?: string | null;
+  receipt_url?: string | null;
+  notes?: string | null;
+  created_at?: string;
+  updated_at?: string;
+  created_by_name?: string;
+  vendor_name?: string | null;
+}
+
 export interface DeliveryNoteItem {
   id?: number;
   delivery_note_id?: number;
