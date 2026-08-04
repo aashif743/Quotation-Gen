@@ -138,9 +138,17 @@ if (isProd) {
     },
   }));
 
-  app.get(/^(?!\/api\/|\/uploads\/).*/, (req, res) => {
+  // SPA fallback. Express 5 tightened path syntax and its regex/wildcard route
+  // matching no longer reliably catches deep links (`/vendors`, `/clients`, …),
+  // which made a browser refresh on any sub-page 404. A plain terminal
+  // middleware sidesteps all path parsing: for any GET/HEAD that isn't an API
+  // or uploads request (and wasn't already served as a static file above),
+  // return the SPA shell so client-side routing can take over.
+  app.use((req, res, next) => {
+    if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+    if (req.path.startsWith('/api/') || req.path.startsWith('/uploads/')) return next();
     // Never cache the SPA shell so users always get the latest deploy.
-    res.set('Cache-Control', 'no-cache');
+    res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.sendFile(path.join(buildDir, 'index.html'));
   });
 }
