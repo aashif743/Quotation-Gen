@@ -291,6 +291,31 @@ export interface VendorPayment {
   created_at?: string;
 }
 
+// Petty cash ledger entry — a top-up ('in') or payout ('out') of the cash fund.
+export interface PettyCashEntry {
+  id: number;
+  company_id: number;
+  created_by?: number;
+  entry_number: string;
+  type: 'in' | 'out';
+  category?: string | null;
+  description?: string | null;
+  amount: number;
+  date: string;
+  reference?: string | null;
+  receipt_url?: string | null;
+  notes?: string | null;
+  created_at?: string;
+  created_by_name?: string;
+}
+
+export interface PettyCashSummary {
+  total_in: number;
+  total_out: number;
+  balance: number;
+  count: number;
+}
+
 // General business expense (rent, salaries, transport, …).
 export interface Expense {
   id: number;

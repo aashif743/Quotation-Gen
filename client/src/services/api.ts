@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { Company, Quotation, Invoice, DeliveryNote, User, AuthStatus, ManagedUser, UserRole, Client, ClientDocSummary, Payment, Vendor, Purchase, PurchaseDocSummary, Expense } from '../types';
+import { Company, Quotation, Invoice, DeliveryNote, User, AuthStatus, ManagedUser, UserRole, Client, ClientDocSummary, Payment, Vendor, Purchase, PurchaseDocSummary, Expense, PettyCashEntry, PettyCashSummary } from '../types';
 
 // Use a relative base so the same build works in development (proxied by CRA
 // to the local Express server) and in production (served by the same Express
@@ -502,4 +502,50 @@ export const uploadExpenseReceipt = async (id: number, file: File): Promise<Expe
 
 export const deleteExpenseReceipt = async (id: number): Promise<void> => {
   await api.delete(`/expenses/${id}/receipt`);
+};
+
+// ---------------------------------------------------------------------------
+// Petty cash API (shared cash fund ledger)
+// ---------------------------------------------------------------------------
+export const getPettyCash = async (
+  filters: { company_id?: number; from?: string; to?: string; type?: 'in' | 'out'; category?: string; q?: string } = {}
+): Promise<PettyCashEntry[]> => {
+  const params: Record<string, any> = {};
+  Object.entries(filters).forEach(([k, v]) => { if (v != null && v !== '') params[k] = v; });
+  const response = await api.get('/petty-cash', { params });
+  return response.data;
+};
+
+export const getPettyCashSummary = async (companyId: number): Promise<PettyCashSummary> => {
+  const response = await api.get('/petty-cash/summary', { params: { company_id: companyId } });
+  return response.data;
+};
+
+export const createPettyCash = async (
+  data: Omit<Partial<PettyCashEntry>, 'id'> & { company_id: number; type: 'in' | 'out'; amount: number; date: string }
+): Promise<PettyCashEntry> => {
+  const response = await api.post('/petty-cash', data);
+  return response.data;
+};
+
+export const updatePettyCash = async (id: number, data: Partial<PettyCashEntry>): Promise<PettyCashEntry> => {
+  const response = await api.put(`/petty-cash/${id}`, data);
+  return response.data;
+};
+
+export const deletePettyCash = async (id: number): Promise<void> => {
+  await api.delete(`/petty-cash/${id}`);
+};
+
+export const uploadPettyCashReceipt = async (id: number, file: File): Promise<PettyCashEntry> => {
+  const formData = new FormData();
+  formData.append('file', file);
+  const response = await api.post(`/petty-cash/${id}/receipt`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return response.data;
+};
+
+export const deletePettyCashReceipt = async (id: number): Promise<void> => {
+  await api.delete(`/petty-cash/${id}/receipt`);
 };

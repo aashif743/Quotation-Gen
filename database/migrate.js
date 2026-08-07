@@ -458,6 +458,36 @@ async function migrate() {
     console.log('  • expenses already present, skipping.');
   }
 
+  // 3k. Petty cash (added 2026-08) — a small on-hand cash fund tracked as a
+  //     ledger of top-ups (type 'in') and payouts (type 'out'). Balance is
+  //     computed on read. Shared per company. Additive only.
+  if (!(await tableExists('petty_cash'))) {
+    console.log('  • Creating `petty_cash` table...');
+    await db.query(`
+      CREATE TABLE \`petty_cash\` (
+        \`id\` INT PRIMARY KEY AUTO_INCREMENT,
+        \`company_id\` INT NOT NULL,
+        \`created_by\` INT,
+        \`entry_number\` VARCHAR(50) NOT NULL,
+        \`type\` ENUM('in','out') NOT NULL DEFAULT 'out',
+        \`category\` VARCHAR(100),
+        \`description\` TEXT,
+        \`amount\` DECIMAL(15,2) NOT NULL DEFAULT 0,
+        \`date\` DATE NOT NULL,
+        \`reference\` VARCHAR(100),
+        \`receipt_url\` VARCHAR(255),
+        \`notes\` TEXT,
+        \`created_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        \`updated_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (\`company_id\`) REFERENCES \`companies\`(\`id\`) ON DELETE CASCADE,
+        FOREIGN KEY (\`created_by\`) REFERENCES \`users\`(\`id\`) ON DELETE SET NULL,
+        UNIQUE KEY \`unique_pettycash_per_company\` (\`company_id\`, \`entry_number\`)
+      ) ENGINE=InnoDB
+    `);
+  } else {
+    console.log('  • petty_cash already present, skipping.');
+  }
+
   // 4. Backfill created_by from each row's company owner so existing records
   //    are attributed to the user who originally owned the company.
   const [qBackfill] = await db.query(

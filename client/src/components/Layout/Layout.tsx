@@ -23,6 +23,7 @@ import {
   Store,
   ShoppingCart,
   Wallet,
+  Banknote,
   Sun,
   Moon,
 } from 'lucide-react';
@@ -162,6 +163,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { to: '/vendors', icon: Store, label: 'Vendors' },
     { to: '/purchases', icon: ShoppingCart, label: 'Purchases' },
     { to: '/expenses', icon: Wallet, label: 'Expenses' },
+    { to: '/petty-cash', icon: Banknote, label: 'Petty Cash' },
     ...(isAdmin
       ? [
           { to: '/users', icon: Users, label: 'User Management' },
