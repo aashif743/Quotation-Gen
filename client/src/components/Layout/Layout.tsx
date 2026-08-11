@@ -107,9 +107,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   // the company tint stays visible against the gray-800/900 surface without
   // overpowering the chrome (now that the accent color itself is properly
   // lifted by brandColorFor, the tints don't have to compensate as much).
-  const tintBg     = hexToRgba(primaryColor, isDark ? 0.22 : 0.15);
-  const tintGlow   = hexToRgba(primaryColor, isDark ? 0.12 : 0.05);
-  const tintBorder = hexToRgba(accentColor,  isDark ? 0.28 : 0.20);
+  // Soft brand tint used for the active nav pill + the user avatar. The sidebar
+  // itself stays on the plain theme surface (no brand wash).
+  const tintBg = hexToRgba(primaryColor, isDark ? 0.20 : 0.12);
 
   // Publish the active company's brand color as CSS variables so every generic
   // accent in the app (focus rings, pickers, stat cards, buttons — see the
@@ -123,77 +123,75 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     root.style.setProperty('--brand-on', relativeLuminance(primaryColor) > 0.55 ? '#0f172a' : '#ffffff');
   }, [accentColor, primaryColor, isDark]);
 
+  // A clean modern nav item: a rounded pill. Active = soft brand-tint fill +
+  // brand-coloured text/icon; inactive = muted with a subtle hover. No brand
+  // wash on the sidebar itself.
   const getNavItemClass = (path: string) => {
-    const base = `flex items-center ${collapsed ? 'justify-center px-0' : 'space-x-3 px-4'} py-3 rounded-lg transition-colors`;
+    const base = `group flex items-center ${collapsed ? 'justify-center px-0' : 'space-x-3 px-3'} py-2.5 rounded-lg text-sm font-medium transition-colors`;
     const isActive = location.pathname === path;
     return isActive
-      ? base
-      : `${base} text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5`;
+      ? `${base} font-semibold`
+      : `${base} text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white`;
   };
 
   const getNavItemStyle = (path: string): React.CSSProperties => {
     const isActive = location.pathname === path;
-    if (!isActive || !selectedCompany) return {};
-    // Use the brightened accent for the text + border so dark brand colors
-    // (navy, deep maroon, …) stay legible against the dark tinted background.
-    return {
-      backgroundColor: tintBg,
-      color: accentColor,
-      borderLeft: collapsed ? undefined : `4px solid ${accentColor}`,
-    };
+    if (!isActive) return {};
+    // Active pill: soft brand fill + brightened brand text/icon (legible on
+    // both the light and dark neutral surfaces).
+    return { backgroundColor: tintBg, color: accentColor };
   };
 
-  const getSidebarStyle = (): React.CSSProperties => {
-    if (!selectedCompany) return {};
-    const baseColor = isDark ? '#1e1e1e' /* dark card surface */ : '#ffffff';
-    return {
-      background: `linear-gradient(to right, ${tintGlow}, ${baseColor})`,
-      borderColor: tintBorder,
-    };
-  };
-
-  const navItems = [
-    { to: '/', icon: Home, label: 'Dashboard' },
-    { to: '/new-quotation', icon: FileText, label: 'New Quotation' },
-    { to: '/new-invoice', icon: Receipt, label: 'New Invoice' },
-    { to: '/history', icon: History, label: 'Quotation History' },
-    { to: '/invoice-history', icon: Receipt, label: 'Invoice History' },
-    { to: '/delivery-history', icon: Truck, label: 'Delivery Notes' },
-    { to: '/clients', icon: Briefcase, label: 'Clients' },
-    { to: '/vendors', icon: Store, label: 'Vendors' },
-    { to: '/purchases', icon: ShoppingCart, label: 'Purchases' },
-    { to: '/expenses', icon: Wallet, label: 'Expenses' },
-    { to: '/petty-cash', icon: Banknote, label: 'Petty Cash' },
-    ...(isAdmin
-      ? [
-          { to: '/users', icon: Users, label: 'User Management' },
-          { to: '/settings', icon: Settings, label: 'Company Settings' },
-        ]
-      : []),
+  // Grouped navigation — labelled sections make the growing menu easy to scan.
+  const navSections: { label?: string; items: { to: string; icon: typeof Home; label: string }[] }[] = [
+    { items: [{ to: '/', icon: Home, label: 'Dashboard' }] },
+    { label: 'Create', items: [
+      { to: '/new-quotation', icon: FileText, label: 'New Quotation' },
+      { to: '/new-invoice', icon: Receipt, label: 'New Invoice' },
+    ]},
+    { label: 'Records', items: [
+      { to: '/history', icon: History, label: 'Quotation History' },
+      { to: '/invoice-history', icon: Receipt, label: 'Invoice History' },
+      { to: '/delivery-history', icon: Truck, label: 'Delivery Notes' },
+    ]},
+    { label: 'Contacts', items: [
+      { to: '/clients', icon: Briefcase, label: 'Clients' },
+      { to: '/vendors', icon: Store, label: 'Vendors' },
+    ]},
+    { label: 'Finance', items: [
+      { to: '/purchases', icon: ShoppingCart, label: 'Purchases' },
+      { to: '/expenses', icon: Wallet, label: 'Expenses' },
+      { to: '/petty-cash', icon: Banknote, label: 'Petty Cash' },
+    ]},
+    ...(isAdmin ? [{ label: 'Admin', items: [
+      { to: '/users', icon: Users, label: 'User Management' },
+      { to: '/settings', icon: Settings, label: 'Company Settings' },
+    ]}] : []),
   ];
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-[#121212] transition-colors">
       <div className="flex">
         <div
-          className={`${collapsed ? 'w-20' : 'w-64'} sticky top-0 h-screen self-start shrink-0 border-r shadow-sm bg-white dark:bg-[#1e1e1e] dark:border-[#2e2e2e] transition-all duration-300 no-print`}
-          style={getSidebarStyle()}
+          className={`${collapsed ? 'w-20' : 'w-64'} sticky top-0 h-screen self-start shrink-0 border-r border-gray-200 dark:border-[#2e2e2e] bg-white dark:bg-[#1e1e1e] transition-all duration-300 no-print`}
         >
-          <div className={`flex flex-col h-full ${collapsed ? 'p-3' : 'p-6'}`}>
+          <div className={`flex flex-col h-full ${collapsed ? 'p-3' : 'px-4 py-6'}`}>
             {/* Brand + collapse toggle */}
-            <div className={`flex items-center mb-8 ${collapsed ? 'justify-center' : 'justify-between'}`}>
+            <div className={`flex items-center mb-6 ${collapsed ? 'justify-center' : 'justify-between px-1'}`}>
               {!collapsed && (
-                <div className="flex items-center space-x-3 min-w-0">
-                  <Building2 className="h-8 w-8 flex-shrink-0" style={{ color: accentColor }} />
+                <div className="flex items-center space-x-2.5 min-w-0">
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: tintBg }}>
+                    <Building2 className="h-5 w-5" style={{ color: accentColor }} />
+                  </div>
                   <div className="min-w-0">
-                    <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100 truncate">Quotation System</h1>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 truncate">Multi-Company Platform</p>
+                    <h1 className="text-[15px] font-bold text-gray-900 dark:text-white truncate leading-tight">Quotation System</h1>
+                    <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate">Multi-Company Platform</p>
                   </div>
                 </div>
               )}
               <button
                 onClick={toggleCollapsed}
-                className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors flex-shrink-0"
+                className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors flex-shrink-0"
                 title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
                 aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
               >
@@ -207,23 +205,35 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 top and the user/logout block stays at the bottom even on
                 short viewports. `min-h-0` is required for `overflow-y-auto`
                 to actually engage inside a flex column. */}
-            <nav className="mt-8 flex-1 min-h-0 overflow-y-auto space-y-2 pr-1 -mr-1">
-              {navItems.map(({ to, icon: Icon, label }) => (
-                <Link
-                  key={to}
-                  to={to}
-                  className={getNavItemClass(to)}
-                  style={getNavItemStyle(to)}
-                  title={collapsed ? label : undefined}
-                >
-                  <Icon className="h-5 w-5 flex-shrink-0" />
-                  {!collapsed && <span>{label}</span>}
-                </Link>
+            <nav className="mt-6 flex-1 min-h-0 overflow-y-auto space-y-4 pr-1 -mr-1">
+              {navSections.map((section, si) => (
+                <div key={si} className="space-y-1">
+                  {!collapsed && section.label && (
+                    <p className="px-3 pt-1 pb-0.5 text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                      {section.label}
+                    </p>
+                  )}
+                  {collapsed && si > 0 && (
+                    <div className="mx-2 my-2 border-t border-gray-200 dark:border-[#2e2e2e]" />
+                  )}
+                  {section.items.map(({ to, icon: Icon, label }) => (
+                    <Link
+                      key={to}
+                      to={to}
+                      className={getNavItemClass(to)}
+                      style={getNavItemStyle(to)}
+                      title={collapsed ? label : undefined}
+                    >
+                      <Icon className="h-5 w-5 flex-shrink-0" />
+                      {!collapsed && <span className="truncate">{label}</span>}
+                    </Link>
+                  ))}
+                </div>
               ))}
             </nav>
 
             {/* User Info & Logout — pinned to bottom of the sidebar via mt-auto */}
-            <div className="mt-auto pt-4 border-t" style={{ borderColor: tintBorder }}>
+            <div className="mt-auto pt-4 border-t border-gray-200 dark:border-[#2e2e2e]">
               {collapsed ? (
                 <div
                   className="mb-2 flex justify-center"
