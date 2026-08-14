@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
 import { brandColorFor } from '../utils/colors';
-import { getOrganizations, createOrganization, updateOrganization } from '../services/api';
+import { getOrganizations, createOrganization, updateOrganization, deleteOrganization } from '../services/api';
 import { Organization } from '../types';
-import { Building, Plus, X, AlertCircle, Users as UsersIcon, Briefcase, Power, Loader2 } from 'lucide-react';
+import { Building, Plus, X, AlertCircle, Users as UsersIcon, Briefcase, Power, Loader2, Edit2, Trash2 } from 'lucide-react';
 
 const Organizations: React.FC = () => {
   const { theme } = useTheme();
+  const { user } = useAuth();
   const primary = brandColorFor('#4f46e5', theme === 'dark');
 
   const [orgs, setOrgs] = useState<Organization[]>([]);
@@ -17,6 +19,17 @@ const Organizations: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [form, setForm] = useState({ name: '', admin_name: '', admin_email: '', admin_password: '' });
+
+  // Rename
+  const [editing, setEditing] = useState<Organization | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState('');
+
+  // Delete (type-to-confirm)
+  const [toDelete, setToDelete] = useState<Organization | null>(null);
+  const [confirmText, setConfirmText] = useState('');
+  const [deleting, setDeleting] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -60,6 +73,40 @@ const Organizations: React.FC = () => {
       await load();
     } catch (e: any) {
       setMessage({ type: 'error', text: e?.response?.data?.error || 'Could not update the organization.' });
+    }
+  };
+
+  const openRename = (o: Organization) => { setEditing(o); setEditName(o.name); setEditError(''); };
+  const submitRename = async () => {
+    if (!editing) return;
+    if (!editName.trim()) { setEditError('Name is required.'); return; }
+    setEditSaving(true);
+    setEditError('');
+    try {
+      await updateOrganization(editing.id, { name: editName.trim() });
+      setMessage({ type: 'success', text: 'Organization renamed.' });
+      setEditing(null);
+      await load();
+    } catch (e: any) {
+      setEditError(e?.response?.data?.error || 'Could not rename the organization.');
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  const doDelete = async () => {
+    if (!toDelete) return;
+    setDeleting(true);
+    try {
+      await deleteOrganization(toDelete.id);
+      setMessage({ type: 'success', text: `"${toDelete.name}" deleted.` });
+      setToDelete(null);
+      setConfirmText('');
+      await load();
+    } catch (e: any) {
+      setMessage({ type: 'error', text: e?.response?.data?.error || 'Could not delete the organization.' });
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -124,9 +171,21 @@ const Organizations: React.FC = () => {
                     </span>
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <button onClick={() => toggleStatus(o)} className="inline-flex items-center px-3 py-1.5 text-sm rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50" title={o.status === 'active' ? 'Suspend' : 'Reactivate'}>
-                      <Power className="h-4 w-4 mr-1.5" />{o.status === 'active' ? 'Suspend' : 'Reactivate'}
-                    </button>
+                    <div className="inline-flex items-center gap-1">
+                      <button onClick={() => openRename(o)} className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg" title="Rename">
+                        <Edit2 className="h-4 w-4" />
+                      </button>
+                      <button onClick={() => toggleStatus(o)} className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg" title={o.status === 'active' ? 'Suspend' : 'Reactivate'}>
+                        <Power className="h-4 w-4" />
+                      </button>
+                      {user?.organization_id !== o.id ? (
+                        <button onClick={() => { setToDelete(o); setConfirmText(''); }} className="p-2 text-red-600 hover:bg-red-50 rounded-lg" title="Delete organization">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      ) : (
+                        <span className="px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400" title="Your own organization">Yours</span>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -134,6 +193,51 @@ const Organizations: React.FC = () => {
           </table>
         )}
       </div>
+
+      {editing && (
+        <div className="fixed inset-0 bg-gray-900/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+            <div className="flex justify-between items-center px-6 py-4 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900">Rename Organization</h3>
+              <button onClick={() => setEditing(null)} className="text-gray-400 hover:text-gray-600"><X className="h-5 w-5" /></button>
+            </div>
+            <div className="p-6 space-y-3">
+              {editError && <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">{editError}</div>}
+              <Field label="Organization name">
+                <input className={inputCls} value={editName} onChange={(e) => setEditName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') submitRename(); }} autoFocus />
+              </Field>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-200 flex justify-end space-x-3">
+              <button onClick={() => setEditing(null)} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">Cancel</button>
+              <button onClick={submitRename} disabled={editSaving} className="px-4 py-2 text-white rounded-lg hover:opacity-90 disabled:opacity-50" style={{ backgroundColor: primary }}>
+                {editSaving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {toDelete && (
+        <div className="fixed inset-0 bg-gray-900/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+            <h3 className="text-lg font-semibold text-gray-900">Delete Organization</h3>
+            <p className="mt-2 text-sm text-gray-600">
+              This permanently deletes <span className="font-semibold">{toDelete.name}</span> — all its users, companies, quotations, invoices and other data.
+              <span className="text-red-600 font-medium"> This cannot be undone.</span>
+            </p>
+            <p className="mt-3 text-sm text-gray-600">
+              Type <span className="font-semibold">{toDelete.name}</span> to confirm:
+            </p>
+            <input className={`${inputCls} mt-2`} value={confirmText} onChange={(e) => setConfirmText(e.target.value)} placeholder={toDelete.name} autoFocus />
+            <div className="mt-6 flex justify-end space-x-3">
+              <button onClick={() => { setToDelete(null); setConfirmText(''); }} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">Cancel</button>
+              <button onClick={doDelete} disabled={deleting || confirmText.trim() !== toDelete.name} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50">
+                {deleting ? 'Deleting…' : 'Delete permanently'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {open && (
         <div className="fixed inset-0 bg-gray-900/50 flex items-center justify-center z-50 p-4">

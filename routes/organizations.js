@@ -99,4 +99,35 @@ router.put('/:id', async (req, res) => {
   }
 });
 
+// DELETE /api/organizations/:id — permanently remove a tenant: its users,
+// companies and ALL their data (companies + data cascade via FK). You cannot
+// delete your own organization (that would lock you out).
+router.delete('/:id', async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (req.user.organization_id === id) {
+    return res.status(400).json({ error: 'You cannot delete your own organization.' });
+  }
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [orgs] = await connection.execute('SELECT id FROM organizations WHERE id = ?', [id]);
+    if (orgs.length === 0) {
+      await connection.rollback();
+      return res.status(404).json({ error: 'Organization not found' });
+    }
+    // Remove the org's users explicitly; its companies and all their documents
+    // are removed by ON DELETE CASCADE when the organization row is deleted.
+    await connection.execute('DELETE FROM users WHERE organization_id = ?', [id]);
+    await connection.execute('DELETE FROM organizations WHERE id = ?', [id]);
+    await connection.commit();
+    res.json({ message: 'Organization deleted.' });
+  } catch (error) {
+    await connection.rollback();
+    console.error('Error deleting organization:', error);
+    res.status(500).json({ error: 'Failed to delete organization' });
+  } finally {
+    connection.release();
+  }
+});
+
 module.exports = router;

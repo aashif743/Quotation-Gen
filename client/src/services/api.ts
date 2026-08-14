@@ -575,3 +575,7 @@ export const updateOrganization = async (
   const response = await api.put(`/organizations/${id}`, data);
   return response.data;
 };
+
+export const deleteOrganization = async (id: number): Promise<void> => {
+  await api.delete(`/organizations/${id}`);
+};
