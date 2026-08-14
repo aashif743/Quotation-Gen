@@ -5,6 +5,7 @@ import * as api from '../services/api';
 interface CompanyContextType {
   companies: Company[];
   selectedCompany: Company | null;
+  loading: boolean;
   setSelectedCompany: (company: Company) => void;
   loadCompanies: () => Promise<void>;
   updateCompany: (id: number, data: Partial<Company>, logo?: File) => Promise<Company>;
@@ -29,6 +30,7 @@ interface CompanyProviderProps {
 export const CompanyProvider: React.FC<CompanyProviderProps> = ({ children }) => {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const loadCompanies = async () => {
     try {
@@ -41,6 +43,8 @@ export const CompanyProvider: React.FC<CompanyProviderProps> = ({ children }) =>
       }
     } catch (error) {
       console.error('Error loading companies:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -94,6 +98,7 @@ export const CompanyProvider: React.FC<CompanyProviderProps> = ({ children }) =>
       value={{
         companies,
         selectedCompany,
+        loading,
         setSelectedCompany,
         loadCompanies,
         updateCompany,

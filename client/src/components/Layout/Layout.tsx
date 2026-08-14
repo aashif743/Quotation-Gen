@@ -71,7 +71,7 @@ interface LayoutProps {
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { selectedCompany } = useCompany();
+  const { selectedCompany, companies, loading: companiesLoading, createCompany } = useCompany();
   const { user, logout, isAdmin, isSuperAdmin } = useAuth();
   const { theme, toggle: toggleTheme } = useTheme();
   const isDark = theme === 'dark';
@@ -79,6 +79,25 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [collapsed, setCollapsed] = useState<boolean>(
     () => localStorage.getItem('sidebarCollapsed') === 'true'
   );
+
+  // Onboarding: a brand-new organization has no companies yet.
+  const [firstCompanyName, setFirstCompanyName] = useState('');
+  const [creatingFirst, setCreatingFirst] = useState(false);
+  const [firstError, setFirstError] = useState('');
+
+  const handleCreateFirstCompany = async () => {
+    if (!firstCompanyName.trim()) { setFirstError('Please enter a company name.'); return; }
+    setCreatingFirst(true);
+    setFirstError('');
+    try {
+      await createCompany(firstCompanyName.trim());
+      // Company created → CompanyContext reloads → this onboarding disappears.
+    } catch (e: any) {
+      setFirstError(e?.response?.data?.error || 'Could not create the company.');
+    } finally {
+      setCreatingFirst(false);
+    }
+  };
 
   const toggleCollapsed = () => {
     setCollapsed((prev) => {
@@ -171,6 +190,73 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       { to: '/organizations', icon: Building2, label: 'Organizations' },
     ]}] : []),
   ];
+
+  // Brand-new organization (no companies yet) → a focused onboarding screen
+  // instead of the normal app shell, which requires a selected company.
+  if (!companiesLoading && companies.length === 0) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-[#121212] flex flex-col transition-colors">
+        <header className="flex items-center justify-between px-6 py-4">
+          <div className="flex items-center space-x-2.5">
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: tintBg }}>
+              <Building2 className="h-5 w-5" style={{ color: accentColor }} />
+            </div>
+            <span className="font-bold text-gray-900 dark:text-white">Quotation System</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <button onClick={toggleTheme} className="inline-flex items-center justify-center h-10 w-10 rounded-full border border-gray-200 dark:border-[#2e2e2e] bg-white dark:bg-[#1e1e1e] text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors" aria-label="Toggle theme">
+              {isDark ? <Sun className="h-5 w-5 text-amber-400" /> : <Moon className="h-5 w-5 text-slate-700" />}
+            </button>
+            <button onClick={handleLogout} className="inline-flex items-center px-3 py-2 text-sm rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5">
+              <LogOut className="h-4 w-4 mr-1.5" /> Sign Out
+            </button>
+          </div>
+        </header>
+
+        <div className="flex-1 flex items-center justify-center px-4">
+          <div className="w-full max-w-md bg-white dark:bg-[#1e1e1e] rounded-2xl shadow-sm border border-gray-200 dark:border-[#2e2e2e] p-8 text-center">
+            <div className="w-14 h-14 rounded-2xl mx-auto flex items-center justify-center mb-4" style={{ backgroundColor: tintBg }}>
+              <Building2 className="h-7 w-7" style={{ color: accentColor }} />
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Welcome, {user?.name?.split(' ')[0] || 'there'}!</h1>
+
+            {isAdmin ? (
+              <>
+                <p className="text-gray-600 dark:text-gray-400 mt-2 mb-6">
+                  Let's set up your first company to start creating quotations, invoices and more.
+                </p>
+                {firstError && (
+                  <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm text-left">{firstError}</div>
+                )}
+                <input
+                  type="text"
+                  value={firstCompanyName}
+                  onChange={(e) => setFirstCompanyName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleCreateFirstCompany(); }}
+                  placeholder="Your company name"
+                  className="w-full px-4 py-2.5 border border-gray-300 dark:border-[#2e2e2e] rounded-lg mb-3 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  autoFocus
+                />
+                <button
+                  onClick={handleCreateFirstCompany}
+                  disabled={creatingFirst}
+                  className="w-full inline-flex items-center justify-center px-4 py-2.5 rounded-lg text-white font-medium shadow-sm hover:opacity-90 disabled:opacity-50"
+                  style={{ backgroundColor: accentColor }}
+                >
+                  {creatingFirst ? 'Creating…' : 'Create company'}
+                </button>
+                <p className="text-xs text-gray-400 mt-3">You can add more companies and customize details later in Company Settings.</p>
+              </>
+            ) : (
+              <p className="text-gray-600 dark:text-gray-400 mt-2">
+                Your organization doesn't have a company set up yet. Please ask your administrator to create one.
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-[#121212] transition-colors">
