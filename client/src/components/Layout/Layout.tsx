@@ -72,7 +72,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { selectedCompany } = useCompany();
-  const { user, logout, isAdmin } = useAuth();
+  const { user, logout, isAdmin, isSuperAdmin } = useAuth();
   const { theme, toggle: toggleTheme } = useTheme();
   const isDark = theme === 'dark';
 
@@ -166,6 +166,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     ...(isAdmin ? [{ label: 'Admin', items: [
       { to: '/users', icon: Users, label: 'User Management' },
       { to: '/settings', icon: Settings, label: 'Company Settings' },
+    ]}] : []),
+    ...(isSuperAdmin ? [{ label: 'Platform', items: [
+      { to: '/organizations', icon: Building2, label: 'Organizations' },
     ]}] : []),
   ];
 

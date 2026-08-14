@@ -27,6 +27,7 @@ import PurchaseView from './pages/PurchaseView';
 import PurchaseHistory from './pages/PurchaseHistory';
 import Expenses from './pages/Expenses';
 import PettyCash from './pages/PettyCash';
+import Organizations from './pages/Organizations';
 import UserManagement from './pages/UserManagement';
 import Login from './pages/Login';
 
@@ -85,6 +86,17 @@ const AdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return <>{children}</>;
 };
 
+// Super-admin (platform owner) route wrapper.
+const SuperAdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { isSuperAdmin } = useAuth();
+
+  if (!isSuperAdmin) {
+    return <Navigate to="/" replace />;
+  }
+
+  return <>{children}</>;
+};
+
 function AppRoutes() {
   return (
     <Routes>
@@ -131,6 +143,14 @@ function AppRoutes() {
                   <Route path="/purchase/:id" element={<PurchaseView />} />
                   <Route path="/expenses" element={<Expenses />} />
                   <Route path="/petty-cash" element={<PettyCash />} />
+                  <Route
+                    path="/organizations"
+                    element={
+                      <SuperAdminRoute>
+                        <Organizations />
+                      </SuperAdminRoute>
+                    }
+                  />
                   <Route
                     path="/users"
                     element={

@@ -45,6 +45,18 @@ export interface User {
   name: string;
   email: string;
   role: UserRole;
+  organization_id?: number | null;
+  is_super_admin?: boolean;
+}
+
+// A tenant. Managed by the platform owner (super-admin).
+export interface Organization {
+  id: number;
+  name: string;
+  status: 'active' | 'suspended';
+  created_at?: string;
+  user_count?: number;
+  company_count?: number;
 }
 
 // Returned by the admin user-management endpoints.

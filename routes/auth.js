@@ -11,8 +11,8 @@ const router = express.Router();
 router.post('/login', passport.authenticate('local'), (req, res) => {
   // If this function gets called, authentication was successful.
   // `req.user` contains the authenticated user.
-  const { id, name, email, role } = req.user;
-  res.json({ id, name, email, role });
+  const { id, name, email, role, organization_id } = req.user;
+  res.json({ id, name, email, role, organization_id, is_super_admin: !!req.user.is_super_admin });
 });
 
 // POST /api/auth/logout
@@ -32,8 +32,8 @@ router.post('/logout', (req, res, next) => {
 // GET /api/auth/status
 router.get('/status', (req, res) => {
   if (req.isAuthenticated()) {
-    const { id, name, email, role } = req.user;
-    res.json({ isAuthenticated: true, user: { id, name, email, role } });
+    const { id, name, email, role, organization_id } = req.user;
+    res.json({ isAuthenticated: true, user: { id, name, email, role, organization_id, is_super_admin: !!req.user.is_super_admin } });
   } else {
     res.json({ isAuthenticated: false, user: null });
   }

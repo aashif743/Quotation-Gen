@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { Company, Quotation, Invoice, DeliveryNote, User, AuthStatus, ManagedUser, UserRole, Client, ClientDocSummary, Payment, Vendor, Purchase, PurchaseDocSummary, Expense, PettyCashEntry, PettyCashSummary } from '../types';
+import { Company, Quotation, Invoice, DeliveryNote, User, AuthStatus, ManagedUser, UserRole, Client, ClientDocSummary, Payment, Vendor, Purchase, PurchaseDocSummary, Expense, PettyCashEntry, PettyCashSummary, Organization } from '../types';
 
 // Use a relative base so the same build works in development (proxied by CRA
 // to the local Express server) and in production (served by the same Express
@@ -548,4 +548,30 @@ export const uploadPettyCashReceipt = async (id: number, file: File): Promise<Pe
 
 export const deletePettyCashReceipt = async (id: number): Promise<void> => {
   await api.delete(`/petty-cash/${id}/receipt`);
+};
+
+// ---------------------------------------------------------------------------
+// Organizations API (super-admin only)
+// ---------------------------------------------------------------------------
+export const getOrganizations = async (): Promise<Organization[]> => {
+  const response = await api.get('/organizations');
+  return response.data;
+};
+
+export const createOrganization = async (data: {
+  name: string;
+  admin_name: string;
+  admin_email: string;
+  admin_password: string;
+}): Promise<Organization> => {
+  const response = await api.post('/organizations', data);
+  return response.data;
+};
+
+export const updateOrganization = async (
+  id: number,
+  data: { name?: string; status?: 'active' | 'suspended' }
+): Promise<Organization> => {
+  const response = await api.put(`/organizations/${id}`, data);
+  return response.data;
 };
