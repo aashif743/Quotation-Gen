@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('../config/database');
 const { isAuthenticated, isAdmin } = require('../middleware/auth');
+const { requireCompanyAccess, companyTableParamGuard } = require("../utils/tenancy");
 const { getCompanyPrefix } = require('../utils/quotePrefix');
 const { resolveClientId } = require('../utils/clientResolver');
 
@@ -8,6 +9,9 @@ const router = express.Router();
 
 // Apply authentication middleware to all routes
 router.use(isAuthenticated);
+router.use(requireCompanyAccess);
+router.param("id", companyTableParamGuard("invoices"));
+router.param("quotationId", companyTableParamGuard("quotations"));
 
 // Get all invoices (optionally filtered by company_id). Staff see only their
 // own invoices; admins see everything.

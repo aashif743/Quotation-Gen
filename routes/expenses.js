@@ -4,12 +4,15 @@ const path = require('path');
 const multer = require('multer');
 const db = require('../config/database');
 const { isAuthenticated, isAdmin } = require('../middleware/auth');
+const { requireCompanyAccess, companyTableParamGuard } = require("../utils/tenancy");
 const { getCompanyPrefix } = require('../utils/quotePrefix');
 const { UPLOADS_ROOT, resolveUploadDiskPath } = require('../config/paths');
 
 const router = express.Router();
 
 router.use(isAuthenticated);
+router.use(requireCompanyAccess);
+router.param("id", companyTableParamGuard("expenses"));
 
 // Receipt uploads land in <UPLOADS_ROOT>/expenses/ (persistent, outside the
 // deployed app dir) and are served by the static middleware at

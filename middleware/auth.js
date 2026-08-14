@@ -12,7 +12,16 @@ function isAdmin(req, res, next) {
   res.status(403).json({ message: 'Admin access is required for this action.' });
 }
 
+// Platform owner — manages organizations (tenants). Distinct from an org-admin.
+function isSuperAdmin(req, res, next) {
+  if (req.isAuthenticated() && (req.user.is_super_admin === 1 || req.user.is_super_admin === true)) {
+    return next();
+  }
+  res.status(403).json({ message: 'Super-admin access is required for this action.' });
+}
+
 module.exports = {
   isAuthenticated,
   isAdmin,
+  isSuperAdmin,
 };

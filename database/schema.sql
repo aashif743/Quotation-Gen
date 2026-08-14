@@ -1,16 +1,30 @@
 SET FOREIGN_KEY_CHECKS = 0;
-DROP TABLE IF EXISTS `users`, `companies`, `quotations`, `quotation_items`, `invoices`, `invoice_items`, `delivery_notes`, `delivery_note_items`, `clients`, `payments`, `petty_cash`, `expenses`, `vendor_payments`, `purchase_items`, `purchases`, `vendors`;
+DROP TABLE IF EXISTS `users`, `companies`, `quotations`, `quotation_items`, `invoices`, `invoice_items`, `delivery_notes`, `delivery_note_items`, `clients`, `payments`, `petty_cash`, `expenses`, `vendor_payments`, `purchase_items`, `purchases`, `vendors`, `organizations`;
 SET FOREIGN_KEY_CHECKS = 1;
+
+-- Organizations are tenants (separate customers). Each has its own users and
+-- companies; all data is isolated per organization. `is_super_admin` users
+-- (the platform owner) manage organizations.
+CREATE TABLE IF NOT EXISTS `organizations` (
+    `id` INT PRIMARY KEY AUTO_INCREMENT,
+    `name` VARCHAR(255) NOT NULL,
+    `status` ENUM('active', 'suspended') NOT NULL DEFAULT 'active',
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS `users` (
     `id` INT PRIMARY KEY AUTO_INCREMENT,
+    `organization_id` INT,
+    `is_super_admin` TINYINT(1) NOT NULL DEFAULT 0,
     `name` VARCHAR(255) NOT NULL,
     `email` VARCHAR(255) NOT NULL UNIQUE,
     `password` VARCHAR(255),
     `google_id` VARCHAR(255) UNIQUE,
     `role` ENUM('staff', 'admin') NOT NULL DEFAULT 'staff',
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (`organization_id`) REFERENCES `organizations`(`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
 -- Companies are shared, organization-wide brands. `user_id` records the
@@ -18,6 +32,7 @@ CREATE TABLE IF NOT EXISTS `users` (
 -- deletion of its creator.
 CREATE TABLE IF NOT EXISTS `companies` (
     `id` INT PRIMARY KEY AUTO_INCREMENT,
+    `organization_id` INT,
     `user_id` INT,
     `name` VARCHAR(255) NOT NULL,
     `logo_url` VARCHAR(255),
@@ -33,7 +48,8 @@ CREATE TABLE IF NOT EXISTS `companies` (
     `default_terms_conditions` TEXT,
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE SET NULL
+    FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE SET NULL,
+    FOREIGN KEY (`organization_id`) REFERENCES `organizations`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS `clients` (

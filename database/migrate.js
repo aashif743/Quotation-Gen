@@ -488,6 +488,69 @@ async function migrate() {
     console.log('  • petty_cash already present, skipping.');
   }
 
+  // 3l. Multi-tenancy (added 2026-08): an Organization (tenant) layer above
+  //     companies. Existing users + companies are folded into ONE default org
+  //     so nothing changes for the current customer. Additive + backfill only —
+  //     no row is moved or deleted.
+  if (!(await tableExists('organizations'))) {
+    console.log('  • Creating `organizations` table...');
+    await db.query(`
+      CREATE TABLE \`organizations\` (
+        \`id\` INT PRIMARY KEY AUTO_INCREMENT,
+        \`name\` VARCHAR(255) NOT NULL,
+        \`status\` ENUM('active','suspended') NOT NULL DEFAULT 'active',
+        \`created_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        \`updated_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB
+    `);
+  } else {
+    console.log('  • organizations already present, skipping.');
+  }
+
+  if (!(await columnExists('users', 'organization_id'))) {
+    console.log('  • Adding `organization_id` to users...');
+    await db.query('ALTER TABLE `users` ADD COLUMN `organization_id` INT NULL');
+    try {
+      await db.query('ALTER TABLE `users` ADD CONSTRAINT `fk_users_org` FOREIGN KEY (`organization_id`) REFERENCES `organizations`(`id`) ON DELETE SET NULL');
+    } catch (e) { console.warn('  ⚠️  FK users.organization_id:', e.message); }
+  }
+  if (!(await columnExists('users', 'is_super_admin'))) {
+    console.log('  • Adding `is_super_admin` to users...');
+    await db.query('ALTER TABLE `users` ADD COLUMN `is_super_admin` TINYINT(1) NOT NULL DEFAULT 0');
+  }
+  if (!(await columnExists('companies', 'organization_id'))) {
+    console.log('  • Adding `organization_id` to companies...');
+    await db.query('ALTER TABLE `companies` ADD COLUMN `organization_id` INT NULL');
+    try {
+      await db.query('ALTER TABLE `companies` ADD CONSTRAINT `fk_companies_org` FOREIGN KEY (`organization_id`) REFERENCES `organizations`(`id`) ON DELETE CASCADE');
+    } catch (e) { console.warn('  ⚠️  FK companies.organization_id:', e.message); }
+  }
+
+  // Ensure a default organization exists, then fold all existing users +
+  // companies into it (only rows not already assigned — safe to re-run).
+  {
+    const [orgs] = await db.execute('SELECT id FROM organizations ORDER BY id LIMIT 1');
+    let defaultOrgId;
+    if (orgs.length === 0) {
+      const name = process.env.DEFAULT_ORG_NAME || 'Main Organization';
+      const [ins] = await db.execute('INSERT INTO organizations (name) VALUES (?)', [name]);
+      defaultOrgId = ins.insertId;
+      console.log(`  • Created default organization "${name}" (id ${defaultOrgId}).`);
+    } else {
+      defaultOrgId = orgs[0].id;
+    }
+    const [u] = await db.execute('UPDATE users SET organization_id = ? WHERE organization_id IS NULL', [defaultOrgId]);
+    const [c] = await db.execute('UPDATE companies SET organization_id = ? WHERE organization_id IS NULL', [defaultOrgId]);
+    console.log(`  • Backfilled organization on ${u.affectedRows} user(s) and ${c.affectedRows} company(ies).`);
+  }
+
+  // Promote the platform owner (ADMIN_EMAIL) to super-admin so they can manage
+  // organizations. Also keeps their existing org-admin role.
+  if (process.env.ADMIN_EMAIL) {
+    const [r] = await db.execute('UPDATE users SET is_super_admin = 1 WHERE email = ?', [process.env.ADMIN_EMAIL]);
+    if (r.affectedRows) console.log(`  • Marked ${process.env.ADMIN_EMAIL} as super-admin.`);
+  }
+
   // 4. Backfill created_by from each row's company owner so existing records
   //    are attributed to the user who originally owned the company.
   const [qBackfill] = await db.query(

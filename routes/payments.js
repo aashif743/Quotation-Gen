@@ -1,17 +1,23 @@
 const express = require('express');
 const db = require('../config/database');
 const { isAuthenticated } = require('../middleware/auth');
+const { requireCompanyAccess } = require("../utils/tenancy");
 
 const router = express.Router();
 router.use(isAuthenticated);
+router.use(requireCompanyAccess);
 
 // Helper — return the invoice row if the current user is allowed to act on
 // it, otherwise null. Staff may only see/record against invoices they
 // created; admins may act on any.
 async function loadAccessibleInvoice(req, invoiceId) {
+  // Scope to the caller's organization first (cross-tenant safety), then apply
+  // the per-creator rule for staff.
   const [rows] = await db.execute(
-    'SELECT id, company_id, client_id, created_by, grand_total FROM invoices WHERE id = ?',
-    [invoiceId]
+    `SELECT i.id, i.company_id, i.client_id, i.created_by, i.grand_total
+       FROM invoices i JOIN companies c ON i.company_id = c.id
+      WHERE i.id = ? AND c.organization_id = ?`,
+    [invoiceId, req.user.organization_id]
   );
   if (rows.length === 0) return null;
   if (req.user.role !== 'admin' && rows[0].created_by !== req.user.id) return null;
@@ -22,9 +28,14 @@ async function loadAccessibleInvoice(req, invoiceId) {
 // delete it, otherwise null. Admins can act on any payment; staff can only
 // touch payments they themselves recorded.
 async function loadEditablePayment(req, paymentId) {
+  // Payment → invoice → company must be in the caller's organization.
   const [rows] = await db.execute(
-    'SELECT id, invoice_id, recorded_by FROM payments WHERE id = ?',
-    [paymentId]
+    `SELECT p.id, p.invoice_id, p.recorded_by
+       FROM payments p
+       JOIN invoices i  ON p.invoice_id = i.id
+       JOIN companies c ON i.company_id = c.id
+      WHERE p.id = ? AND c.organization_id = ?`,
+    [paymentId, req.user.organization_id]
   );
   if (rows.length === 0) return null;
   if (req.user.role !== 'admin' && rows[0].recorded_by !== req.user.id) return null;

@@ -1,12 +1,15 @@
 const express = require('express');
 const db = require('../config/database');
 const { isAuthenticated, isAdmin } = require('../middleware/auth');
+const { requireCompanyAccess, companyTableParamGuard } = require("../utils/tenancy");
 const { resolveClientId } = require('../utils/clientResolver');
 
 const router = express.Router();
 
 // Apply authentication middleware to all routes
 router.use(isAuthenticated);
+router.use(requireCompanyAccess);
+router.param("id", companyTableParamGuard("quotations"));
 
 // Staff see only the quotations they created; admins see everything. Every
 // row carries the creating staff member's name.

@@ -1,10 +1,13 @@
 const express = require('express');
 const db = require('../config/database');
 const { isAuthenticated, isAdmin } = require('../middleware/auth');
+const { requireCompanyAccess, companyTableParamGuard } = require("../utils/tenancy");
 
 const router = express.Router();
 
 router.use(isAuthenticated);
+router.use(requireCompanyAccess);
+router.param("id", companyTableParamGuard("clients"));
 
 // GET /api/clients?company_id=X&q=foo
 // Listing endpoint also powers the autocomplete on the New Quotation form.

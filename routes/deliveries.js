@@ -4,6 +4,7 @@ const path = require('path');
 const multer = require('multer');
 const db = require('../config/database');
 const { isAuthenticated, isAdmin } = require('../middleware/auth');
+const { requireCompanyAccess, companyTableParamGuard } = require("../utils/tenancy");
 const { getCompanyPrefix } = require('../utils/quotePrefix');
 const { resolveClientId } = require('../utils/clientResolver');
 const { UPLOADS_ROOT, resolveUploadDiskPath } = require('../config/paths');
@@ -11,6 +12,9 @@ const { UPLOADS_ROOT, resolveUploadDiskPath } = require('../config/paths');
 const router = express.Router();
 
 router.use(isAuthenticated);
+router.use(requireCompanyAccess);
+router.param("id", companyTableParamGuard("delivery_notes"));
+router.param("quotationId", companyTableParamGuard("quotations"));
 
 // Multer config for uploading the signed/stamped scan or photo. Saved under
 // <UPLOADS_ROOT>/signed/ (a persistent location outside the deployed app dir

@@ -1,12 +1,15 @@
 const express = require('express');
 const db = require('../config/database');
 const { isAuthenticated, isAdmin } = require('../middleware/auth');
+const { requireCompanyAccess, companyTableParamGuard } = require("../utils/tenancy");
 const { getCompanyPrefix } = require('../utils/quotePrefix');
 const { resolveVendorId } = require('../utils/vendorResolver');
 
 const router = express.Router();
 
 router.use(isAuthenticated);
+router.use(requireCompanyAccess);
+router.param("id", companyTableParamGuard("purchases"));
 
 // Compute item totals + subtotal/grand_total from a raw items array.
 function normalizeItems(items) {

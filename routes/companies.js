@@ -41,11 +41,15 @@ const upload = multer({
   }
 });
 
-// Companies are shared organization-wide, so every authenticated user sees
-// the full list. Creating, editing, and deleting are admin-only.
+// Companies are shared within an ORGANIZATION, so a user sees only the
+// companies of their own organization. Creating, editing and deleting are
+// admin-only (org-admins act within their own org).
 router.get('/', async (req, res) => {
   try {
-    const [companies] = await db.execute('SELECT * FROM companies ORDER BY name');
+    const [companies] = await db.execute(
+      'SELECT * FROM companies WHERE organization_id = ? ORDER BY name',
+      [req.user.organization_id]
+    );
     res.json(companies);
   } catch (error) {
     console.error('Error fetching companies:', error);
@@ -57,14 +61,18 @@ router.post('/', isAdmin, async (req, res) => {
   try {
     const { name } = req.body;
     const userId = req.user.id;
+    const orgId = req.user.organization_id;
 
     if (!name) {
       return res.status(400).json({ error: 'Company name is required' });
     }
+    if (!orgId) {
+      return res.status(403).json({ error: 'Your account is not linked to an organization.' });
+    }
 
     const [result] = await db.execute(
-      'INSERT INTO companies (name, user_id) VALUES (?, ?)',
-      [name, userId]
+      'INSERT INTO companies (organization_id, name, user_id) VALUES (?, ?, ?)',
+      [orgId, name, userId]
     );
 
     const [newCompany] = await db.execute('SELECT * FROM companies WHERE id = ?', [result.insertId]);
@@ -77,12 +85,15 @@ router.post('/', isAdmin, async (req, res) => {
 
 router.get('/:id', async (req, res) => {
   try {
-    const [companies] = await db.execute('SELECT * FROM companies WHERE id = ?', [req.params.id]);
-    
+    const [companies] = await db.execute(
+      'SELECT * FROM companies WHERE id = ? AND organization_id = ?',
+      [req.params.id, req.user.organization_id]
+    );
+
     if (companies.length === 0) {
       return res.status(404).json({ error: 'Company not found' });
     }
-    
+
     res.json(companies[0]);
   } catch (error) {
     console.error('Error fetching company:', error);
@@ -123,8 +134,8 @@ router.put('/:id', isAdmin, upload.single('logo'), async (req, res) => {
       queryParams.push(`/uploads/${req.file.filename}`);
     }
 
-    updateQuery += ' WHERE id = ?';
-    queryParams.push(id);
+    updateQuery += ' WHERE id = ? AND organization_id = ?';
+    queryParams.push(id, req.user.organization_id);
 
     const [result] = await db.execute(updateQuery, queryParams);
 
@@ -143,7 +154,10 @@ router.put('/:id', isAdmin, upload.single('logo'), async (req, res) => {
 router.delete('/:id', isAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const [result] = await db.execute('DELETE FROM companies WHERE id = ?', [id]);
+    const [result] = await db.execute(
+      'DELETE FROM companies WHERE id = ? AND organization_id = ?',
+      [id, req.user.organization_id]
+    );
 
     if (result.affectedRows === 0) {
       return res.status(404).json({ error: 'Company not found' });
@@ -163,7 +177,7 @@ router.delete('/:id', isAdmin, async (req, res) => {
 router.get('/:id/next-quote-number', async (req, res) => {
   try {
     const { id } = req.params;
-    const [company] = await db.execute('SELECT name FROM companies WHERE id = ?', [id]);
+    const [company] = await db.execute('SELECT name FROM companies WHERE id = ? AND organization_id = ?', [id, req.user.organization_id]);
 
     if (company.length === 0) {
       return res.status(404).json({ error: 'Company not found' });
@@ -190,7 +204,7 @@ router.get('/:id/next-quote-number', async (req, res) => {
 router.get('/:id/next-delivery-note-number', async (req, res) => {
   try {
     const { id } = req.params;
-    const [company] = await db.execute('SELECT name FROM companies WHERE id = ?', [id]);
+    const [company] = await db.execute('SELECT name FROM companies WHERE id = ? AND organization_id = ?', [id, req.user.organization_id]);
 
     if (company.length === 0) {
       return res.status(404).json({ error: 'Company not found' });
@@ -216,7 +230,7 @@ router.get('/:id/next-delivery-note-number', async (req, res) => {
 router.get('/:id/next-invoice-number', async (req, res) => {
   try {
     const { id } = req.params;
-    const [company] = await db.execute('SELECT name FROM companies WHERE id = ?', [id]);
+    const [company] = await db.execute('SELECT name FROM companies WHERE id = ? AND organization_id = ?', [id, req.user.organization_id]);
 
     if (company.length === 0) {
       return res.status(404).json({ error: 'Company not found' });

@@ -18,8 +18,9 @@ router.get('/', async (req, res) => {
              (SELECT COUNT(*) FROM quotations q WHERE q.created_by = u.id) AS quotation_count,
              (SELECT COUNT(*) FROM invoices i WHERE i.created_by = u.id) AS invoice_count
       FROM users u
+      WHERE u.organization_id = ?
       ORDER BY u.created_at DESC
-    `);
+    `, [req.user.organization_id]);
     res.json(users);
   } catch (error) {
     console.error('Error fetching users:', error);
@@ -46,9 +47,10 @@ router.post('/', async (req, res) => {
     }
 
     const hashed = await bcrypt.hash(password, await bcrypt.genSalt(10));
+    // New accounts join the creating admin's organization.
     const [result] = await db.execute(
-      'INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)',
-      [name, email, hashed, userRole]
+      'INSERT INTO users (organization_id, name, email, password, role) VALUES (?, ?, ?, ?, ?)',
+      [req.user.organization_id, name, email, hashed, userRole]
     );
 
     const [newUser] = await db.execute(
@@ -68,15 +70,21 @@ router.put('/:id', async (req, res) => {
     const userId = parseInt(req.params.id, 10);
     const { name, email, role, password } = req.body;
 
-    const [rows] = await db.execute('SELECT id, role FROM users WHERE id = ?', [userId]);
+    const [rows] = await db.execute(
+      'SELECT id, role FROM users WHERE id = ? AND organization_id = ?',
+      [userId, req.user.organization_id]
+    );
     if (rows.length === 0) {
       return res.status(404).json({ message: 'User not found.' });
     }
     const target = rows[0];
 
-    // Guard against removing the final admin (including demoting yourself).
+    // Guard against removing the final admin of THIS organization.
     if (target.role === 'admin' && role && role !== 'admin') {
-      const [admins] = await db.execute("SELECT COUNT(*) AS count FROM users WHERE role = 'admin'");
+      const [admins] = await db.execute(
+        "SELECT COUNT(*) AS count FROM users WHERE role = 'admin' AND organization_id = ?",
+        [req.user.organization_id]
+      );
       if (admins[0].count <= 1) {
         return res.status(400).json({ message: 'You cannot remove the last remaining admin.' });
       }
@@ -130,19 +138,25 @@ router.delete('/:id', async (req, res) => {
       return res.status(400).json({ message: 'You cannot delete your own account.' });
     }
 
-    const [rows] = await db.execute('SELECT role FROM users WHERE id = ?', [userId]);
+    const [rows] = await db.execute(
+      'SELECT role FROM users WHERE id = ? AND organization_id = ?',
+      [userId, req.user.organization_id]
+    );
     if (rows.length === 0) {
       return res.status(404).json({ message: 'User not found.' });
     }
 
     if (rows[0].role === 'admin') {
-      const [admins] = await db.execute("SELECT COUNT(*) AS count FROM users WHERE role = 'admin'");
+      const [admins] = await db.execute(
+        "SELECT COUNT(*) AS count FROM users WHERE role = 'admin' AND organization_id = ?",
+        [req.user.organization_id]
+      );
       if (admins[0].count <= 1) {
         return res.status(400).json({ message: 'You cannot delete the last remaining admin.' });
       }
     }
 
-    await db.execute('DELETE FROM users WHERE id = ?', [userId]);
+    await db.execute('DELETE FROM users WHERE id = ? AND organization_id = ?', [userId, req.user.organization_id]);
     res.json({ message: 'User deleted successfully.' });
   } catch (error) {
     console.error('Error deleting user:', error);

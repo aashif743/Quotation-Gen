@@ -1,10 +1,13 @@
 const express = require('express');
 const db = require('../config/database');
 const { isAuthenticated, isAdmin } = require('../middleware/auth');
+const { requireCompanyAccess, companyTableParamGuard } = require("../utils/tenancy");
 
 const router = express.Router();
 
 router.use(isAuthenticated);
+router.use(requireCompanyAccess);
+router.param("id", companyTableParamGuard("vendors"));
 
 // GET /api/vendors?company_id=X&q=foo
 // Buy-side mirror of /api/clients. Each row carries purchase counts + totals
