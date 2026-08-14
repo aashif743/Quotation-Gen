@@ -1,5 +1,9 @@
 function isAuthenticated(req, res, next) {
   if (req.isAuthenticated()) {
+    // A suspended organization is locked out entirely (super-admins exempt).
+    if (req.user.org_status === 'suspended' && !req.user.is_super_admin) {
+      return res.status(403).json({ message: 'Your organization has been suspended. Please contact support.' });
+    }
     return next();
   }
   res.status(401).json({ message: 'You are not authorized to view this resource.' });

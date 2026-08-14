@@ -8,9 +8,17 @@ const router = express.Router();
 // created by an admin from the User Management page (see routes/users.js).
 
 // POST /api/auth/login
-router.post('/login', passport.authenticate('local'), (req, res) => {
+router.post('/login', passport.authenticate('local'), async (req, res) => {
   // If this function gets called, authentication was successful.
-  // `req.user` contains the authenticated user.
+  // Block login when the user's organization is suspended (super-admins exempt).
+  if (!req.user.is_super_admin && req.user.organization_id) {
+    const [orgs] = await db.execute('SELECT status FROM organizations WHERE id = ?', [req.user.organization_id]);
+    if (orgs.length > 0 && orgs[0].status === 'suspended') {
+      return req.session.destroy(() => {
+        res.status(403).json({ message: 'Your organization has been suspended. Please contact support.' });
+      });
+    }
+  }
   const { id, name, email, role, organization_id } = req.user;
   res.json({ id, name, email, role, organization_id, is_super_admin: !!req.user.is_super_admin });
 });
@@ -32,6 +40,10 @@ router.post('/logout', (req, res, next) => {
 // GET /api/auth/status
 router.get('/status', (req, res) => {
   if (req.isAuthenticated()) {
+    // Treat a suspended org as logged-out so the app sends them back to login.
+    if (req.user.org_status === 'suspended' && !req.user.is_super_admin) {
+      return res.json({ isAuthenticated: false, user: null });
+    }
     const { id, name, email, role, organization_id } = req.user;
     res.json({ isAuthenticated: true, user: { id, name, email, role, organization_id, is_super_admin: !!req.user.is_super_admin } });
   } else {

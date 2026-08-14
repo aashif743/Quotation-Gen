@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Quotation System logo">
+  <defs>
+    <linearGradient id="qgBg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6366F1"/>
+      <stop offset="1" stop-color="#4338CA"/>
+    </linearGradient>
+  </defs>
+  <!-- rounded-square (squircle) badge -->
+  <rect width="512" height="512" rx="116" fill="url(#qgBg)"/>
+  <!-- document -->
+  <path d="M150 120 h132 l80 80 v192 a22 22 0 0 1-22 22 H150 a22 22 0 0 1-22-22 V142 a22 22 0 0 1 22-22 z" fill="#FFFFFF"/>
+  <!-- folded corner -->
+  <path d="M282 120 l80 80 h-58 a22 22 0 0 1-22-22 z" fill="#C7D2FE"/>
+  <!-- text lines -->
+  <rect x="168" y="238" width="130" height="18" rx="9" fill="#CBD5E1"/>
+  <rect x="168" y="284" width="96"  height="18" rx="9" fill="#CBD5E1"/>
+  <!-- approval check badge -->
+  <circle cx="322" cy="348" r="58" fill="#22C55E" stroke="#FFFFFF" stroke-width="10"/>
+  <path d="M298 349 l16 17 34-37" fill="none" stroke="#FFFFFF" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

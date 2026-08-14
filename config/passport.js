@@ -77,10 +77,17 @@ passport.serializeUser((user, done) => {
   done(null, user.id);
 });
 
-// Deserialize user from session
+// Deserialize user from session. Also pulls the user's organization status so
+// suspended-tenant access can be blocked app-wide (see middleware/auth.js).
 passport.deserializeUser(async (id, done) => {
   try {
-    const [users] = await db.execute('SELECT * FROM users WHERE id = ?', [id]);
+    const [users] = await db.execute(
+      `SELECT u.*, o.status AS org_status
+         FROM users u
+         LEFT JOIN organizations o ON u.organization_id = o.id
+        WHERE u.id = ?`,
+      [id]
+    );
     done(null, users[0]);
   } catch (err) {
     done(err);
