@@ -111,6 +111,7 @@ router.put('/:id', isAdmin, upload.single('logo'), async (req, res) => {
       bank_details,
       vat_rate,
       ppda_rate,
+      currency,
       primary_color,
       secondary_color,
       template,
@@ -120,11 +121,12 @@ router.put('/:id', isAdmin, upload.single('logo'), async (req, res) => {
     let updateQuery = `
       UPDATE companies
       SET name = ?, address = ?, tpin = ?, bank_details = ?,
-          vat_rate = ?, ppda_rate = ?, primary_color = ?, secondary_color = ?,
+          vat_rate = ?, ppda_rate = ?, currency = ?, primary_color = ?, secondary_color = ?,
           template = ?, default_terms_conditions = ?
     `;
     let queryParams = [
       name, address, tpin, bank_details, vat_rate, ppda_rate,
+      (currency || 'MWK').toUpperCase(),
       primary_color, secondary_color, template || 'classic',
       default_terms_conditions ?? null,
     ];

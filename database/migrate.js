@@ -551,6 +551,13 @@ async function migrate() {
     if (r.affectedRows) console.log(`  • Marked ${process.env.ADMIN_EMAIL} as super-admin.`);
   }
 
+  // 3m. companies.currency (added 2026-08) — per-company display currency so
+  //     each organization/company can use its own (MWK, ZMW, USD, …).
+  if ((await tableExists('companies')) && !(await columnExists('companies', 'currency'))) {
+    console.log('  • Adding `currency` column to companies...');
+    await db.query("ALTER TABLE `companies` ADD COLUMN `currency` VARCHAR(3) NOT NULL DEFAULT 'MWK'");
+  }
+
   // 4. Backfill created_by from each row's company owner so existing records
   //    are attributed to the user who originally owned the company.
   const [qBackfill] = await db.query(

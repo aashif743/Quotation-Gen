@@ -87,6 +87,7 @@ export interface Company {
   bank_details: string;
   vat_rate: number;
   ppda_rate: number;
+  currency?: string;
   primary_color: string;
   secondary_color: string;
   template?: QuotationTemplate;

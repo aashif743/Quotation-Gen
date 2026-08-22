@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS `companies` (
     `bank_details` TEXT,
     `vat_rate` DECIMAL(5,4) DEFAULT 0.165,
     `ppda_rate` DECIMAL(5,4) DEFAULT 0.01,
+    `currency` VARCHAR(3) NOT NULL DEFAULT 'MWK',
     `primary_color` VARCHAR(7) DEFAULT '#000000',
     `secondary_color` VARCHAR(7) DEFAULT '#ffffff',
     `template` VARCHAR(30) NOT NULL DEFAULT 'classic',

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Company } from '../types';
 import * as api from '../services/api';
+import { setActiveCurrency } from '../utils/calculations';
 
 interface CompanyContextType {
   companies: Company[];
@@ -29,8 +30,15 @@ interface CompanyProviderProps {
 
 export const CompanyProvider: React.FC<CompanyProviderProps> = ({ children }) => {
   const [companies, setCompanies] = useState<Company[]>([]);
-  const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
+  const [selectedCompany, setSelectedCompanyState] = useState<Company | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Set the selected company AND the app-wide active currency together, so
+  // every formatCurrency() call reflects the chosen company's currency.
+  const setSelectedCompany = (company: Company | null) => {
+    setActiveCurrency(company?.currency);
+    setSelectedCompanyState(company);
+  };
 
   const loadCompanies = async () => {
     try {
@@ -40,6 +48,10 @@ export const CompanyProvider: React.FC<CompanyProviderProps> = ({ children }) =>
         setSelectedCompany(companiesData[0]);
       } else if (companiesData.length === 0) {
         setSelectedCompany(null);
+      } else if (selectedCompany) {
+        // Keep the active currency in sync with the (possibly refreshed) selection.
+        const fresh = companiesData.find((c) => c.id === selectedCompany.id);
+        if (fresh) setActiveCurrency(fresh.currency);
       }
     } catch (error) {
       console.error('Error loading companies:', error);

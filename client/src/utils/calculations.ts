@@ -20,17 +20,43 @@ export const calculateGrandTotal = (
   return subtotal + vatAmount + ppdaAmount;
 };
 
-export const formatCurrency = (amount: number): string => {
-  return new Intl.NumberFormat('en-MW', {
-    style: 'currency',
-    currency: 'MWK',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount);
+// Active display currency (ISO 4217). It's set from the selected company (see
+// CompanyContext) so every formatCurrency() call across the app reflects that
+// company's currency — without threading a currency argument through the ~110
+// call sites. Defaults to Malawi Kwacha for backward compatibility.
+let activeCurrency = 'MWK';
+
+export const setActiveCurrency = (code?: string | null): void => {
+  activeCurrency = code && /^[A-Za-z]{3}$/.test(code) ? code.toUpperCase() : 'MWK';
+};
+
+export const getActiveCurrency = (): string => activeCurrency;
+
+// Locales chosen so common currencies render a short, familiar symbol.
+const LOCALE_BY_CURRENCY: Record<string, string> = {
+  MWK: 'en-MW', ZMW: 'en-ZM', USD: 'en-US', ZAR: 'en-ZA', GBP: 'en-GB',
+  EUR: 'en-IE', KES: 'en-KE', TZS: 'en-TZ', NGN: 'en-NG', UGX: 'en-UG',
+  ZWL: 'en-ZW', BWP: 'en-BW', RWF: 'en-RW', INR: 'en-IN',
+};
+
+export const formatCurrency = (amount: number, currency?: string): string => {
+  const code = (currency || activeCurrency || 'MWK').toUpperCase();
+  const locale = LOCALE_BY_CURRENCY[code] || 'en';
+  try {
+    return new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency: code,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  } catch {
+    // Invalid/unknown currency code — fall back to a plain number + the code.
+    return `${code} ${formatNumber(amount)}`;
+  }
 };
 
 export const formatNumber = (num: number, decimals: number = 2): string => {
-  return new Intl.NumberFormat('en-MW', {
+  return new Intl.NumberFormat('en', {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   }).format(num);
