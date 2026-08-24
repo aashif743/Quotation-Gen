@@ -82,6 +82,18 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
+// Super-admin "acting organization": a platform owner belongs to no org, but
+// can enter one to inspect it (POST /api/organizations/:id/enter stores it in
+// the session). While entered, scope their requests to that org by overriding
+// organization_id — so all the existing org-scoped route logic just works.
+app.use((req, res, next) => {
+  if (req.user && req.user.is_super_admin && req.session && req.session.actingOrg) {
+    req.user.organization_id = req.session.actingOrg.id;
+    req.user.acting_organization = req.session.actingOrg; // { id, name }
+  }
+  next();
+});
+
 // Static files: admin-uploaded assets. A 7-day cache stops the browser from
 // re-fetching the same logos on every page load — uploads are immutable for
 // practical purposes (a new upload gets a new filename via multer).

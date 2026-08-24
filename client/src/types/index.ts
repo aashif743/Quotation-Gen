@@ -47,6 +47,8 @@ export interface User {
   role: UserRole;
   organization_id?: number | null;
   is_super_admin?: boolean;
+  // Set when a super-admin has "entered" an organization to inspect it.
+  acting_organization?: { id: number; name: string } | null;
 }
 
 // A tenant. Managed by the platform owner (super-admin).

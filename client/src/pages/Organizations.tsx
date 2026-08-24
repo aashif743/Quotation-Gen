@@ -2,9 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { brandColorFor } from '../utils/colors';
-import { getOrganizations, createOrganization, updateOrganization, deleteOrganization } from '../services/api';
+import { getOrganizations, createOrganization, updateOrganization, deleteOrganization, enterOrganization } from '../services/api';
 import { Organization } from '../types';
-import { Building, Plus, X, AlertCircle, Users as UsersIcon, Briefcase, Power, Loader2, Edit2, Trash2 } from 'lucide-react';
+import { Building, Plus, X, AlertCircle, Users as UsersIcon, Briefcase, Power, Loader2, Edit2, Trash2, LogIn } from 'lucide-react';
 
 const Organizations: React.FC = () => {
   const { theme } = useTheme();
@@ -172,6 +172,14 @@ const Organizations: React.FC = () => {
                   </td>
                   <td className="px-6 py-4 text-right">
                     <div className="inline-flex items-center gap-1">
+                      <button
+                        onClick={async () => { await enterOrganization(o.id); window.location.assign('/'); }}
+                        className="inline-flex items-center px-3 py-1.5 mr-1 text-sm rounded-lg text-white hover:opacity-90"
+                        style={{ backgroundColor: primary }}
+                        title="Enter this organization to inspect it"
+                      >
+                        <LogIn className="h-4 w-4 mr-1.5" /> Enter
+                      </button>
                       <button onClick={() => openRename(o)} className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg" title="Rename">
                         <Edit2 className="h-4 w-4" />
                       </button>

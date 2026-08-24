@@ -579,3 +579,13 @@ export const updateOrganization = async (
 export const deleteOrganization = async (id: number): Promise<void> => {
   await api.delete(`/organizations/${id}`);
 };
+
+// Super-admin: enter an organization to inspect it, or exit back to the
+// platform view. (A full page reload after these re-scopes the whole app.)
+export const enterOrganization = async (id: number): Promise<void> => {
+  await api.post(`/organizations/${id}/enter`);
+};
+
+export const exitOrganization = async (): Promise<void> => {
+  await api.post('/organizations/exit');
+};

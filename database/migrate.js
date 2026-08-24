@@ -539,17 +539,23 @@ async function migrate() {
     } else {
       defaultOrgId = orgs[0].id;
     }
-    const [u] = await db.execute('UPDATE users SET organization_id = ? WHERE organization_id IS NULL', [defaultOrgId]);
+    // Super-admins are platform owners, not org members — never backfill them.
+    const [u] = await db.execute('UPDATE users SET organization_id = ? WHERE organization_id IS NULL AND is_super_admin = 0', [defaultOrgId]);
     const [c] = await db.execute('UPDATE companies SET organization_id = ? WHERE organization_id IS NULL', [defaultOrgId]);
     console.log(`  • Backfilled organization on ${u.affectedRows} user(s) and ${c.affectedRows} company(ies).`);
   }
 
   // Promote the platform owner (ADMIN_EMAIL) to super-admin so they can manage
-  // organizations. Also keeps their existing org-admin role.
+  // organizations.
   if (process.env.ADMIN_EMAIL) {
     const [r] = await db.execute('UPDATE users SET is_super_admin = 1 WHERE email = ?', [process.env.ADMIN_EMAIL]);
     if (r.affectedRows) console.log(`  • Marked ${process.env.ADMIN_EMAIL} as super-admin.`);
   }
+
+  // Super-admins belong to NO organization — they manage all tenants and can
+  // "enter" any org to inspect it, but are not a member/admin of one.
+  const [sa] = await db.execute('UPDATE users SET organization_id = NULL WHERE is_super_admin = 1 AND organization_id IS NOT NULL');
+  if (sa.affectedRows) console.log(`  • Detached ${sa.affectedRows} super-admin(s) from their organization.`);
 
   // 3m. companies.currency (added 2026-08) — per-company display currency so
   //     each organization/company can use its own (MWK, ZMW, USD, …).

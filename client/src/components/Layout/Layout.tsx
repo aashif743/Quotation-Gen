@@ -4,6 +4,7 @@ import { useCompany } from '../../context/CompanyContext';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { brandColorFor, hexToRgba, relativeLuminance } from '../../utils/colors';
+import { exitOrganization } from '../../services/api';
 import CompanySelector, { CompanyThumb } from './CompanySelector';
 import {
   Home,
@@ -72,9 +73,21 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { selectedCompany, companies, loading: companiesLoading, createCompany } = useCompany();
-  const { user, logout, isAdmin, isSuperAdmin } = useAuth();
+  const { user, logout, isAdmin, isSuperAdmin, actingOrganization } = useAuth();
   const { theme, toggle: toggleTheme } = useTheme();
   const isDark = theme === 'dark';
+
+  // A super-admin who hasn't "entered" an org is in platform mode: they only
+  // manage organizations (no company/tenant chrome). Entering an org clears
+  // this and scopes the whole app to that tenant (with an "exit" banner).
+  const platformMode = isSuperAdmin && !actingOrganization;
+
+  const handleExitOrg = async () => {
+    try {
+      await exitOrganization();
+    } catch { /* ignore */ }
+    window.location.assign('/organizations');
+  };
 
   const [collapsed, setCollapsed] = useState<boolean>(
     () => localStorage.getItem('sidebarCollapsed') === 'true'
@@ -142,6 +155,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     root.style.setProperty('--brand-on', relativeLuminance(primaryColor) > 0.55 ? '#0f172a' : '#ffffff');
   }, [accentColor, primaryColor, isDark]);
 
+  // In platform mode the only destination is the Organizations page.
+  useEffect(() => {
+    if (platformMode && location.pathname !== '/organizations') {
+      navigate('/organizations', { replace: true });
+    }
+  }, [platformMode, location.pathname, navigate]);
+
   // A clean modern nav item: a rounded pill. Active = soft brand-tint fill +
   // brand-coloured text/icon; inactive = muted with a subtle hover. No brand
   // wash on the sidebar itself.
@@ -162,7 +182,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   };
 
   // Grouped navigation — labelled sections make the growing menu easy to scan.
-  const navSections: { label?: string; items: { to: string; icon: typeof Home; label: string }[] }[] = [
+  const navSections: { label?: string; items: { to: string; icon: typeof Home; label: string }[] }[] = platformMode ? [
+    { label: 'Platform', items: [{ to: '/organizations', icon: Building2, label: 'Organizations' }] },
+  ] : [
     { items: [{ to: '/', icon: Home, label: 'Dashboard' }] },
     { label: 'Create', items: [
       { to: '/new-quotation', icon: FileText, label: 'New Quotation' },
@@ -193,7 +215,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   // Brand-new organization (no companies yet) → a focused onboarding screen
   // instead of the normal app shell, which requires a selected company.
-  if (!companiesLoading && companies.length === 0) {
+  if (!companiesLoading && companies.length === 0 && !platformMode) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-[#121212] flex flex-col transition-colors">
         <header className="flex items-center justify-between px-6 py-4">
@@ -288,7 +310,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               </button>
             </div>
 
-            <CompanySelector collapsed={collapsed} />
+            {!platformMode && <CompanySelector collapsed={collapsed} />}
 
             {/* The nav is the only scrollable area so the brand stays at the
                 top and the user/logout block stays at the bottom even on
@@ -378,14 +400,27 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         </div>
 
         <div className="flex-1">
+          {actingOrganization && (
+            <div className="no-print bg-amber-500 text-white px-6 py-2 flex items-center justify-between gap-3 text-sm">
+              <span className="flex items-center min-w-0">
+                <ShieldCheck className="h-4 w-4 mr-2 flex-shrink-0" />
+                <span className="truncate">
+                  Viewing <strong>{actingOrganization.name}</strong> as platform admin — any changes affect this organization.
+                </span>
+              </span>
+              <button onClick={handleExitOrg} className="inline-flex items-center px-3 py-1 rounded-md bg-white/20 hover:bg-white/30 font-medium flex-shrink-0">
+                <LogOut className="h-4 w-4 mr-1.5" /> Exit
+              </button>
+            </div>
+          )}
           <header className="bg-white dark:bg-[#1e1e1e] border-b border-gray-200 dark:border-[#2e2e2e] px-6 py-4 no-print transition-colors">
             <div className="flex items-center justify-between gap-4">
               <div className="min-w-0">
                 <h2 className="text-2xl font-semibold text-gray-900 dark:text-gray-100 truncate">
-                  {selectedCompany?.name || 'Loading...'}
+                  {platformMode ? 'Platform Administration' : (selectedCompany?.name || 'Loading...')}
                 </h2>
                 <p className="text-sm text-gray-600 dark:text-gray-400 truncate">
-                  {selectedCompany?.address}
+                  {platformMode ? 'Manage organizations (tenants)' : selectedCompany?.address}
                 </p>
               </div>
               <div className="flex items-center gap-3 flex-shrink-0">

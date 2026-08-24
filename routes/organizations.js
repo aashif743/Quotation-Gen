@@ -99,6 +99,26 @@ router.put('/:id', async (req, res) => {
   }
 });
 
+// POST /api/organizations/:id/enter — super-admin starts inspecting a tenant.
+// Stores the acting org in the session; subsequent requests are scoped to it.
+router.post('/:id/enter', async (req, res) => {
+  try {
+    const [rows] = await db.execute('SELECT id, name FROM organizations WHERE id = ?', [req.params.id]);
+    if (rows.length === 0) return res.status(404).json({ error: 'Organization not found' });
+    req.session.actingOrg = { id: rows[0].id, name: rows[0].name };
+    req.session.save(() => res.json({ ok: true, organization: rows[0] }));
+  } catch (error) {
+    console.error('Error entering organization:', error);
+    res.status(500).json({ error: 'Failed to enter organization' });
+  }
+});
+
+// POST /api/organizations/exit — super-admin returns to the platform view.
+router.post('/exit', (req, res) => {
+  if (req.session) delete req.session.actingOrg;
+  req.session.save(() => res.json({ ok: true }));
+});
+
 // DELETE /api/organizations/:id — permanently remove a tenant: its users,
 // companies and ALL their data (companies + data cascade via FK). You cannot
 // delete your own organization (that would lock you out).
