@@ -186,7 +186,7 @@ const CompanySelector: React.FC<CompanySelectorProps> = ({ collapsed = false }) 
         <p className="text-xs text-gray-400 mt-0.5">{companies.length} available</p>
       </div>
 
-      <div className="py-1">
+      <div className="py-1 max-h-[min(60vh,22rem)] overflow-y-auto overscroll-contain">
         {companies.map((company) => {
           const itemColor = company.primary_color || '#4f46e5';
           const isSelected = selectedCompany.id === company.id;
