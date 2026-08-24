@@ -589,3 +589,32 @@ export const enterOrganization = async (id: number): Promise<void> => {
 export const exitOrganization = async (): Promise<void> => {
   await api.post('/organizations/exit');
 };
+
+// ---------------------------------------------------------------------------
+// Dashboard (aggregated analytics for the selected company)
+// ---------------------------------------------------------------------------
+export interface DashboardData {
+  totals: {
+    quotations: number; total_quoted: number;
+    invoices: number; total_invoiced: number;
+    total_paid: number; outstanding: number;
+    expenses: number; total_expenses: number;
+    purchases: number; total_purchases: number;
+    delivery_notes: number; clients: number;
+    petty_balance: number; net: number;
+  };
+  trend: { invoiced_this_month: number; invoiced_last_month: number; invoiced_change_pct: number };
+  revenue_series: Array<{ month: string; ym: string; invoiced: number; quoted: number; expenses: number }>;
+  payment_status: { paid: number; partial: number; pending: number };
+  expenses_by_category: Array<{ category: string; amount: number }>;
+  top_clients: Array<{ name: string; invoiced: number; invoices: number }>;
+  recent_invoices: Array<{
+    id: number; invoice_number: string; client_name: string; date: string;
+    grand_total: number; amount_paid: number; payment_status: 'paid' | 'partial' | 'pending';
+  }>;
+}
+
+export const getDashboard = async (companyId: number): Promise<DashboardData> => {
+  const response = await api.get('/dashboard', { params: { company_id: companyId } });
+  return response.data;
+};
