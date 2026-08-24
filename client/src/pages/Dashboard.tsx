@@ -12,7 +12,7 @@ import { formatCurrency } from '../utils/calculations';
 import { brandColorFor, hexToRgba } from '../utils/colors';
 import {
   FileText, Receipt, DollarSign, TrendingUp, TrendingDown, Wallet, Plus,
-  ArrowUpRight, Users, Banknote,
+  ArrowUpRight, Users, Banknote, Truck,
 } from 'lucide-react';
 
 // Animate a number from 0 → target on mount.
@@ -44,7 +44,7 @@ const compact = (n: number): string => {
 
 const Dashboard: React.FC = () => {
   const { selectedCompany } = useCompany();
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const { theme } = useTheme();
   const isDark = theme === 'dark';
   const brand = brandColorFor(selectedCompany?.primary_color || '#4f46e5', isDark);
@@ -90,7 +90,9 @@ const Dashboard: React.FC = () => {
             Welcome back, {(user?.name || '').split(' ')[0] || 'there'} 👋
           </h1>
           <p className="text-gray-500 dark:text-gray-400 mt-1">
-            Here's what's happening at <span className="font-medium">{selectedCompany.name}</span> — last 12 months.
+            {isAdmin
+              ? <>Here's what's happening at <span className="font-medium">{selectedCompany.name}</span> — last 12 months.</>
+              : <>Your activity at <span className="font-medium">{selectedCompany.name}</span> — last 12 months.</>}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -126,7 +128,11 @@ const Dashboard: React.FC = () => {
             <MiniStat i={0} label="Quotations" value={t.quotations} icon={FileText} accent={brand} />
             <MiniStat i={1} label="Invoices" value={t.invoices} icon={Receipt} accent="#6366f1" />
             <MiniStat i={2} label="Clients" value={t.clients} icon={Users} accent="#ec4899" />
-            <MiniStat i={3} label="Petty Cash" value={t.petty_balance} money icon={Banknote} accent="#22c55e" />
+            {/* Petty cash is a shared company fund — only admins see it; staff
+                get their own delivery-note count so their view stays personal. */}
+            {isAdmin
+              ? <MiniStat i={3} label="Petty Cash" value={t.petty_balance} money icon={Banknote} accent="#22c55e" />
+              : <MiniStat i={3} label="Delivery Notes" value={t.delivery_notes} icon={Truck} accent="#22c55e" />}
           </div>
 
           {/* Revenue area + payment donut */}

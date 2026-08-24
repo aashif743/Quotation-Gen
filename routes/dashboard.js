@@ -37,8 +37,11 @@ router.get('/', async (req, res) => {
     const pur = await one(`SELECT COUNT(*) c, IFNULL(SUM(grand_total),0) t FROM purchases WHERE company_id=?${own}`, args());
     const dn  = await one(`SELECT COUNT(*) c FROM delivery_notes WHERE company_id=?${own}`, args());
     const cl  = await one(`SELECT COUNT(*) c FROM clients WHERE company_id=?${own}`, args());
-    const petty = await one(
-      `SELECT IFNULL(SUM(CASE WHEN type='in' THEN amount ELSE -amount END),0) bal FROM petty_cash WHERE company_id=?`, [companyId]);
+    // Petty cash is a shared company fund — only admins get the fund balance;
+    // a staff dashboard stays strictly personal.
+    const petty = isAdmin
+      ? await one(`SELECT IFNULL(SUM(CASE WHEN type='in' THEN amount ELSE -amount END),0) bal FROM petty_cash WHERE company_id=?`, [companyId])
+      : { bal: 0 };
 
     const totalInvoiced = num(inv.t);
     const totalPaid = num(paid.t);
