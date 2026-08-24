@@ -55,6 +55,24 @@ export const formatCurrency = (amount: number, currency?: string): string => {
   }
 };
 
+// Compact currency for tight spaces (KPI cards): e.g. "MK 183.6B", "MK 84.6M".
+// Large financial figures don't fit a card at full precision; show the full
+// value in a tooltip alongside this.
+export const formatCompactCurrency = (amount: number, currency?: string): string => {
+  const code = (currency || activeCurrency || 'MWK').toUpperCase();
+  const locale = LOCALE_BY_CURRENCY[code] || 'en';
+  try {
+    return new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency: code,
+      notation: 'compact',
+      maximumFractionDigits: 1,
+    }).format(amount);
+  } catch {
+    return `${code} ${formatNumber(amount, 0)}`;
+  }
+};
+
 export const formatNumber = (num: number, decimals: number = 2): string => {
   return new Intl.NumberFormat('en', {
     minimumFractionDigits: decimals,

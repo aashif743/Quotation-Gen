@@ -8,7 +8,7 @@ import { useCompany } from '../context/CompanyContext';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { getDashboard, DashboardData } from '../services/api';
-import { formatCurrency } from '../utils/calculations';
+import { formatCurrency, formatCompactCurrency } from '../utils/calculations';
 import { brandColorFor, hexToRgba } from '../utils/colors';
 import {
   FileText, Receipt, DollarSign, TrendingUp, TrendingDown, Wallet, Plus,
@@ -326,7 +326,8 @@ const StatCard: React.FC<{
   accent: string; trend?: number; sub?: string;
 }> = ({ i, label, value, money, icon: Icon, accent, trend, sub }) => {
   const v = useCountUp(value);
-  const display = money ? formatCurrency(v) : Math.round(v).toLocaleString();
+  const display = money ? formatCompactCurrency(v) : Math.round(v).toLocaleString();
+  const full = money ? formatCurrency(value) : Math.round(value).toLocaleString();
   return (
     <div className="qg-rise bg-white dark:bg-[#1e1e1e] rounded-2xl border border-gray-200 dark:border-[#2e2e2e] shadow-sm p-5 transition-transform hover:-translate-y-0.5" style={{ animationDelay: `${i * 70}ms` }}>
       <div className="flex items-start justify-between">
@@ -340,7 +341,7 @@ const StatCard: React.FC<{
           </span>
         )}
       </div>
-      <p className="text-2xl font-bold text-gray-900 dark:text-white mt-4 tabular-nums truncate" title={display}>{display}</p>
+      <p className="text-2xl font-bold text-gray-900 dark:text-white mt-4 tabular-nums truncate" title={full}>{display}</p>
       <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{label}</p>
       {sub && <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{sub}</p>}
     </div>
@@ -355,7 +356,7 @@ const MiniStat: React.FC<{ i: number; label: string; value: number; money?: bool
         <Icon className="h-5 w-5" />
       </div>
       <div className="min-w-0">
-        <p className="text-lg font-bold text-gray-900 dark:text-white tabular-nums truncate">{money ? formatCurrency(v) : Math.round(v).toLocaleString()}</p>
+        <p className="text-lg font-bold text-gray-900 dark:text-white tabular-nums truncate" title={money ? formatCurrency(value) : undefined}>{money ? formatCompactCurrency(v) : Math.round(v).toLocaleString()}</p>
         <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{label}</p>
       </div>
     </div>
