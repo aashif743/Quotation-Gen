@@ -9,9 +9,10 @@ import {
   uploadExpenseReceipt, deleteExpenseReceipt, getVendors,
 } from '../services/api';
 import { Expense, Vendor } from '../types';
+import { toCsv, downloadCsv } from '../utils/csv';
 import {
   Wallet, Search, Plus, Trash2, Edit2, X, AlertCircle, DollarSign, Calendar,
-  Paperclip, ExternalLink, Loader2,
+  Paperclip, ExternalLink, Loader2, Download,
 } from 'lucide-react';
 
 const CATEGORIES = [
@@ -193,6 +194,29 @@ const Expenses: React.FC = () => {
     catch (e: any) { setMessage({ type: 'error', text: e?.response?.data?.error || 'Failed to remove receipt.' }); }
   };
 
+  // Export the currently-filtered expenses to a CSV (opens in Excel). Amounts
+  // are plain numbers so Excel can sum them; a Currency column records the unit.
+  const exportCsv = () => {
+    const currency = selectedCompany?.currency || 'MWK';
+    const headers = ['Number', 'Date', 'Category', 'Description', 'Amount', 'Currency', 'Payment Method', 'Reference', 'Vendor', 'Notes', 'Recorded By'];
+    const rows = filtered.map((e) => [
+      e.expense_number,
+      (e.date || '').split('T')[0],
+      e.category || '',
+      e.description || '',
+      Number(e.amount || 0),
+      currency,
+      e.payment_method || '',
+      e.reference || '',
+      e.vendor_name || '',
+      e.notes || '',
+      e.created_by_name || '',
+    ]);
+    const stamp = new Date().toISOString().split('T')[0];
+    const safeName = (selectedCompany?.name || 'company').replace(/[^a-z0-9]+/gi, '-').toLowerCase();
+    downloadCsv(`expenses-${safeName}-${stamp}.csv`, toCsv(headers, rows));
+  };
+
   if (!selectedCompany) return <div className="text-center">Please select a company</div>;
 
   return (
@@ -204,9 +228,19 @@ const Expenses: React.FC = () => {
           <h1 className="text-3xl font-bold text-gray-900">Expenses</h1>
           <p className="text-gray-600 mt-2">Track {selectedCompany.name}'s running costs — rent, salaries, transport and more.</p>
         </div>
-        <button onClick={openAdd} className="inline-flex items-center px-4 py-2 rounded-lg text-white shadow-sm hover:opacity-90" style={{ backgroundColor: primary }}>
-          <Plus className="h-5 w-5 mr-2" /> Add Expense
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={exportCsv}
+            disabled={filtered.length === 0}
+            title={filtered.length === 0 ? 'No expenses to export' : 'Download the shown expenses as CSV (Excel)'}
+            className="inline-flex items-center px-4 py-2 rounded-lg text-gray-700 bg-white border border-gray-300 shadow-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Download className="h-5 w-5 mr-2" /> Export CSV
+          </button>
+          <button onClick={openAdd} className="inline-flex items-center px-4 py-2 rounded-lg text-white shadow-sm hover:opacity-90" style={{ backgroundColor: primary }}>
+            <Plus className="h-5 w-5 mr-2" /> Add Expense
+          </button>
+        </div>
       </div>
 
       {message && (
