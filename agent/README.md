@@ -22,10 +22,10 @@ keypad (e.g. ZKTeco K40, MB360, F18, uFace). These store users + logs onboard
 and connect over **TCP/IP (network)** — even when powered via USB, data goes
 over the network port. **This agent talks to these directly.** ✅
 
-**B. Bare USB fingerprint scanner** — a small sensor with no screen (e.g. ZK4500,
-SLK20R). These do **not** store users or logs; matching must happen on the PC via
-the Windows **ZKFinger SDK**. This agent does not drive those directly — see
-"USB-only scanners" at the bottom.
+**B. Bare USB fingerprint scanner** — a small sensor with no screen (e.g.
+**ZK6500**, ZK4500, SLK20R). These do **not** store users or logs; matching must
+happen on the PC via the Windows **ZKFinger SDK**. This Node agent does not drive
+those. **➡ Use the ready-made bridge in [`zk6500/`](./zk6500/README.md) instead.**
 
 ---
 
@@ -92,22 +92,22 @@ Re-sending the same punch is harmless — the server ignores duplicates. A local
 
 ---
 
-## USB-only scanners (no screen)
+## USB-only scanners (no screen) — e.g. ZK6500
 
-A bare USB sensor (ZK4500 etc.) can't be read by this Node agent because
-matching happens in the vendor's Windows SDK. Two clean options:
+A bare USB sensor can't be read by this Node agent because matching happens in
+the vendor's Windows SDK. A ready-to-run **bridge** is provided:
+**[`zk6500/`](./zk6500/README.md)** (Python + ZKFinger SDK). It enrolls
+fingerprints on the PC and POSTs to the same endpoint this agent uses, so
+enrollment and reports on the website work identically:
 
-1. **Use an attendance terminal instead** (option A) — simplest and most reliable
-   for daily check-in/out.
-2. **Bridge from the SDK:** write a tiny Windows helper (C#/.NET with the ZKFinger
-   SDK) that, on each successful match, POSTs to the same endpoint this agent uses:
+```
+POST {apiBaseUrl}/api/attendance/agent/punch
+Header: X-Api-Key: <device api key>
+Body:   { "device_user_id": "101", "timestamp": "2026-08-25 08:03:00" }
+```
 
-   ```
-   POST {apiBaseUrl}/api/attendance/agent/punch
-   Header: X-Api-Key: <device api key>
-   Body:   { "device_user_id": "101", "timestamp": "2026-08-25 08:03:00" }
-   ```
-   The server side is identical, so everything (enrollment, reports) just works.
+Alternatively, use a networked attendance **terminal** (option A) — simplest for
+daily check-in/out.
 
 ---
 

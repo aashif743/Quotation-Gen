@@ -1,3 +1,6 @@
 node_modules/
 config.json
 state.json
+zk6500/config.json
+zk6500/templates.json
+zk6500/__pycache__/
