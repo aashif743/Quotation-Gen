@@ -7,12 +7,12 @@ import {
   addManualPunch, deletePunch,
   getAttendanceDevices, createAttendanceDevice, updateAttendanceDevice,
   regenerateDeviceKey, deleteAttendanceDevice,
-  getAttendanceEnrollments, enrollStaff, deleteEnrollment,
-  getAttendanceSettings, updateAttendanceSettings, getUsers,
+  getAttendanceEmployees, createAttendanceEmployee, updateAttendanceEmployee, deleteAttendanceEmployee,
+  getAttendanceSettings, updateAttendanceSettings,
 } from '../services/api';
 import {
-  AttendanceDevice, AttendanceEnrollment, AttendancePunch, AttendanceTodayStaff,
-  AttendanceReportRow, AttendanceSettings, ManagedUser,
+  AttendanceDevice, AttendanceEmployee, AttendancePunch, AttendanceTodayStaff,
+  AttendanceReportRow, AttendanceSettings,
 } from '../types';
 import { toCsv, downloadCsv } from '../utils/csv';
 import {
@@ -60,9 +60,14 @@ const Attendance: React.FC = () => {
     setTimeout(() => setMessage(null), 4000);
   };
 
-  // Shared: staff (org users) — used for enrollment + manual punch dropdowns.
-  const [users, setUsers] = useState<ManagedUser[]>([]);
-  useEffect(() => { getUsers().then(setUsers).catch(() => {}); }, []);
+  // Shared: the attendance roster (people who clock in/out) for this company —
+  // used by the manual-punch dropdown and the records filter.
+  const [employees, setEmployees] = useState<AttendanceEmployee[]>([]);
+  const loadEmployees = () => {
+    if (!companyId) return;
+    getAttendanceEmployees(companyId).then(setEmployees).catch(() => {});
+  };
+  useEffect(() => { loadEmployees(); /* eslint-disable-next-line */ }, [companyId]);
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto">
@@ -111,9 +116,9 @@ const Attendance: React.FC = () => {
       ) : (
         <>
           {tab === 'today' && <TodayTab companyId={companyId!} primary={primary} />}
-          {tab === 'records' && <RecordsTab companyId={companyId!} primary={primary} users={users} flash={flash} />}
+          {tab === 'records' && <RecordsTab companyId={companyId!} primary={primary} employees={employees} flash={flash} />}
           {tab === 'report' && <ReportTab companyId={companyId!} primary={primary} />}
-          {tab === 'staff' && <StaffTab companyId={companyId!} primary={primary} users={users} flash={flash} />}
+          {tab === 'staff' && <StaffTab companyId={companyId!} primary={primary} employees={employees} reload={loadEmployees} flash={flash} />}
           {tab === 'devices' && <DevicesTab companyId={companyId!} primary={primary} flash={flash} />}
         </>
       )}
@@ -210,19 +215,19 @@ const TodayTab: React.FC<{ companyId: number; primary: string }> = ({ companyId,
 };
 
 // ---------------------------------------------------------------------------
-const RecordsTab: React.FC<{ companyId: number; primary: string; users: ManagedUser[]; flash: (t: 'success' | 'error', m: string) => void }> = ({ companyId, primary, users, flash }) => {
+const RecordsTab: React.FC<{ companyId: number; primary: string; employees: AttendanceEmployee[]; flash: (t: 'success' | 'error', m: string) => void }> = ({ companyId, primary, employees, flash }) => {
   const [rows, setRows] = useState<AttendancePunch[]>([]);
   const [loading, setLoading] = useState(true);
   const [from, setFrom] = useState(todayStr());
   const [to, setTo] = useState(todayStr());
-  const [userId, setUserId] = useState('');
+  const [empId, setEmpId] = useState('');
   const [modal, setModal] = useState(false);
   const [toDel, setToDel] = useState<AttendancePunch | null>(null);
 
   const load = async () => {
     setLoading(true);
     try {
-      const d = await getAttendanceRecords(companyId, { from, to, user_id: userId ? Number(userId) : undefined });
+      const d = await getAttendanceRecords(companyId, { from, to, employee_id: empId ? Number(empId) : undefined });
       setRows(d);
     } finally { setLoading(false); }
   };
@@ -251,9 +256,9 @@ const RecordsTab: React.FC<{ companyId: number; primary: string; users: ManagedU
         <Field label="From"><input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={inputCls} /></Field>
         <Field label="To"><input type="date" value={to} onChange={(e) => setTo(e.target.value)} className={inputCls} /></Field>
         <Field label="Staff">
-          <select value={userId} onChange={(e) => setUserId(e.target.value)} className={inputCls}>
+          <select value={empId} onChange={(e) => setEmpId(e.target.value)} className={inputCls}>
             <option value="">All staff</option>
-            {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+            {employees.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
           </select>
         </Field>
         <button onClick={load} className="px-4 py-2 rounded-lg text-white text-sm font-medium" style={{ background: primary }}>Apply</button>
@@ -288,24 +293,24 @@ const RecordsTab: React.FC<{ companyId: number; primary: string; users: ManagedU
         </div>
       )}
 
-      {modal && <ManualPunchModal companyId={companyId} users={users} primary={primary}
+      {modal && <ManualPunchModal companyId={companyId} employees={employees} primary={primary}
         onClose={() => setModal(false)} onSaved={() => { setModal(false); flash('success', 'Punch added.'); load(); }} flash={flash} />}
       {toDel && <ConfirmModal title="Delete punch?" body={`${datePart(toDel.punch_time)} ${timePart(toDel.punch_time)} · ${toDel.user_name || 'unmatched'}`} onCancel={() => setToDel(null)} onConfirm={del} />}
     </div>
   );
 };
 
-const ManualPunchModal: React.FC<{ companyId: number; users: ManagedUser[]; primary: string; onClose: () => void; onSaved: () => void; flash: (t: 'success' | 'error', m: string) => void }> = ({ companyId, users, primary, onClose, onSaved, flash }) => {
-  const [userId, setUserId] = useState('');
+const ManualPunchModal: React.FC<{ companyId: number; employees: AttendanceEmployee[]; primary: string; onClose: () => void; onSaved: () => void; flash: (t: 'success' | 'error', m: string) => void }> = ({ companyId, employees, primary, onClose, onSaved, flash }) => {
+  const [empId, setEmpId] = useState('');
   const [when, setWhen] = useState(() => new Date().toISOString().slice(0, 16));
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
 
   const save = async () => {
-    if (!userId) return flash('error', 'Select a staff member.');
+    if (!empId) return flash('error', 'Select a staff member.');
     setSaving(true);
     try {
-      await addManualPunch({ company_id: companyId, user_id: Number(userId), punch_time: when, note: note || undefined });
+      await addManualPunch({ company_id: companyId, employee_id: Number(empId), punch_time: when, note: note || undefined });
       onSaved();
     } catch { flash('error', 'Failed to add punch.'); } finally { setSaving(false); }
   };
@@ -314,9 +319,9 @@ const ManualPunchModal: React.FC<{ companyId: number; users: ManagedUser[]; prim
     <Modal title="Add manual punch" onClose={onClose}>
       <div className="space-y-3">
         <Field label="Staff">
-          <select value={userId} onChange={(e) => setUserId(e.target.value)} className={inputCls}>
+          <select value={empId} onChange={(e) => setEmpId(e.target.value)} className={inputCls}>
             <option value="">Select staff…</option>
-            {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+            {employees.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
           </select>
         </Field>
         <Field label="Date & time"><input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} className={inputCls} /></Field>
@@ -394,92 +399,116 @@ const ReportTab: React.FC<{ companyId: number; primary: string }> = ({ companyId
 };
 
 // ---------------------------------------------------------------------------
-const StaffTab: React.FC<{ companyId: number; primary: string; users: ManagedUser[]; flash: (t: 'success' | 'error', m: string) => void }> = ({ companyId, primary, users, flash }) => {
-  const [enr, setEnr] = useState<AttendanceEnrollment[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState<number | null>(null); // user_id being edited
-  const [duid, setDuid] = useState('');
-  const [saving, setSaving] = useState(false);
+// Staff = the attendance roster (people who clock in/out). These are NOT login
+// accounts — add anyone by name and they get a Fingerprint ID for the reader.
+const StaffTab: React.FC<{ companyId: number; primary: string; employees: AttendanceEmployee[]; reload: () => void; flash: (t: 'success' | 'error', m: string) => void }> = ({ companyId, primary, employees, reload, flash }) => {
+  const [modal, setModal] = useState(false);
+  const [editing, setEditing] = useState<AttendanceEmployee | null>(null);
+  const [toDel, setToDel] = useState<AttendanceEmployee | null>(null);
 
-  const load = async () => {
-    setLoading(true);
-    try { setEnr(await getAttendanceEnrollments(companyId)); } finally { setLoading(false); }
-  };
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [companyId]);
+  const openAdd = () => { setEditing(null); setModal(true); };
+  const openEdit = (e: AttendanceEmployee) => { setEditing(e); setModal(true); };
 
-  const enrolledBy = useMemo(() => {
-    const m: Record<number, AttendanceEnrollment> = {};
-    enr.forEach((e) => { m[e.user_id] = e; });
-    return m;
-  }, [enr]);
-
-  const startEdit = (userId: number) => { setEditing(userId); setDuid(enrolledBy[userId]?.device_user_id || ''); };
-
-  const save = async (userId: number) => {
-    if (!duid.trim()) return flash('error', 'Enter the fingerprint / device user ID.');
-    setSaving(true);
-    try {
-      await enrollStaff({ company_id: companyId, user_id: userId, device_user_id: duid.trim() });
-      setEditing(null); flash('success', 'Staff enrolled.'); load();
-    } catch (e: any) {
-      flash('error', e?.response?.data?.error || 'Failed to enroll.');
-    } finally { setSaving(false); }
-  };
-
-  const remove = async (id: number) => {
-    try { await deleteEnrollment(id); flash('success', 'Enrollment removed.'); load(); }
+  const del = async () => {
+    if (!toDel) return;
+    try { await deleteAttendanceEmployee(toDel.id); setToDel(null); flash('success', 'Staff removed.'); reload(); }
     catch { flash('error', 'Failed to remove.'); }
   };
 
-  if (loading) return <Spinner />;
-
   return (
     <div>
-      <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-        Map each staff member to the <strong>User ID number</strong> stored on their fingerprint device. Punches from that
-        fingerprint are then attributed to them automatically.
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <p className="text-sm text-gray-500 dark:text-gray-400 max-w-2xl">
+          Add each person who should clock in/out. They get a <strong>Fingerprint ID</strong> automatically — use it when
+          enrolling their finger on the reader PC (<span className="font-mono">http://localhost:5580</span>).
+        </p>
+        <button onClick={openAdd} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-white text-sm font-medium whitespace-nowrap" style={{ background: primary }}><Plus size={15} /> Add Staff</button>
+      </div>
+
       <div className={`${card} overflow-hidden`}>
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
           <thead className="bg-gray-50 dark:bg-gray-900/40">
-            <tr><th className={th}>Staff</th><th className={th}>Role</th><th className={th}>Device User ID</th><th className={th}></th></tr>
+            <tr><th className={th}>Name</th><th className={th}>Code</th><th className={th}>Fingerprint ID</th><th className={th}>Status</th><th className={th}></th></tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60">
-            {users.map((u) => {
-              const e = enrolledBy[u.id];
-              const isEditing = editing === u.id;
-              return (
-                <tr key={u.id}>
-                  <td className={`${td} font-medium`}>{u.name}<div className="text-xs text-gray-400">{u.email}</div></td>
-                  <td className={td}><span className="text-xs capitalize px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-700">{u.role}</span></td>
-                  <td className={td}>
-                    {isEditing ? (
-                      <input autoFocus value={duid} onChange={(ev) => setDuid(ev.target.value)}
-                        placeholder="e.g. 101" className={`${inputCls} w-32`} />
-                    ) : e ? (
-                      <span className="font-mono text-sm px-2 py-1 rounded bg-gray-100 dark:bg-gray-700">{e.device_user_id}</span>
-                    ) : <span className="text-gray-400 text-sm">Not enrolled</span>}
-                  </td>
-                  <td className={td}>
-                    {isEditing ? (
-                      <div className="flex gap-2">
-                        <button onClick={() => save(u.id)} disabled={saving} className="px-3 py-1.5 rounded-lg text-xs text-white font-medium disabled:opacity-50" style={{ background: primary }}>Save</button>
-                        <button onClick={() => setEditing(null)} className="px-3 py-1.5 rounded-lg text-xs border border-gray-200 dark:border-gray-700">Cancel</button>
-                      </div>
-                    ) : (
-                      <div className="flex gap-3">
-                        <button onClick={() => startEdit(u.id)} className="text-sm hover:underline" style={{ color: primary }}>{e ? 'Edit' : 'Enroll'}</button>
-                        {e && <button onClick={() => remove(e.id)} className="text-gray-400 hover:text-red-500"><Trash2 size={15} /></button>}
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
+            {employees.length === 0 ? (
+              <tr><td className={`${td} text-center text-gray-400 py-10`} colSpan={5}>No staff yet. Click “Add Staff” to start.</td></tr>
+            ) : employees.map((e) => (
+              <tr key={e.id}>
+                <td className={`${td} font-medium`}>{e.name}</td>
+                <td className={td}>{e.code || '—'}</td>
+                <td className={td}><span className="font-mono text-sm px-2 py-1 rounded bg-gray-100 dark:bg-gray-700">{e.device_user_id}</span></td>
+                <td className={td}>
+                  <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${e.active ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'}`}>
+                    {e.active ? 'Active' : 'Inactive'}
+                  </span>
+                </td>
+                <td className={td}>
+                  <div className="flex gap-3">
+                    <button onClick={() => openEdit(e)} className="text-sm hover:underline" style={{ color: primary }}>Edit</button>
+                    <button onClick={() => setToDel(e)} className="text-gray-400 hover:text-red-500"><Trash2 size={15} /></button>
+                  </div>
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
+
+      {modal && <EmployeeModal companyId={companyId} primary={primary} editing={editing}
+        onClose={() => setModal(false)} onSaved={() => { setModal(false); reload(); }} flash={flash} />}
+      {toDel && <ConfirmModal title="Remove staff?" body={`"${toDel.name}" and their attendance links will be removed. Past punch records stay.`} onCancel={() => setToDel(null)} onConfirm={del} />}
     </div>
+  );
+};
+
+const EmployeeModal: React.FC<{ companyId: number; primary: string; editing: AttendanceEmployee | null; onClose: () => void; onSaved: () => void; flash: (t: 'success' | 'error', m: string) => void }> = ({ companyId, primary, editing, onClose, onSaved, flash }) => {
+  const [name, setName] = useState(editing?.name || '');
+  const [code, setCode] = useState(editing?.code || '');
+  const [duid, setDuid] = useState(editing?.device_user_id || '');
+  const [active, setActive] = useState(editing ? !!editing.active : true);
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    if (!name.trim()) return flash('error', 'Enter a name.');
+    setSaving(true);
+    try {
+      if (editing) {
+        await updateAttendanceEmployee(editing.id, { name: name.trim(), code: code.trim(), device_user_id: duid.trim() || undefined, active });
+        flash('success', 'Staff updated.');
+      } else {
+        await createAttendanceEmployee({ company_id: companyId, name: name.trim(), code: code.trim() || undefined, device_user_id: duid.trim() || undefined });
+        flash('success', 'Staff added.');
+      }
+      onSaved();
+    } catch (e: any) {
+      flash('error', e?.response?.data?.error || 'Failed to save.');
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <Modal title={editing ? 'Edit staff' : 'Add staff'} onClose={onClose}>
+      <div className="space-y-3">
+        <Field label="Full name"><input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. John Phiri" className={`${inputCls} w-full`} /></Field>
+        <Field label="Staff code (optional)"><input value={code} onChange={(e) => setCode(e.target.value)} placeholder="e.g. EMP-004 / department" className={`${inputCls} w-full`} /></Field>
+        <Field label="Fingerprint ID">
+          <input value={duid} onChange={(e) => setDuid(e.target.value)} placeholder={editing ? '' : 'Auto-assigned if left blank'} className={`${inputCls} w-full`} />
+        </Field>
+        <p className="text-xs text-gray-500 dark:text-gray-400">The Fingerprint ID is the number you enroll on the reader PC. Leave blank to let the system pick the next free number.</p>
+        {editing && (
+          <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} className="h-4 w-4 rounded border-gray-300" />
+            Active (uncheck to stop tracking without deleting history)
+          </label>
+        )}
+      </div>
+      <div className="flex justify-end gap-2 mt-5">
+        <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm border border-gray-200 dark:border-gray-700">Cancel</button>
+        <button onClick={save} disabled={saving} className="px-4 py-2 rounded-lg text-sm text-white font-medium disabled:opacity-50" style={{ background: primary }}>
+          {saving ? 'Saving…' : editing ? 'Save' : 'Add staff'}
+        </button>
+      </div>
+    </Modal>
   );
 };
 

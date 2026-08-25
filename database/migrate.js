@@ -651,6 +651,62 @@ async function migrate() {
     `);
   } else { console.log('  • attendance_settings already present, skipping.'); }
 
+  // 3o. Attendance EMPLOYEES (added 2026-08) — attendance is tracked for people
+  //     who are NOT system login accounts (e.g. field/office staff). This is a
+  //     standalone roster: add a person by name and they get a device_user_id
+  //     (the "Fingerprint ID") used by the reader/bridge. Managed by any admin
+  //     OR a staffer granted attendance access. Additive only.
+  if (!(await tableExists('attendance_employees'))) {
+    console.log('  • Creating `attendance_employees` table...');
+    await db.query(`
+      CREATE TABLE \`attendance_employees\` (
+        \`id\` INT PRIMARY KEY AUTO_INCREMENT,
+        \`company_id\` INT NOT NULL,
+        \`name\` VARCHAR(255) NOT NULL,
+        \`code\` VARCHAR(50) NULL,
+        \`device_user_id\` VARCHAR(64) NOT NULL,
+        \`active\` TINYINT(1) NOT NULL DEFAULT 1,
+        \`created_by\` INT NULL,
+        \`created_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (\`company_id\`) REFERENCES \`companies\`(\`id\`) ON DELETE CASCADE,
+        FOREIGN KEY (\`created_by\`) REFERENCES \`users\`(\`id\`) ON DELETE SET NULL,
+        UNIQUE KEY \`uniq_emp_device\` (\`company_id\`, \`device_user_id\`),
+        INDEX \`idx_emp_company\` (\`company_id\`)
+      ) ENGINE=InnoDB
+    `);
+  } else { console.log('  • attendance_employees already present, skipping.'); }
+
+  // Punches now reference an employee (kept nullable + user_id retained so no
+  // existing data is disturbed).
+  if (!(await columnExists('attendance_punches', 'employee_id'))) {
+    console.log('  • Adding `employee_id` to attendance_punches...');
+    await db.query('ALTER TABLE `attendance_punches` ADD COLUMN `employee_id` INT NULL AFTER `device_id`');
+    if (!(await foreignKeyExists('attendance_punches', 'employee_id'))) {
+      await db.query(
+        'ALTER TABLE `attendance_punches` ADD CONSTRAINT `fk_punch_employee` ' +
+          'FOREIGN KEY (`employee_id`) REFERENCES `attendance_employees`(`id`) ON DELETE SET NULL'
+      );
+    }
+  } else { console.log('  • attendance_punches.employee_id already present, skipping.'); }
+
+  // One-time: turn any pre-existing user-based enrollments into employees so
+  // nothing already set up on the website is lost.
+  await db.query(`
+    INSERT INTO attendance_employees (company_id, name, device_user_id, created_by)
+    SELECT e.company_id, u.name, e.device_user_id, NULL
+      FROM attendance_enrollments e JOIN users u ON e.user_id = u.id
+     WHERE NOT EXISTS (
+       SELECT 1 FROM attendance_employees ae
+        WHERE ae.company_id = e.company_id AND ae.device_user_id = e.device_user_id)
+  `);
+  await db.query(`
+    UPDATE attendance_punches p
+      JOIN attendance_employees ae
+        ON ae.company_id = p.company_id AND ae.device_user_id = p.device_user_id
+       SET p.employee_id = ae.id
+     WHERE p.employee_id IS NULL
+  `);
+
   // 4. Backfill created_by from each row's company owner so existing records
   //    are attributed to the user who originally owned the company.
   const [qBackfill] = await db.query(

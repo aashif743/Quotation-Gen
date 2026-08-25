@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { Company, Quotation, Invoice, DeliveryNote, User, AuthStatus, ManagedUser, UserRole, Client, ClientDocSummary, Payment, Vendor, Purchase, PurchaseDocSummary, Expense, PettyCashEntry, PettyCashSummary, Organization,
-  AttendanceDevice, AttendanceEnrollment, AttendancePunch, AttendanceTodayStaff, AttendanceReportRow, AttendanceSettings } from '../types';
+  AttendanceDevice, AttendanceEnrollment, AttendanceEmployee, AttendancePunch, AttendanceTodayStaff, AttendanceReportRow, AttendanceSettings } from '../types';
 
 // Use a relative base so the same build works in development (proxied by CRA
 // to the local Express server) and in production (served by the same Express
@@ -628,7 +628,7 @@ export const getAttendanceToday = async (companyId: number): Promise<{ settings:
   const r = await api.get('/attendance/today', { params: { company_id: companyId } });
   return r.data;
 };
-export const getAttendanceRecords = async (companyId: number, f: { from?: string; to?: string; user_id?: number } = {}): Promise<AttendancePunch[]> => {
+export const getAttendanceRecords = async (companyId: number, f: { from?: string; to?: string; employee_id?: number } = {}): Promise<AttendancePunch[]> => {
   const r = await api.get('/attendance', { params: { company_id: companyId, ...f } });
   return r.data;
 };
@@ -636,7 +636,7 @@ export const getAttendanceReport = async (companyId: number, from: string, to: s
   const r = await api.get('/attendance/report', { params: { company_id: companyId, from, to } });
   return r.data;
 };
-export const addManualPunch = async (data: { company_id: number; user_id: number; punch_time: string; note?: string }): Promise<void> => {
+export const addManualPunch = async (data: { company_id: number; employee_id: number; punch_time: string; note?: string }): Promise<void> => {
   await api.post('/attendance/manual', data);
 };
 export const deletePunch = async (id: number): Promise<void> => { await api.delete(`/attendance/punch/${id}`); };
@@ -659,14 +659,20 @@ export const regenerateDeviceKey = async (id: number): Promise<{ api_key: string
 };
 export const deleteAttendanceDevice = async (id: number): Promise<void> => { await api.delete(`/attendance/devices/${id}`); };
 
-export const getAttendanceEnrollments = async (companyId: number): Promise<AttendanceEnrollment[]> => {
-  const r = await api.get('/attendance/enrollments', { params: { company_id: companyId } });
+// Attendance employees (the roster of people who clock in/out).
+export const getAttendanceEmployees = async (companyId: number): Promise<AttendanceEmployee[]> => {
+  const r = await api.get('/attendance/employees', { params: { company_id: companyId } });
   return r.data;
 };
-export const enrollStaff = async (data: { company_id: number; user_id: number; device_user_id: string }): Promise<void> => {
-  await api.post('/attendance/enrollments', data);
+export const createAttendanceEmployee = async (data: { company_id: number; name: string; code?: string; device_user_id?: string }): Promise<AttendanceEmployee> => {
+  const r = await api.post('/attendance/employees', data);
+  return r.data;
 };
-export const deleteEnrollment = async (id: number): Promise<void> => { await api.delete(`/attendance/enrollments/${id}`); };
+export const updateAttendanceEmployee = async (id: number, data: { name?: string; code?: string; device_user_id?: string; active?: boolean }): Promise<AttendanceEmployee> => {
+  const r = await api.put(`/attendance/employees/${id}`, data);
+  return r.data;
+};
+export const deleteAttendanceEmployee = async (id: number): Promise<void> => { await api.delete(`/attendance/employees/${id}`); };
 
 export const getAttendanceSettings = async (companyId: number): Promise<AttendanceSettings> => {
   const r = await api.get('/attendance/settings', { params: { company_id: companyId } });

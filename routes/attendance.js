@@ -54,11 +54,11 @@ router.post('/agent/punch', agentAuth, async (req, res) => {
       ? req.body.punches
       : [{ device_user_id: req.body.device_user_id, timestamp: req.body.timestamp }];
 
-    // Map device_user_id -> our user_id for this company (one query).
-    const [enr] = await db.execute(
-      'SELECT device_user_id, user_id FROM attendance_enrollments WHERE company_id = ?', [companyId]);
+    // Map device_user_id -> attendance employee id for this company (one query).
+    const [emps] = await db.execute(
+      'SELECT device_user_id, id FROM attendance_employees WHERE company_id = ?', [companyId]);
     const map = {};
-    enr.forEach((e) => { map[String(e.device_user_id)] = e.user_id; });
+    emps.forEach((e) => { map[String(e.device_user_id)] = e.id; });
 
     let inserted = 0;
     const unmatched = new Set();
@@ -66,13 +66,13 @@ router.post('/agent/punch', agentAuth, async (req, res) => {
       const duid = p.device_user_id != null ? String(p.device_user_id) : null;
       const when = toMysqlDatetime(p.timestamp);
       if (!duid || !when) continue;
-      const userId = map[duid] || null;
-      if (!userId) unmatched.add(duid);
+      const employeeId = map[duid] || null;
+      if (!employeeId) unmatched.add(duid);
       // INSERT IGNORE dedups re-pushed logs via the unique (company, duid, time) key.
       const [r] = await db.execute(
-        `INSERT IGNORE INTO attendance_punches (company_id, device_id, user_id, device_user_id, punch_time, source)
+        `INSERT IGNORE INTO attendance_punches (company_id, device_id, employee_id, device_user_id, punch_time, source)
          VALUES (?, ?, ?, ?, ?, 'device')`,
-        [companyId, deviceId, userId, duid, when]
+        [companyId, deviceId, employeeId, duid, when]
       );
       inserted += r.affectedRows;
     }
@@ -83,16 +83,18 @@ router.post('/agent/punch', agentAuth, async (req, res) => {
   }
 });
 
-// GET /api/attendance/agent/enrollments — the agent can fetch the id↔staff map.
+// GET /api/attendance/agent/enrollments — the bridge fetches the roster
+// (device_user_id ↔ name) so it can list people and enroll fingerprints.
 router.get('/agent/enrollments', agentAuth, async (req, res) => {
   try {
     const [rows] = await db.execute(
-      `SELECT e.device_user_id, e.user_id, u.name
-         FROM attendance_enrollments e JOIN users u ON e.user_id = u.id
-        WHERE e.company_id = ?`, [req.device.company_id]);
+      `SELECT device_user_id, id AS employee_id, name
+         FROM attendance_employees
+        WHERE company_id = ? AND active = 1
+        ORDER BY name`, [req.device.company_id]);
     res.json(rows);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch enrollments' });
+    res.status(500).json({ error: 'Failed to fetch roster' });
   }
 });
 
@@ -168,44 +170,75 @@ router.delete('/devices/:id', admin, async (req, res) => {
   } catch (e) { res.status(500).json({ error: 'Failed to delete device' }); }
 });
 
-// ---- Enrollments (map a device user id to a staff member) ----
-router.get('/enrollments', admin, async (req, res) => {
+// ---- Employees (the attendance roster — people who clock in/out) ----
+// These are NOT system login accounts. Anyone with attendance access can add
+// them by name; each gets a device_user_id ("Fingerprint ID") for the reader.
+router.get('/employees', admin, async (req, res) => {
   try {
     const [rows] = await db.execute(
-      `SELECT e.id, e.user_id, e.device_user_id, e.created_at, u.name, u.email, u.role
-         FROM attendance_enrollments e JOIN users u ON e.user_id = u.id
-        WHERE e.company_id = ? ORDER BY u.name`, [req.query.company_id]);
+      `SELECT id, name, code, device_user_id, active, created_at
+         FROM attendance_employees WHERE company_id = ? ORDER BY name`, [req.query.company_id]);
     res.json(rows);
-  } catch (e) { res.status(500).json({ error: 'Failed to fetch enrollments' }); }
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Failed to fetch staff' }); }
 });
 
-router.post('/enrollments', admin, async (req, res) => {
+// Next free device_user_id for a company (small, human-friendly, starts at 1).
+async function nextDeviceUserId(companyId) {
+  const [rows] = await db.execute(
+    'SELECT device_user_id FROM attendance_employees WHERE company_id = ?', [companyId]);
+  let max = 0;
+  rows.forEach((r) => { const n = parseInt(r.device_user_id, 10); if (!Number.isNaN(n) && n > max) max = n; });
+  return String(max + 1);
+}
+
+router.post('/employees', admin, async (req, res) => {
   try {
-    const { company_id, user_id, device_user_id } = req.body;
-    if (!user_id || !device_user_id?.toString().trim())
-      return res.status(400).json({ error: 'Staff and device user id are required' });
-    // The user must be in the caller's org.
-    const [u] = await db.execute('SELECT id FROM users WHERE id = ? AND organization_id = ?', [user_id, req.user.organization_id]);
-    if (u.length === 0) return res.status(400).json({ error: 'Staff not in your organization' });
-    // Upsert: one enrollment per (company, staff); device id unique per company.
-    await db.execute('DELETE FROM attendance_enrollments WHERE company_id = ? AND user_id = ?', [company_id, user_id]);
-    await db.execute(
-      'INSERT INTO attendance_enrollments (company_id, user_id, device_user_id) VALUES (?, ?, ?)',
-      [company_id, user_id, String(device_user_id).trim()]);
-    res.status(201).json({ message: 'Enrolled.' });
+    const { company_id, name, code } = req.body;
+    let { device_user_id } = req.body;
+    if (!name?.trim()) return res.status(400).json({ error: 'Name is required' });
+    device_user_id = device_user_id != null && String(device_user_id).trim() !== ''
+      ? String(device_user_id).trim()
+      : await nextDeviceUserId(company_id);
+    const [r] = await db.execute(
+      `INSERT INTO attendance_employees (company_id, name, code, device_user_id, created_by)
+       VALUES (?, ?, ?, ?, ?)`,
+      [company_id, name.trim(), code?.trim() || null, device_user_id, req.user.id]);
+    const [row] = await db.execute('SELECT id, name, code, device_user_id, active, created_at FROM attendance_employees WHERE id = ?', [r.insertId]);
+    res.status(201).json(row[0]);
   } catch (e) {
-    if (e.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'That device user id is already assigned to someone else.' });
-    console.error(e); res.status(500).json({ error: 'Failed to enroll' });
+    if (e.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'That Fingerprint ID is already used by someone else in this company.' });
+    console.error(e); res.status(500).json({ error: 'Failed to add staff' });
   }
 });
 
-router.delete('/enrollments/:id', admin, async (req, res) => {
+router.put('/employees/:id', admin, async (req, res) => {
   try {
-    if (!(await inOrg('attendance_enrollments', req.params.id, req.user.organization_id)))
-      return res.status(404).json({ error: 'Enrollment not found' });
-    await db.execute('DELETE FROM attendance_enrollments WHERE id = ?', [req.params.id]);
+    if (!(await inOrg('attendance_employees', req.params.id, req.user.organization_id)))
+      return res.status(404).json({ error: 'Staff not found' });
+    const { name, code, device_user_id, active } = req.body;
+    const fields = [], vals = [];
+    if (name != null) { fields.push('name = ?'); vals.push(String(name).trim()); }
+    if (code !== undefined) { fields.push('code = ?'); vals.push(code?.trim() || null); }
+    if (device_user_id != null && String(device_user_id).trim() !== '') { fields.push('device_user_id = ?'); vals.push(String(device_user_id).trim()); }
+    if (active != null) { fields.push('active = ?'); vals.push(active ? 1 : 0); }
+    if (!fields.length) return res.status(400).json({ error: 'No changes' });
+    vals.push(req.params.id);
+    await db.execute(`UPDATE attendance_employees SET ${fields.join(', ')} WHERE id = ?`, vals);
+    const [row] = await db.execute('SELECT id, name, code, device_user_id, active, created_at FROM attendance_employees WHERE id = ?', [req.params.id]);
+    res.json(row[0]);
+  } catch (e) {
+    if (e.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'That Fingerprint ID is already used by someone else in this company.' });
+    console.error(e); res.status(500).json({ error: 'Failed to update staff' });
+  }
+});
+
+router.delete('/employees/:id', admin, async (req, res) => {
+  try {
+    if (!(await inOrg('attendance_employees', req.params.id, req.user.organization_id)))
+      return res.status(404).json({ error: 'Staff not found' });
+    await db.execute('DELETE FROM attendance_employees WHERE id = ?', [req.params.id]);
     res.json({ message: 'Removed.' });
-  } catch (e) { res.status(500).json({ error: 'Failed to remove enrollment' }); }
+  } catch (e) { res.status(500).json({ error: 'Failed to remove staff' }); }
 });
 
 // ---- Settings ----
@@ -236,16 +269,16 @@ router.put('/settings', admin, async (req, res) => {
 // ---- Punches list / manual / delete ----
 router.get('/', admin, async (req, res) => {
   try {
-    const { company_id, from, to, user_id } = req.query;
+    const { company_id, from, to, employee_id } = req.query;
     const cond = ['p.company_id = ?']; const args = [company_id];
-    if (from)   { cond.push('p.punch_time >= ?'); args.push(from + ' 00:00:00'); }
-    if (to)     { cond.push('p.punch_time <= ?'); args.push(to + ' 23:59:59'); }
-    if (user_id){ cond.push('p.user_id = ?'); args.push(user_id); }
+    if (from)       { cond.push('p.punch_time >= ?'); args.push(from + ' 00:00:00'); }
+    if (to)         { cond.push('p.punch_time <= ?'); args.push(to + ' 23:59:59'); }
+    if (employee_id){ cond.push('p.employee_id = ?'); args.push(employee_id); }
     const [rows] = await db.execute(
-      `SELECT p.id, p.user_id, p.device_user_id,
+      `SELECT p.id, p.employee_id, p.device_user_id,
               DATE_FORMAT(p.punch_time, '%Y-%m-%d %H:%i:%s') AS punch_time, p.source, p.note,
-              u.name AS user_name
-         FROM attendance_punches p LEFT JOIN users u ON p.user_id = u.id
+              e.name AS user_name
+         FROM attendance_punches p LEFT JOIN attendance_employees e ON p.employee_id = e.id
         WHERE ${cond.join(' AND ')}
         ORDER BY p.punch_time DESC LIMIT 1000`, args);
     res.json(rows);
@@ -254,14 +287,18 @@ router.get('/', admin, async (req, res) => {
 
 router.post('/manual', admin, async (req, res) => {
   try {
-    const { company_id, user_id, punch_time, note } = req.body;
-    if (!user_id || !punch_time) return res.status(400).json({ error: 'Staff and time are required' });
+    const { company_id, employee_id, punch_time, note } = req.body;
+    if (!employee_id || !punch_time) return res.status(400).json({ error: 'Staff and time are required' });
+    if (!(await inOrg('attendance_employees', employee_id, req.user.organization_id)))
+      return res.status(400).json({ error: 'Staff not in your organization' });
     const when = toMysqlDatetime(punch_time);
     if (!when) return res.status(400).json({ error: 'Invalid time' });
+    // Carry the employee's device_user_id so the dedup key stays consistent.
+    const [emp] = await db.execute('SELECT device_user_id FROM attendance_employees WHERE id = ?', [employee_id]);
     await db.execute(
-      `INSERT INTO attendance_punches (company_id, user_id, punch_time, source, note, created_by)
-       VALUES (?, ?, ?, 'manual', ?, ?)`,
-      [company_id, user_id, when, note || null, req.user.id]);
+      `INSERT INTO attendance_punches (company_id, employee_id, device_user_id, punch_time, source, note, created_by)
+       VALUES (?, ?, ?, ?, 'manual', ?, ?)`,
+      [company_id, employee_id, emp[0]?.device_user_id || null, when, note || null, req.user.id]);
     res.status(201).json({ message: 'Punch added.' });
   } catch (e) { console.error(e); res.status(500).json({ error: 'Failed to add punch' }); }
 });
@@ -280,27 +317,27 @@ router.get('/today', admin, async (req, res) => {
   try {
     const companyId = req.query.company_id;
     const settings = await getSettings(companyId);
-    const [enr] = await db.execute(
-      `SELECT e.user_id, u.name FROM attendance_enrollments e JOIN users u ON e.user_id = u.id WHERE e.company_id = ? ORDER BY u.name`,
+    const [emps] = await db.execute(
+      `SELECT id, name FROM attendance_employees WHERE company_id = ? AND active = 1 ORDER BY name`,
       [companyId]);
     const [punches] = await db.execute(
-      `SELECT user_id,
+      `SELECT employee_id,
               DATE_FORMAT(MIN(punch_time), '%Y-%m-%d %H:%i:%s') first_in,
               DATE_FORMAT(MAX(punch_time), '%Y-%m-%d %H:%i:%s') last_out, COUNT(*) cnt
-         FROM attendance_punches WHERE company_id = ? AND user_id IS NOT NULL AND DATE(punch_time) = CURDATE()
-        GROUP BY user_id`, [companyId]);
-    const byUser = {}; punches.forEach((p) => { byUser[p.user_id] = p; });
+         FROM attendance_punches WHERE company_id = ? AND employee_id IS NOT NULL AND DATE(punch_time) = CURDATE()
+        GROUP BY employee_id`, [companyId]);
+    const byEmp = {}; punches.forEach((p) => { byEmp[p.employee_id] = p; });
 
     const [gh, gm] = String(settings.work_start).split(':').map(Number);
     const lateThreshold = gh * 60 + gm + (settings.late_grace_minutes || 0);
-    const rows = enr.map((e) => {
-      const p = byUser[e.user_id];
-      if (!p) return { user_id: e.user_id, name: e.name, status: 'absent', first_in: null, last_out: null };
+    const rows = emps.map((e) => {
+      const p = byEmp[e.id];
+      if (!p) return { user_id: e.id, name: e.name, status: 'absent', first_in: null, last_out: null };
       const inD = new Date(p.first_in);
       const inMin = inD.getHours() * 60 + inD.getMinutes();
       const late = inMin > lateThreshold;
       const outVal = p.cnt > 1 ? p.last_out : null;
-      return { user_id: e.user_id, name: e.name, status: late ? 'late' : 'present', first_in: p.first_in, last_out: outVal };
+      return { user_id: e.id, name: e.name, status: late ? 'late' : 'present', first_in: p.first_in, last_out: outVal };
     });
     res.json({ settings, staff: rows });
   } catch (e) { console.error(e); res.status(500).json({ error: 'Failed to load today' }); }
@@ -313,13 +350,13 @@ router.get('/report', admin, async (req, res) => {
     if (!from || !to) return res.status(400).json({ error: 'from and to are required (YYYY-MM-DD)' });
     const settings = await getSettings(company_id);
     const [rows] = await db.execute(
-      `SELECT p.user_id, u.name, DATE_FORMAT(p.punch_time, '%Y-%m-%d') d,
+      `SELECT p.employee_id, e.name, DATE_FORMAT(p.punch_time, '%Y-%m-%d') d,
               DATE_FORMAT(MIN(p.punch_time), '%Y-%m-%d %H:%i:%s') first_in,
               DATE_FORMAT(MAX(p.punch_time), '%Y-%m-%d %H:%i:%s') last_out, COUNT(*) cnt
-         FROM attendance_punches p JOIN users u ON p.user_id = u.id
-        WHERE p.company_id = ? AND p.user_id IS NOT NULL AND DATE(p.punch_time) BETWEEN ? AND ?
-        GROUP BY p.user_id, d
-        ORDER BY u.name, d`, [company_id, from, to]);
+         FROM attendance_punches p JOIN attendance_employees e ON p.employee_id = e.id
+        WHERE p.company_id = ? AND p.employee_id IS NOT NULL AND DATE(p.punch_time) BETWEEN ? AND ?
+        GROUP BY p.employee_id, d
+        ORDER BY e.name, d`, [company_id, from, to]);
     const [gh, gm] = String(settings.work_start).split(':').map(Number);
     const lateThreshold = gh * 60 + gm + (settings.late_grace_minutes || 0);
     const report = rows.map((r) => {
@@ -327,7 +364,7 @@ router.get('/report', admin, async (req, res) => {
       const late = (inD.getHours() * 60 + inD.getMinutes()) > lateThreshold;
       const hours = r.cnt > 1 ? Math.round(((new Date(r.last_out) - inD) / 3600000) * 100) / 100 : 0;
       return {
-        user_id: r.user_id, name: r.name, date: r.d,
+        user_id: r.employee_id, name: r.name, date: r.d,
         first_in: r.first_in, last_out: r.cnt > 1 ? r.last_out : null,
         hours, late,
       };

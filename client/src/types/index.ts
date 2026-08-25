@@ -73,6 +73,15 @@ export interface AttendanceEnrollment {
   role?: string;
   created_at?: string;
 }
+// An attendance employee — someone who clocks in/out. NOT a login account.
+export interface AttendanceEmployee {
+  id: number;
+  name: string;
+  code?: string | null;
+  device_user_id: string;
+  active: number | boolean;
+  created_at?: string;
+}
 export interface AttendancePunch {
   id: number;
   user_id: number | null;
