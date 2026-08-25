@@ -53,35 +53,32 @@ python zkbridge.py test
 ```
 Expect `OK: sensor detected.` and `OK: API reachable.`
 
-### 4. Enroll each staff member
+### 4. Start the bridge (recommended way — no more terminal after this)
+Double-click **`start-bridge.bat`** (or run `python zkbridge.py serve`). It does
+two jobs at once: it **captures attendance** AND serves a simple **enrollment
+web page**. Leave the window open.
+
+### 5. Enroll each staff member — from a web page, not the terminal
 1. On the website, **Attendance → Staff**, give each staff member a **Device
-   User ID** number (e.g. Aashif = 101, Nisha = 102). Remember them.
-2. For each person, run enroll with that same number and have them press their
-   finger 3 times when prompted:
-   ```bat
-   python zkbridge.py enroll --id 101
-   ```
-   Repeat for every staff member (`--id 102`, `103`, …).
+   User ID** number (e.g. Aashif = 101, Nisha = 102).
+2. On THIS PC, open a browser at **http://localhost:5580**. You'll see the staff
+   list. Click **Enroll** next to a name and have them press their finger **3
+   times** when the page says so. Repeat for each person.
 
-   > The `--id` here **must equal** the Device User ID you set on the website —
-   > that's what links a fingerprint to a person.
+That's it — punches now appear under **Attendance → Today / Records** within a
+second or two. First scan of the day = check-in, last scan = check-out.
 
-Handy: `python zkbridge.py list` (show enrolled IDs) ·
-`python zkbridge.py delete --id 101` (remove one).
+> Prefer the command line? You can still use
+> `python zkbridge.py enroll --id 101`, `list`, and `delete --id 101`.
 
-### 5. Run it (daily)
-```bat
-python zkbridge.py run
-```
-Leave this window open. When staff press their finger, a punch appears under
-**Attendance → Today / Records** within a second or two. First scan of the day
-is their check-in, last scan is their check-out.
+### 6. Start automatically with Windows (so nobody touches the terminal)
+Put a shortcut to **`start-bridge.bat`** in the Startup folder:
+1. Press **Win + R**, type `shell:startup`, Enter.
+2. Copy `start-bridge.bat` there (right-click → **Create shortcut**, move the
+   shortcut into that folder).
 
-### 6. Start automatically (optional)
-- Create a shortcut to `python C:\path\to\zkbridge.py run` in
-  `shell:startup`, **or**
-- Use [NSSM](https://nssm.cc/) to run it as a Windows service so it restarts
-  with the PC.
+Now the bridge launches whenever the PC boots. Staff just scan; you only open
+**http://localhost:5580** when you need to enroll someone new.
 
 ---
 
