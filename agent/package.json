@@ -1,0 +1,14 @@
+{
+  "name": "attendance-agent",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local PC agent that reads punches from a ZKTeco fingerprint reader and forwards them to the Quotation/Attendance system.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test-connection": "node index.js --test"
+  },
+  "dependencies": {
+    "node-zklib": "^1.2.0"
+  }
+}

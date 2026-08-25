@@ -1,0 +1,14 @@
+{
+  "apiBaseUrl": "https://ghostwhite-grasshopper-438775.hostingersite.com",
+  "apiKey": "PASTE_THE_DEVICE_API_KEY_FROM_THE_ATTENDANCE_DEVICES_TAB",
+
+  "device": {
+    "ip": "192.168.1.201",
+    "port": 4370,
+    "timeout": 10000,
+    "inport": 5200
+  },
+
+  "pollSeconds": 30,
+  "clearDeviceLogAfterSync": false
+}

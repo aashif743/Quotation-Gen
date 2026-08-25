@@ -564,6 +564,81 @@ async function migrate() {
     await db.query("ALTER TABLE `companies` ADD COLUMN `currency` VARCHAR(3) NOT NULL DEFAULT 'MWK'");
   }
 
+  // 3n. Staff attendance (added 2026-08) — fingerprint/biometric attendance.
+  //     A local "agent" on the office PC (talking to the ZKTeco reader) pushes
+  //     punches to our API using a device api_key. Enrollments map a device's
+  //     internal user id to one of our staff; in/out is derived per day
+  //     (first punch = check-in, last = check-out). Additive only.
+  if (!(await tableExists('attendance_devices'))) {
+    console.log('  • Creating `attendance_devices` table...');
+    await db.query(`
+      CREATE TABLE \`attendance_devices\` (
+        \`id\` INT PRIMARY KEY AUTO_INCREMENT,
+        \`company_id\` INT NOT NULL,
+        \`name\` VARCHAR(255) NOT NULL,
+        \`api_key\` VARCHAR(80) NOT NULL UNIQUE,
+        \`active\` TINYINT(1) NOT NULL DEFAULT 1,
+        \`last_seen_at\` TIMESTAMP NULL,
+        \`created_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (\`company_id\`) REFERENCES \`companies\`(\`id\`) ON DELETE CASCADE
+      ) ENGINE=InnoDB
+    `);
+  } else { console.log('  • attendance_devices already present, skipping.'); }
+
+  if (!(await tableExists('attendance_enrollments'))) {
+    console.log('  • Creating `attendance_enrollments` table...');
+    await db.query(`
+      CREATE TABLE \`attendance_enrollments\` (
+        \`id\` INT PRIMARY KEY AUTO_INCREMENT,
+        \`company_id\` INT NOT NULL,
+        \`user_id\` INT NOT NULL,
+        \`device_user_id\` VARCHAR(64) NOT NULL,
+        \`created_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (\`company_id\`) REFERENCES \`companies\`(\`id\`) ON DELETE CASCADE,
+        FOREIGN KEY (\`user_id\`) REFERENCES \`users\`(\`id\`) ON DELETE CASCADE,
+        UNIQUE KEY \`uniq_enroll_device_user\` (\`company_id\`, \`device_user_id\`)
+      ) ENGINE=InnoDB
+    `);
+  } else { console.log('  • attendance_enrollments already present, skipping.'); }
+
+  if (!(await tableExists('attendance_punches'))) {
+    console.log('  • Creating `attendance_punches` table...');
+    await db.query(`
+      CREATE TABLE \`attendance_punches\` (
+        \`id\` INT PRIMARY KEY AUTO_INCREMENT,
+        \`company_id\` INT NOT NULL,
+        \`device_id\` INT,
+        \`user_id\` INT,
+        \`device_user_id\` VARCHAR(64),
+        \`punch_time\` DATETIME NOT NULL,
+        \`source\` ENUM('device','manual') NOT NULL DEFAULT 'device',
+        \`note\` VARCHAR(255),
+        \`created_by\` INT,
+        \`created_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (\`company_id\`) REFERENCES \`companies\`(\`id\`) ON DELETE CASCADE,
+        FOREIGN KEY (\`device_id\`) REFERENCES \`attendance_devices\`(\`id\`) ON DELETE SET NULL,
+        FOREIGN KEY (\`user_id\`) REFERENCES \`users\`(\`id\`) ON DELETE SET NULL,
+        FOREIGN KEY (\`created_by\`) REFERENCES \`users\`(\`id\`) ON DELETE SET NULL,
+        UNIQUE KEY \`uniq_punch\` (\`company_id\`, \`device_user_id\`, \`punch_time\`),
+        INDEX \`idx_punch_time\` (\`company_id\`, \`punch_time\`)
+      ) ENGINE=InnoDB
+    `);
+  } else { console.log('  • attendance_punches already present, skipping.'); }
+
+  if (!(await tableExists('attendance_settings'))) {
+    console.log('  • Creating `attendance_settings` table...');
+    await db.query(`
+      CREATE TABLE \`attendance_settings\` (
+        \`company_id\` INT PRIMARY KEY,
+        \`work_start\` TIME NOT NULL DEFAULT '08:00:00',
+        \`work_end\` TIME NOT NULL DEFAULT '17:00:00',
+        \`late_grace_minutes\` INT NOT NULL DEFAULT 10,
+        \`updated_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (\`company_id\`) REFERENCES \`companies\`(\`id\`) ON DELETE CASCADE
+      ) ENGINE=InnoDB
+    `);
+  } else { console.log('  • attendance_settings already present, skipping.'); }
+
   // 4. Backfill created_by from each row's company owner so existing records
   //    are attributed to the user who originally owned the company.
   const [qBackfill] = await db.query(

@@ -1,5 +1,5 @@
 SET FOREIGN_KEY_CHECKS = 0;
-DROP TABLE IF EXISTS `users`, `companies`, `quotations`, `quotation_items`, `invoices`, `invoice_items`, `delivery_notes`, `delivery_note_items`, `clients`, `payments`, `petty_cash`, `expenses`, `vendor_payments`, `purchase_items`, `purchases`, `vendors`, `organizations`;
+DROP TABLE IF EXISTS `users`, `companies`, `quotations`, `quotation_items`, `invoices`, `invoice_items`, `delivery_notes`, `delivery_note_items`, `clients`, `payments`, `petty_cash`, `expenses`, `vendor_payments`, `purchase_items`, `purchases`, `vendors`, `attendance_punches`, `attendance_enrollments`, `attendance_settings`, `attendance_devices`, `organizations`;
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- Organizations are tenants (separate customers). Each has its own users and
@@ -263,6 +263,59 @@ CREATE TABLE IF NOT EXISTS `purchase_items` (
     `sort_order` INT DEFAULT 0,
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (`purchase_id`) REFERENCES `purchases`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- Staff attendance (fingerprint/biometric). A local agent on the office PC
+-- pushes punches via a device api_key; enrollments map a device user id to a
+-- staff member; in/out is derived per day (first in, last out).
+CREATE TABLE IF NOT EXISTS `attendance_devices` (
+    `id` INT PRIMARY KEY AUTO_INCREMENT,
+    `company_id` INT NOT NULL,
+    `name` VARCHAR(255) NOT NULL,
+    `api_key` VARCHAR(80) NOT NULL UNIQUE,
+    `active` TINYINT(1) NOT NULL DEFAULT 1,
+    `last_seen_at` TIMESTAMP NULL,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (`company_id`) REFERENCES `companies`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS `attendance_enrollments` (
+    `id` INT PRIMARY KEY AUTO_INCREMENT,
+    `company_id` INT NOT NULL,
+    `user_id` INT NOT NULL,
+    `device_user_id` VARCHAR(64) NOT NULL,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (`company_id`) REFERENCES `companies`(`id`) ON DELETE CASCADE,
+    FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
+    UNIQUE KEY `uniq_enroll_device_user` (`company_id`, `device_user_id`)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS `attendance_punches` (
+    `id` INT PRIMARY KEY AUTO_INCREMENT,
+    `company_id` INT NOT NULL,
+    `device_id` INT,
+    `user_id` INT,
+    `device_user_id` VARCHAR(64),
+    `punch_time` DATETIME NOT NULL,
+    `source` ENUM('device','manual') NOT NULL DEFAULT 'device',
+    `note` VARCHAR(255),
+    `created_by` INT,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (`company_id`) REFERENCES `companies`(`id`) ON DELETE CASCADE,
+    FOREIGN KEY (`device_id`) REFERENCES `attendance_devices`(`id`) ON DELETE SET NULL,
+    FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE SET NULL,
+    FOREIGN KEY (`created_by`) REFERENCES `users`(`id`) ON DELETE SET NULL,
+    UNIQUE KEY `uniq_punch` (`company_id`, `device_user_id`, `punch_time`),
+    INDEX `idx_punch_time` (`company_id`, `punch_time`)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS `attendance_settings` (
+    `company_id` INT PRIMARY KEY,
+    `work_start` TIME NOT NULL DEFAULT '08:00:00',
+    `work_end` TIME NOT NULL DEFAULT '17:00:00',
+    `late_grace_minutes` INT NOT NULL DEFAULT 10,
+    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (`company_id`) REFERENCES `companies`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 -- Payments made OUT to vendors against a purchase — the mirror of `payments`.

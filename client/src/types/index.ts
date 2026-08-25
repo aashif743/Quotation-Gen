@@ -51,6 +51,57 @@ export interface User {
   acting_organization?: { id: number; name: string } | null;
 }
 
+// ---------------------------------------------------------------------------
+// Staff attendance (fingerprint / biometric)
+// ---------------------------------------------------------------------------
+export interface AttendanceDevice {
+  id: number;
+  name: string;
+  api_key: string;
+  active: number | boolean;
+  last_seen_at?: string | null;
+  created_at?: string;
+}
+export interface AttendanceEnrollment {
+  id: number;
+  user_id: number;
+  device_user_id: string;
+  name: string;
+  email?: string;
+  role?: string;
+  created_at?: string;
+}
+export interface AttendancePunch {
+  id: number;
+  user_id: number | null;
+  user_name: string | null;
+  device_user_id: string | null;
+  punch_time: string;
+  source: 'device' | 'manual';
+  note?: string | null;
+}
+export interface AttendanceTodayStaff {
+  user_id: number;
+  name: string;
+  status: 'present' | 'late' | 'absent';
+  first_in: string | null;
+  last_out: string | null;
+}
+export interface AttendanceReportRow {
+  user_id: number;
+  name: string;
+  date: string;
+  first_in: string | null;
+  last_out: string | null;
+  hours: number;
+  late: boolean;
+}
+export interface AttendanceSettings {
+  work_start: string;
+  work_end: string;
+  late_grace_minutes: number;
+}
+
 // A tenant. Managed by the platform owner (super-admin).
 export interface Organization {
   id: number;

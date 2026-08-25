@@ -27,6 +27,7 @@ import PurchaseView from './pages/PurchaseView';
 import PurchaseHistory from './pages/PurchaseHistory';
 import Expenses from './pages/Expenses';
 import PettyCash from './pages/PettyCash';
+import Attendance from './pages/Attendance';
 import Organizations from './pages/Organizations';
 import UserManagement from './pages/UserManagement';
 import Login from './pages/Login';
@@ -149,6 +150,14 @@ function AppRoutes() {
                       <SuperAdminRoute>
                         <Organizations />
                       </SuperAdminRoute>
+                    }
+                  />
+                  <Route
+                    path="/attendance"
+                    element={
+                      <AdminRoute>
+                        <Attendance />
+                      </AdminRoute>
                     }
                   />
                   <Route
