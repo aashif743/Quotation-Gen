@@ -14,7 +14,7 @@ const VALID_ROLES = ['staff', 'admin'];
 router.get('/', async (req, res) => {
   try {
     const [users] = await db.execute(`
-      SELECT u.id, u.name, u.email, u.role, u.created_at,
+      SELECT u.id, u.name, u.email, u.role, u.can_manage_attendance, u.created_at,
              (SELECT COUNT(*) FROM quotations q WHERE q.created_by = u.id) AS quotation_count,
              (SELECT COUNT(*) FROM invoices i WHERE i.created_by = u.id) AS invoice_count
       FROM users u
@@ -31,7 +31,7 @@ router.get('/', async (req, res) => {
 // POST /api/users - create a new staff or admin account
 router.post('/', async (req, res) => {
   try {
-    const { name, email, password, role } = req.body;
+    const { name, email, password, role, can_manage_attendance } = req.body;
 
     if (!name || !email || !password) {
       return res.status(400).json({ message: 'Name, email, and password are required.' });
@@ -49,12 +49,12 @@ router.post('/', async (req, res) => {
     const hashed = await bcrypt.hash(password, await bcrypt.genSalt(10));
     // New accounts join the creating admin's organization.
     const [result] = await db.execute(
-      'INSERT INTO users (organization_id, name, email, password, role) VALUES (?, ?, ?, ?, ?)',
-      [req.user.organization_id, name, email, hashed, userRole]
+      'INSERT INTO users (organization_id, name, email, password, role, can_manage_attendance) VALUES (?, ?, ?, ?, ?, ?)',
+      [req.user.organization_id, name, email, hashed, userRole, can_manage_attendance ? 1 : 0]
     );
 
     const [newUser] = await db.execute(
-      'SELECT id, name, email, role, created_at FROM users WHERE id = ?',
+      'SELECT id, name, email, role, can_manage_attendance, created_at FROM users WHERE id = ?',
       [result.insertId]
     );
     res.status(201).json(newUser[0]);
@@ -68,7 +68,7 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const userId = parseInt(req.params.id, 10);
-    const { name, email, role, password } = req.body;
+    const { name, email, role, password, can_manage_attendance } = req.body;
 
     const [rows] = await db.execute(
       'SELECT id, role FROM users WHERE id = ? AND organization_id = ?',
@@ -102,6 +102,10 @@ router.put('/:id', async (req, res) => {
     if (name) { fields.push('name = ?'); values.push(name); }
     if (email) { fields.push('email = ?'); values.push(email); }
     if (role && VALID_ROLES.includes(role)) { fields.push('role = ?'); values.push(role); }
+    if (can_manage_attendance !== undefined) {
+      fields.push('can_manage_attendance = ?');
+      values.push(can_manage_attendance ? 1 : 0);
+    }
     if (password) {
       if (password.length < 6) {
         return res.status(400).json({ message: 'Password must be at least 6 characters long.' });
@@ -119,7 +123,7 @@ router.put('/:id', async (req, res) => {
     await db.execute(`UPDATE users SET ${fields.join(', ')} WHERE id = ?`, values);
 
     const [updated] = await db.execute(
-      'SELECT id, name, email, role, created_at FROM users WHERE id = ?',
+      'SELECT id, name, email, role, can_manage_attendance, created_at FROM users WHERE id = ?',
       [userId]
     );
     res.json(updated[0]);

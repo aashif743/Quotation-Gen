@@ -546,6 +546,16 @@ const DevicesTab: React.FC<{ companyId: number; primary: string; flash: (t: 'suc
           <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="e.g. Front Desk Reader" className={`${inputCls} flex-1`} />
           <button onClick={create} disabled={creating} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-white text-sm font-medium disabled:opacity-50" style={{ background: primary }}><Plus size={15} /> Register</button>
         </div>
+        <div className="mt-3 flex items-start gap-2 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 px-3 py-2.5 text-sm text-indigo-800 dark:text-indigo-200">
+          <Fingerprint size={16} className="mt-0.5 flex-shrink-0" />
+          <span>
+            <strong>Enrolling fingerprints (USB reader):</strong> on the office PC where the reader is plugged in,
+            start the bridge and open{' '}
+            <a href="http://localhost:5580" target="_blank" rel="noreferrer" className="font-mono underline">http://localhost:5580</a>{' '}
+            to enroll staff with a click. First assign each person a <strong>Device User ID</strong> in the{' '}
+            <strong>Staff</strong> tab. See <span className="font-mono">agent/zk6500/README.md</span> for setup.
+          </span>
+        </div>
       </div>
 
       {/* Device list */}

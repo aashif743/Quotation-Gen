@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS `users` (
     `password` VARCHAR(255),
     `google_id` VARCHAR(255) UNIQUE,
     `role` ENUM('staff', 'admin') NOT NULL DEFAULT 'staff',
+    `can_manage_attendance` TINYINT(1) NOT NULL DEFAULT 0,
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (`organization_id`) REFERENCES `organizations`(`id`) ON DELETE SET NULL

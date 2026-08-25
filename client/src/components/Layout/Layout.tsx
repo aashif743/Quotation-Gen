@@ -74,7 +74,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { selectedCompany, companies, loading: companiesLoading, createCompany } = useCompany();
-  const { user, logout, isAdmin, isSuperAdmin, actingOrganization } = useAuth();
+  const { user, logout, isAdmin, isSuperAdmin, canManageAttendance, actingOrganization } = useAuth();
   const { theme, toggle: toggleTheme } = useTheme();
   const isDark = theme === 'dark';
 
@@ -205,6 +205,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       { to: '/expenses', icon: Wallet, label: 'Expenses' },
       { to: '/petty-cash', icon: Banknote, label: 'Petty Cash' },
     ]},
+    // Attendance is visible to admins AND to any staff granted attendance access.
+    ...(canManageAttendance && !isAdmin ? [{ label: 'Attendance', items: [
+      { to: '/attendance', icon: Fingerprint, label: 'Attendance' },
+    ]}] : []),
     ...(isAdmin ? [{ label: 'Admin', items: [
       { to: '/attendance', icon: Fingerprint, label: 'Attendance' },
       { to: '/users', icon: Users, label: 'User Management' },

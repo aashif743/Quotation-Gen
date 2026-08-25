@@ -14,6 +14,7 @@ import {
   FileText,
   Receipt,
   Mail,
+  Fingerprint,
 } from 'lucide-react';
 
 interface FormState {
@@ -21,9 +22,10 @@ interface FormState {
   email: string;
   password: string;
   role: UserRole;
+  canManageAttendance: boolean;
 }
 
-const emptyForm: FormState = { name: '', email: '', password: '', role: 'staff' };
+const emptyForm: FormState = { name: '', email: '', password: '', role: 'staff', canManageAttendance: false };
 
 const UserManagement: React.FC = () => {
   const { user: currentUser } = useAuth();
@@ -64,7 +66,7 @@ const UserManagement: React.FC = () => {
 
   const openEdit = (u: ManagedUser) => {
     setEditingUser(u);
-    setForm({ name: u.name, email: u.email, password: '', role: u.role });
+    setForm({ name: u.name, email: u.email, password: '', role: u.role, canManageAttendance: !!u.can_manage_attendance });
     setFormError('');
     setModalOpen(true);
   };
@@ -87,11 +89,14 @@ const UserManagement: React.FC = () => {
 
     setSaving(true);
     try {
+      // Only staff carry the attendance flag; admins already have full access.
+      const attendanceFlag = form.role === 'admin' ? false : form.canManageAttendance;
       if (editingUser) {
-        const payload: { name: string; email: string; role: UserRole; password?: string } = {
+        const payload: { name: string; email: string; role: UserRole; password?: string; can_manage_attendance: boolean } = {
           name: form.name,
           email: form.email,
           role: form.role,
+          can_manage_attendance: attendanceFlag,
         };
         if (form.password) payload.password = form.password;
         await updateUser(editingUser.id, payload);
@@ -102,6 +107,7 @@ const UserManagement: React.FC = () => {
           email: form.email,
           password: form.password,
           role: form.role,
+          can_manage_attendance: attendanceFlag,
         });
         setMessage({ type: 'success', text: `Created account for ${form.name}.` });
       }
@@ -236,14 +242,22 @@ const UserManagement: React.FC = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span
-                        className={`inline-flex items-center text-xs font-semibold uppercase tracking-wide px-2.5 py-1 rounded-full ${
-                          u.role === 'admin' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'
-                        }`}
-                      >
-                        {u.role === 'admin' && <ShieldCheck className="h-3 w-3 mr-1" />}
-                        {u.role}
-                      </span>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span
+                          className={`inline-flex items-center text-xs font-semibold uppercase tracking-wide px-2.5 py-1 rounded-full ${
+                            u.role === 'admin' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'
+                          }`}
+                        >
+                          {u.role === 'admin' && <ShieldCheck className="h-3 w-3 mr-1" />}
+                          {u.role}
+                        </span>
+                        {u.role !== 'admin' && !!u.can_manage_attendance && (
+                          <span className="inline-flex items-center text-xs font-medium px-2 py-1 rounded-full bg-indigo-100 text-indigo-700">
+                            <Fingerprint className="h-3 w-3 mr-1" />
+                            Attendance
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center space-x-4 text-sm text-gray-600">
@@ -365,6 +379,27 @@ const UserManagement: React.FC = () => {
                   quotations.
                 </p>
               </div>
+
+              {/* Attendance access — a staff-only permission (admins already have it). */}
+              {form.role !== 'admin' && (
+                <div className="rounded-lg border border-gray-200 p-3">
+                  <label className="flex items-start cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={form.canManageAttendance}
+                      onChange={(e) => setForm({ ...form, canManageAttendance: e.target.checked })}
+                      className="mt-0.5 h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                    />
+                    <span className="ml-2">
+                      <span className="block text-sm font-medium text-gray-800">Attendance access</span>
+                      <span className="block text-xs text-gray-500">
+                        Let this staff member open the Attendance section (manage devices, enroll staff,
+                        view records) without making them an admin.
+                      </span>
+                    </span>
+                  </label>
+                </div>
+              )}
             </div>
 
             <div className="px-6 py-4 border-t border-gray-200 flex justify-end space-x-3">

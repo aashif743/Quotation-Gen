@@ -87,6 +87,17 @@ const AdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return <>{children}</>;
 };
 
+// Attendance route: admins, plus any staff member granted attendance access.
+const AttendanceRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { canManageAttendance } = useAuth();
+
+  if (!canManageAttendance) {
+    return <Navigate to="/" replace />;
+  }
+
+  return <>{children}</>;
+};
+
 // Super-admin (platform owner) route wrapper.
 const SuperAdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isSuperAdmin } = useAuth();
@@ -155,9 +166,9 @@ function AppRoutes() {
                   <Route
                     path="/attendance"
                     element={
-                      <AdminRoute>
+                      <AttendanceRoute>
                         <Attendance />
-                      </AdminRoute>
+                      </AttendanceRoute>
                     }
                   />
                   <Route

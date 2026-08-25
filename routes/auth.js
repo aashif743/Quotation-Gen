@@ -20,7 +20,7 @@ router.post('/login', passport.authenticate('local'), async (req, res) => {
     }
   }
   const { id, name, email, role, organization_id } = req.user;
-  res.json({ id, name, email, role, organization_id, is_super_admin: !!req.user.is_super_admin, acting_organization: req.user.acting_organization || null });
+  res.json({ id, name, email, role, organization_id, is_super_admin: !!req.user.is_super_admin, can_manage_attendance: !!req.user.can_manage_attendance, acting_organization: req.user.acting_organization || null });
 });
 
 // POST /api/auth/logout
@@ -45,7 +45,7 @@ router.get('/status', (req, res) => {
       return res.json({ isAuthenticated: false, user: null });
     }
     const { id, name, email, role, organization_id } = req.user;
-    res.json({ isAuthenticated: true, user: { id, name, email, role, organization_id, is_super_admin: !!req.user.is_super_admin, acting_organization: req.user.acting_organization || null } });
+    res.json({ isAuthenticated: true, user: { id, name, email, role, organization_id, is_super_admin: !!req.user.is_super_admin, can_manage_attendance: !!req.user.can_manage_attendance, acting_organization: req.user.acting_organization || null } });
   } else {
     res.json({ isAuthenticated: false, user: null });
   }

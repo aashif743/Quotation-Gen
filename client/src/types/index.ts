@@ -47,6 +47,8 @@ export interface User {
   role: UserRole;
   organization_id?: number | null;
   is_super_admin?: boolean;
+  // Grants a non-admin staff member access to the Attendance section only.
+  can_manage_attendance?: boolean;
   // Set when a super-admin has "entered" an organization to inspect it.
   acting_organization?: { id: number; name: string } | null;
 }
@@ -118,6 +120,7 @@ export interface ManagedUser {
   name: string;
   email: string;
   role: UserRole;
+  can_manage_attendance?: number | boolean;
   created_at: string;
   quotation_count: number;
   invoice_count: number;

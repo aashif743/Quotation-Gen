@@ -56,6 +56,18 @@ async function migrate() {
     console.log('  • users.role already present, skipping.');
   }
 
+  // 1b. users.can_manage_attendance — a granular permission that lets a
+  // specific (non-admin) staff member access the Attendance section, without
+  // granting full admin rights. Admins always have access regardless.
+  if (!(await columnExists('users', 'can_manage_attendance'))) {
+    console.log('  • Adding `can_manage_attendance` column to users...');
+    await db.query(
+      'ALTER TABLE `users` ADD COLUMN `can_manage_attendance` TINYINT(1) NOT NULL DEFAULT 0'
+    );
+  } else {
+    console.log('  • users.can_manage_attendance already present, skipping.');
+  }
+
   // 2. quotations.created_by (+ FK)
   if (!(await columnExists('quotations', 'created_by'))) {
     console.log('  • Adding `created_by` column to quotations...');

@@ -1,7 +1,7 @@
 const express = require('express');
 const crypto = require('crypto');
 const db = require('../config/database');
-const { isAuthenticated, isAdmin } = require('../middleware/auth');
+const { isAuthenticated, canManageAttendance } = require('../middleware/auth');
 const { requireCompanyAccess } = require('../utils/tenancy');
 
 const router = express.Router();
@@ -99,7 +99,7 @@ router.get('/agent/enrollments', agentAuth, async (req, res) => {
 // ===========================================================================
 // ADMIN API — session + admin, org/company scoped.
 // ===========================================================================
-const admin = [isAuthenticated, isAdmin, requireCompanyAccess];
+const admin = [isAuthenticated, canManageAttendance, requireCompanyAccess];
 
 // A record's company must belong to the caller's organization.
 async function inOrg(table, id, orgId) {

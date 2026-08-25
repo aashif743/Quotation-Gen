@@ -7,6 +7,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isAdmin: boolean;
   isSuperAdmin: boolean;
+  canManageAttendance: boolean;
   actingOrganization: { id: number; name: string } | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
@@ -69,6 +70,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         isAuthenticated,
         isAdmin: user?.role === 'admin',
         isSuperAdmin: !!user?.is_super_admin,
+        // Admins always have attendance access; staff only if explicitly granted.
+        canManageAttendance: user?.role === 'admin' || !!user?.can_manage_attendance,
         actingOrganization: user?.acting_organization || null,
         isLoading,
         login,
