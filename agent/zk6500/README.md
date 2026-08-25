@@ -59,9 +59,10 @@ two jobs at once: it **captures attendance** AND serves a simple **enrollment
 web page**. Leave the window open.
 
 ### 5. Enroll each staff member — from a web page, not the terminal
-1. On the website, **Attendance → Staff**, give each staff member a **Device
-   User ID** number (e.g. Aashif = 101, Nisha = 102).
-2. On THIS PC, open a browser at **http://localhost:5580**. You'll see the staff
+1. On the website, **Attendance → Staff**, click **Add Staff** and enter each
+   person's name. Each one is given a **Fingerprint ID** automatically (you can
+   add as many people as you like — they don't need login accounts).
+2. On THIS PC, open a browser at **http://localhost:5580**. You'll see that staff
    list. Click **Enroll** next to a name and have them press their finger **3
    times** when the page says so. Repeat for each person.
 
