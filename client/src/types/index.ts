@@ -111,6 +111,7 @@ export interface AttendanceSettings {
   work_start: string;
   work_end: string;
   late_grace_minutes: number;
+  min_gap_minutes: number;
 }
 
 // A tenant. Managed by the platform owner (super-admin).

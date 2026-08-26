@@ -149,15 +149,25 @@ const TodayTab: React.FC<{ companyId: number; primary: string }> = ({ companyId,
   const [rows, setRows] = useState<AttendanceTodayStaff[]>([]);
   const [settings, setSettings] = useState<AttendanceSettings | null>(null);
   const [loading, setLoading] = useState(true);
+  const [updatedAt, setUpdatedAt] = useState<string>('');
 
-  const load = async () => {
-    setLoading(true);
+  const load = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const d = await getAttendanceToday(companyId);
       setRows(d.staff); setSettings(d.settings);
-    } finally { setLoading(false); }
+      setUpdatedAt(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+    } finally { if (!silent) setLoading(false); }
   };
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [companyId]);
+
+  // Load now, then auto-refresh every 20s so new scans appear without a manual
+  // refresh. The silent reload doesn't flash the spinner.
+  useEffect(() => {
+    load();
+    const t = setInterval(() => load(true), 20000);
+    return () => clearInterval(t);
+    /* eslint-disable-next-line */
+  }, [companyId]);
 
   const counts = useMemo(() => ({
     present: rows.filter((r) => r.status === 'present').length,
@@ -165,46 +175,62 @@ const TodayTab: React.FC<{ companyId: number; primary: string }> = ({ companyId,
     absent: rows.filter((r) => r.status === 'absent').length,
   }), [rows]);
 
+  const todayLabel = new Date().toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
+
   if (loading) return <Spinner />;
 
   return (
     <div>
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <div className="flex gap-3">
-          {([['Present', counts.present, 'text-green-600'], ['Late', counts.late, 'text-amber-600'], ['Absent', counts.absent, 'text-gray-500']] as const).map(([l, n, c]) => (
-            <div key={l} className={`${card} px-4 py-2 min-w-[92px]`}>
-              <div className={`text-2xl font-bold ${c}`}>{n}</div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">{l}</div>
-            </div>
-          ))}
-        </div>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
+        <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">Today · {todayLabel}</h2>
         <div className="flex items-center gap-3">
           {settings && (
             <span className="text-xs text-gray-500 dark:text-gray-400">
               Work {settings.work_start.slice(0, 5)}–{settings.work_end.slice(0, 5)} · {settings.late_grace_minutes}m grace
             </span>
           )}
-          <button onClick={load}
+          <span className="flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400">
+            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" /> Auto-updating
+          </span>
+          <button onClick={() => load()}
             className="flex items-center gap-1.5 text-sm px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
             <RefreshCw size={15} /> Refresh
           </button>
         </div>
       </div>
+      {updatedAt && <p className="text-xs text-gray-400 mb-4">Last updated {updatedAt}</p>}
+
+      <div className="flex gap-3 mb-4">
+        {([['Present', counts.present, 'text-green-600'], ['Late', counts.late, 'text-amber-600'], ['Absent', counts.absent, 'text-gray-500']] as const).map(([l, n, c]) => (
+          <div key={l} className={`${card} px-4 py-2 min-w-[92px]`}>
+            <div className={`text-2xl font-bold ${c}`}>{n}</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400">{l}</div>
+          </div>
+        ))}
+      </div>
 
       <div className={`${card} overflow-hidden`}>
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
           <thead className="bg-gray-50 dark:bg-gray-900/40">
-            <tr><th className={th}>Staff</th><th className={th}>Status</th><th className={th}>Check-in</th><th className={th}>Check-out</th></tr>
+            <tr><th className={th}>Staff</th><th className={th}>Status</th><th className={th}>Check-in (In)</th><th className={th}>Check-out (Out)</th></tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60">
             {rows.length === 0 ? (
-              <tr><td className={`${td} text-center text-gray-400 py-10`} colSpan={4}>No enrolled staff yet. Enroll staff in the Staff tab.</td></tr>
+              <tr><td className={`${td} text-center text-gray-400 py-10`} colSpan={4}>No staff yet. Add staff in the Staff tab.</td></tr>
             ) : rows.map((r) => (
               <tr key={r.user_id}>
                 <td className={`${td} font-medium`}>{r.name}</td>
                 <td className={td}><StatusPill status={r.status} /></td>
-                <td className={td}>{timePart(r.first_in)}</td>
-                <td className={td}>{timePart(r.last_out)}</td>
+                <td className={td}>
+                  {r.first_in
+                    ? <span className="font-medium text-green-700 dark:text-green-400">{timePart(r.first_in)}</span>
+                    : <span className="text-gray-400">—</span>}
+                </td>
+                <td className={td}>
+                  {r.last_out
+                    ? <span className="font-medium text-indigo-700 dark:text-indigo-400">{timePart(r.last_out)}</span>
+                    : <span className="text-gray-400">{r.first_in ? 'Still in' : '—'}</span>}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -640,26 +666,35 @@ const WorkHoursCard: React.FC<{ companyId: number; primary: string; settings: At
   const [start, setStart] = useState(settings.work_start.slice(0, 5));
   const [end, setEnd] = useState(settings.work_end.slice(0, 5));
   const [grace, setGrace] = useState(String(settings.late_grace_minutes));
+  const [gap, setGap] = useState(String(settings.min_gap_minutes ?? 5));
   const [saving, setSaving] = useState(false);
 
   const save = async () => {
     setSaving(true);
     try {
-      const s = await updateAttendanceSettings({ company_id: companyId, work_start: start + ':00', work_end: end + ':00', late_grace_minutes: Number(grace) || 0 });
+      const s = await updateAttendanceSettings({
+        company_id: companyId, work_start: start + ':00', work_end: end + ':00',
+        late_grace_minutes: Number(grace) || 0, min_gap_minutes: Number(gap) || 0,
+      });
       onSaved(s);
     } catch { flash('error', 'Failed to save settings.'); } finally { setSaving(false); }
   };
 
   return (
     <div className={`${card} p-4`}>
-      <h3 className="font-semibold text-gray-800 dark:text-gray-100 mb-1 flex items-center gap-2"><SettingsIcon size={16} /> Work hours</h3>
-      <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">Used to mark staff as on-time or late.</p>
+      <h3 className="font-semibold text-gray-800 dark:text-gray-100 mb-1 flex items-center gap-2"><SettingsIcon size={16} /> Work hours &amp; scanning</h3>
+      <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">Work hours mark staff on-time or late. The scan gap ignores accidental repeat scans.</p>
       <div className="flex flex-wrap items-end gap-3">
         <Field label="Start"><input type="time" value={start} onChange={(e) => setStart(e.target.value)} className={inputCls} /></Field>
         <Field label="End"><input type="time" value={end} onChange={(e) => setEnd(e.target.value)} className={inputCls} /></Field>
         <Field label="Late grace (min)"><input type="number" min={0} value={grace} onChange={(e) => setGrace(e.target.value)} className={`${inputCls} w-28`} /></Field>
+        <Field label="Min gap between scans (min)"><input type="number" min={0} value={gap} onChange={(e) => setGap(e.target.value)} className={`${inputCls} w-44`} /></Field>
         <button onClick={save} disabled={saving} className="px-4 py-2 rounded-lg text-white text-sm font-medium disabled:opacity-50" style={{ background: primary }}>{saving ? 'Saving…' : 'Save'}</button>
       </div>
+      <p className="text-xs text-gray-400 mt-2">
+        Example: with a 5-minute gap, if someone scans again within 5 minutes it's treated as the same tap — so one check-in
+        won't accidentally become a check-out. Their real check-out (hours later) is unaffected.
+      </p>
     </div>
   );
 };

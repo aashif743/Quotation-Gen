@@ -315,6 +315,7 @@ CREATE TABLE IF NOT EXISTS `attendance_settings` (
     `work_start` TIME NOT NULL DEFAULT '08:00:00',
     `work_end` TIME NOT NULL DEFAULT '17:00:00',
     `late_grace_minutes` INT NOT NULL DEFAULT 10,
+    `min_gap_minutes` INT NOT NULL DEFAULT 5,
     `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (`company_id`) REFERENCES `companies`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB;

@@ -60,15 +60,34 @@ router.post('/agent/punch', agentAuth, async (req, res) => {
     const map = {};
     emps.forEach((e) => { map[String(e.device_user_id)] = e.id; });
 
+    // Accidental re-scans (staff tapping again because they're unsure it worked)
+    // must NOT create a second punch that looks like a check-out. Ignore any
+    // punch that lands within `min_gap_minutes` of one already recorded for the
+    // same person. A real check-out is hours later, so it's never affected.
+    const settings = await getSettings(companyId);
+    const gapSec = (Number(settings.min_gap_minutes) || 0) * 60;
+
     let inserted = 0;
+    let skippedDuplicate = 0;
     const unmatched = new Set();
     for (const p of list) {
       const duid = p.device_user_id != null ? String(p.device_user_id) : null;
       const when = toMysqlDatetime(p.timestamp);
       if (!duid || !when) continue;
       const employeeId = map[duid] || null;
-      if (!employeeId) unmatched.add(duid);
-      // INSERT IGNORE dedups re-pushed logs via the unique (company, duid, time) key.
+      if (!employeeId) { unmatched.add(duid); continue; }
+
+      if (gapSec > 0) {
+        const [near] = await db.execute(
+          `SELECT id FROM attendance_punches
+            WHERE company_id = ? AND employee_id = ?
+              AND ABS(TIMESTAMPDIFF(SECOND, punch_time, ?)) < ?
+            LIMIT 1`,
+          [companyId, employeeId, when, gapSec]);
+        if (near.length) { skippedDuplicate += 1; continue; }
+      }
+
+      // INSERT IGNORE dedups exact re-pushed logs via the unique (company, duid, time) key.
       const [r] = await db.execute(
         `INSERT IGNORE INTO attendance_punches (company_id, device_id, employee_id, device_user_id, punch_time, source)
          VALUES (?, ?, ?, ?, ?, 'device')`,
@@ -76,7 +95,7 @@ router.post('/agent/punch', agentAuth, async (req, res) => {
       );
       inserted += r.affectedRows;
     }
-    res.json({ received: list.length, inserted, unmatched: [...unmatched] });
+    res.json({ received: list.length, inserted, skippedDuplicate, unmatched: [...unmatched] });
   } catch (error) {
     console.error('Error recording punches:', error);
     res.status(500).json({ error: 'Failed to record punches' });
@@ -243,10 +262,11 @@ router.delete('/employees/:id', admin, async (req, res) => {
 
 // ---- Settings ----
 async function getSettings(companyId) {
-  const [rows] = await db.execute('SELECT work_start, work_end, late_grace_minutes FROM attendance_settings WHERE company_id = ?', [companyId]);
+  const [rows] = await db.execute(
+    'SELECT work_start, work_end, late_grace_minutes, min_gap_minutes FROM attendance_settings WHERE company_id = ?', [companyId]);
   if (rows.length) return rows[0];
   await db.execute('INSERT IGNORE INTO attendance_settings (company_id) VALUES (?)', [companyId]);
-  return { work_start: '08:00:00', work_end: '17:00:00', late_grace_minutes: 10 };
+  return { work_start: '08:00:00', work_end: '17:00:00', late_grace_minutes: 10, min_gap_minutes: 5 };
 }
 
 router.get('/settings', admin, async (req, res) => {
@@ -256,12 +276,14 @@ router.get('/settings', admin, async (req, res) => {
 
 router.put('/settings', admin, async (req, res) => {
   try {
-    const { company_id, work_start, work_end, late_grace_minutes } = req.body;
+    const { company_id, work_start, work_end, late_grace_minutes, min_gap_minutes } = req.body;
+    const gap = min_gap_minutes === undefined ? 5 : Math.max(0, Number(min_gap_minutes) || 0);
     await db.execute(
-      `INSERT INTO attendance_settings (company_id, work_start, work_end, late_grace_minutes)
-       VALUES (?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE work_start = VALUES(work_start), work_end = VALUES(work_end), late_grace_minutes = VALUES(late_grace_minutes)`,
-      [company_id, work_start || '08:00:00', work_end || '17:00:00', Number(late_grace_minutes) || 0]);
+      `INSERT INTO attendance_settings (company_id, work_start, work_end, late_grace_minutes, min_gap_minutes)
+       VALUES (?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE work_start = VALUES(work_start), work_end = VALUES(work_end),
+         late_grace_minutes = VALUES(late_grace_minutes), min_gap_minutes = VALUES(min_gap_minutes)`,
+      [company_id, work_start || '08:00:00', work_end || '17:00:00', Number(late_grace_minutes) || 0, gap]);
     res.json(await getSettings(company_id));
   } catch (e) { res.status(500).json({ error: 'Failed to save settings' }); }
 });
@@ -330,14 +352,17 @@ router.get('/today', admin, async (req, res) => {
 
     const [gh, gm] = String(settings.work_start).split(':').map(Number);
     const lateThreshold = gh * 60 + gm + (settings.late_grace_minutes || 0);
+    const gapMs = (Number(settings.min_gap_minutes) || 0) * 60000;
     const rows = emps.map((e) => {
       const p = byEmp[e.id];
       if (!p) return { user_id: e.id, name: e.name, status: 'absent', first_in: null, last_out: null };
       const inD = new Date(p.first_in);
       const inMin = inD.getHours() * 60 + inD.getMinutes();
       const late = inMin > lateThreshold;
-      const outVal = p.cnt > 1 ? p.last_out : null;
-      return { user_id: e.id, name: e.name, status: late ? 'late' : 'present', first_in: p.first_in, last_out: outVal };
+      // Only show a check-out if the last scan is clearly later than the first
+      // (guards against a stray double-scan showing in and out at once).
+      const hasOut = p.cnt > 1 && (new Date(p.last_out) - inD) >= gapMs;
+      return { user_id: e.id, name: e.name, status: late ? 'late' : 'present', first_in: p.first_in, last_out: hasOut ? p.last_out : null };
     });
     res.json({ settings, staff: rows });
   } catch (e) { console.error(e); res.status(500).json({ error: 'Failed to load today' }); }
@@ -359,13 +384,15 @@ router.get('/report', admin, async (req, res) => {
         ORDER BY e.name, d`, [company_id, from, to]);
     const [gh, gm] = String(settings.work_start).split(':').map(Number);
     const lateThreshold = gh * 60 + gm + (settings.late_grace_minutes || 0);
+    const gapMs = (Number(settings.min_gap_minutes) || 0) * 60000;
     const report = rows.map((r) => {
       const inD = new Date(r.first_in);
       const late = (inD.getHours() * 60 + inD.getMinutes()) > lateThreshold;
-      const hours = r.cnt > 1 ? Math.round(((new Date(r.last_out) - inD) / 3600000) * 100) / 100 : 0;
+      const hasOut = r.cnt > 1 && (new Date(r.last_out) - inD) >= gapMs;
+      const hours = hasOut ? Math.round(((new Date(r.last_out) - inD) / 3600000) * 100) / 100 : 0;
       return {
         user_id: r.employee_id, name: r.name, date: r.d,
-        first_in: r.first_in, last_out: r.cnt > 1 ? r.last_out : null,
+        first_in: r.first_in, last_out: hasOut ? r.last_out : null,
         hours, late,
       };
     });

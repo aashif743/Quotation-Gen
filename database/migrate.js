@@ -651,6 +651,13 @@ async function migrate() {
     `);
   } else { console.log('  • attendance_settings already present, skipping.'); }
 
+  // Minimum minutes between scans — ignore accidental re-scans so one tap isn't
+  // recorded as both a check-in and a check-out.
+  if (!(await columnExists('attendance_settings', 'min_gap_minutes'))) {
+    console.log('  • Adding `min_gap_minutes` to attendance_settings...');
+    await db.query('ALTER TABLE `attendance_settings` ADD COLUMN `min_gap_minutes` INT NOT NULL DEFAULT 5');
+  } else { console.log('  • attendance_settings.min_gap_minutes already present, skipping.'); }
+
   // 3o. Attendance EMPLOYEES (added 2026-08) — attendance is tracked for people
   //     who are NOT system login accounts (e.g. field/office staff). This is a
   //     standalone roster: add a person by name and they get a device_user_id

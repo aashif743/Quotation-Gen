@@ -678,7 +678,7 @@ export const getAttendanceSettings = async (companyId: number): Promise<Attendan
   const r = await api.get('/attendance/settings', { params: { company_id: companyId } });
   return r.data;
 };
-export const updateAttendanceSettings = async (data: { company_id: number; work_start: string; work_end: string; late_grace_minutes: number }): Promise<AttendanceSettings> => {
+export const updateAttendanceSettings = async (data: { company_id: number; work_start: string; work_end: string; late_grace_minutes: number; min_gap_minutes: number }): Promise<AttendanceSettings> => {
   const r = await api.put('/attendance/settings', data);
   return r.data;
 };
