@@ -1,0 +1,26 @@
+name: Keep app awake
+
+# The app is on shared hosting that puts the Node backend to sleep when idle.
+# The next visitor then hits a slow cold start and nginx can return a 504
+# Gateway Time-out. This pings a lightweight endpoint on a schedule so the app
+# stays warm for everyone — independent of the office PC / fingerprint bridge.
+on:
+  schedule:
+    - cron: '*/5 * * * *'   # every 5 minutes (GitHub's minimum; may be delayed under load)
+  workflow_dispatch: {}       # allow manual runs from the Actions tab
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping the app
+        run: |
+          URL="https://ghostwhite-grasshopper-438775.hostingersite.com/api/auth/status"
+          for i in 1 2 3 4 5; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 40 "$URL" || echo "000")
+            echo "ping $i -> HTTP $code"
+            if [ "$code" = "200" ]; then exit 0; fi
+            sleep 15
+          done
+          echo "App did not return 200 after retries (server may be down)."
+          exit 1
