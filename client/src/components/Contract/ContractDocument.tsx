@@ -123,10 +123,14 @@ const ContractDocument: React.FC<{ contract: Contract }> = ({ contract: c }) => 
         </div>
       ))}
 
-      {/* Signatures */}
-      <div style={styles.signWrap} data-pdf-keep>
-        <div style={styles.signCol}>
-          <div style={{ fontWeight: 700, marginBottom: 28, color: '#111827' }}>For Client ({c.client_name})</div>
+      {/* Execution + signatures */}
+      <div data-pdf-keep>
+        <p style={{ ...styles.sectionBody, marginTop: 26 }}>
+          IN WITNESS WHEREOF, the parties hereto have executed this {c.title || 'Agreement'} as of the date first written above.
+        </p>
+        <div style={styles.signWrap}>
+          <div style={styles.signCol}>
+            <div style={{ fontWeight: 700, marginBottom: 28, color: '#111827' }}>For Client ({c.client_name})</div>
           <div style={styles.signLine} />
           <div style={styles.signCap}>Authorized Signature</div>
           <div style={styles.signField}>Name: ____________________________</div>
@@ -140,6 +144,7 @@ const ContractDocument: React.FC<{ contract: Contract }> = ({ contract: c }) => 
           <div style={styles.signField}>Name: ____________________________</div>
           <div style={styles.signField}>Title: _____________________________</div>
           <div style={styles.signField}>Date: _____________________________</div>
+          </div>
         </div>
       </div>
     </div>

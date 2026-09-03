@@ -7,7 +7,7 @@ import {
   getContract, createContract, updateContract, getNextContractNumber, getClients,
 } from '../services/api';
 import { Client, Contract, ContractSection } from '../types';
-import { buildDefaultSections } from '../utils/contractTemplate';
+import { buildDefaultSections, DEFAULT_CONTRACT_TITLE } from '../utils/contractTemplate';
 import ContractDocument from '../components/Contract/ContractDocument';
 import {
   FileSignature, ArrowLeft, Plus, Trash2, ChevronUp, ChevronDown, Wand2, Eye, EyeOff,
@@ -49,7 +49,7 @@ interface FormState {
 }
 
 const blank = (): FormState => ({
-  contract_number: '', title: 'Service Contract', client_id: null, client_name: '',
+  contract_number: '', title: DEFAULT_CONTRACT_TITLE, client_id: null, client_name: '',
   client_address: '', client_email: '', client_phone: '', site: '', amount: '',
   payment_frequency: 'monthly', payment_amount: '', effective_date: today(),
   start_date: today(), end_date: '', contract_period: '', termination_rules: '',

@@ -34,13 +34,18 @@ const freqLabel = (f?: string | null): string => {
 
 type Input = Partial<Contract> & { company_name?: string };
 
-// Build a professional, ready-to-edit set of clauses from the key inputs. The
-// user can then tweak any wording before saving.
+// The default title new contracts start with.
+export const DEFAULT_CONTRACT_TITLE = 'Billboard Advertising Contract';
+
+// Build the DEFAULT contract clauses (billboard advertising wording) from the
+// key inputs. This is what every NEW contract starts with; editing or
+// regenerating only changes that one contract, never this template.
 export function buildDefaultSections(i: Input): ContractSection[] {
   const company = i.company_name || 'the Company';
-  const client = i.client_name || 'the Client';
-  const site = i.site && String(i.site).trim() ? String(i.site).trim() : '[Insert site / location]';
-  const freq = freqLabel(i.payment_frequency);
+  const client = i.client_name && String(i.client_name).trim() ? String(i.client_name).trim() : 'the Advertiser';
+  const site = i.site && String(i.site).trim() ? String(i.site).trim() : '[Insert billboard location / street address / intersection]';
+  const freq = freqLabel(i.payment_frequency);           // e.g. "monthly"
+  const dueUnit = freq === 'quarterly' ? 'quarter' : freq === 'annual' ? 'year' : 'month';
   const pay = i.payment_amount ? formatContractMoney(i.payment_amount, i.currency) : '[Insert amount]';
   const total = i.amount ? formatContractMoney(i.amount, i.currency) : '';
   const start = i.start_date ? formatLongDate(i.start_date) : '[Start Date]';
@@ -50,55 +55,50 @@ export function buildDefaultSections(i: Input): ContractSection[] {
   const sections: ContractSection[] = [];
 
   sections.push({
-    heading: 'Services & Location',
+    heading: 'Advertising Services & Location',
     body:
-      `${company} agrees to provide the services described in this Agreement to ${client} at the following ` +
-      `site/location: ${site}.` +
+      `${company} (the "Company") agrees to provide billboard advertising services to ${client} (the "Advertiser") ` +
+      `at the following location(s): ${site}. The billboard location, quantity, and placement details are as set out ` +
+      `in the schedule of details above.` +
       (total ? ` The total contract value is ${total}.` : '') +
-      ` Any additions or changes to the scope shall be agreed in writing by both parties.`,
+      ` The Advertiser shall supply high-resolution artwork conforming to the Company's specifications.`,
   });
 
   sections.push({
     heading: 'Term & Payment Terms',
     body:
-      `This Agreement shall commence on ${start} and continue until ${end}` +
+      `Contract Term: This Agreement shall commence on ${start} and continue ` +
+      (i.end_date ? `until ${end}` : `on a ${dueUnit}-to-${dueUnit} basis`) +
       (period ? ` (${period})` : '') +
       `, unless terminated earlier in accordance with this Agreement.\n\n` +
-      `${client} agrees to pay ${company} the sum of ${pay} on a ${freq} basis. ` +
-      `Payments are due in advance on the 1st day of each ${freq === 'quarterly' ? 'quarter' : freq === 'annual' ? 'year' : 'month'}, ` +
-      `unless otherwise agreed in writing.`,
+      `Invoicing: The Advertiser agrees to pay the Company ${pay} on a ${freq} basis. Payments are due in advance ` +
+      `on the 1st day of each calendar ${dueUnit}, unless otherwise agreed in writing.`,
   });
 
   sections.push({
-    heading: 'Early Termination',
+    heading: 'Early Termination & Removal Fees',
     body:
-      (i.termination_rules && String(i.termination_rules).trim())
+      `The Advertiser may request the early removal of billboard advertising materials prior to the scheduled ` +
+      `contract end date subject to the following condition:\n\n` +
+      (i.termination_rules && String(i.termination_rules).trim()
         ? String(i.termination_rules).trim()
-        : `Either party may terminate this Agreement by giving thirty (30) days written notice. If ${client} ` +
-          `terminates early, any fees due up to the termination date remain payable, and an early-termination ` +
-          `fee may apply as agreed by the parties.`,
+        : `Early Removal / Deduction Fee: If the Advertiser terminates this Agreement or requests removal of the ` +
+          `billboard(s) early, the Advertiser shall pay a deduction/removal fee as agreed by the parties ` +
+          `(for example, a fixed fee or a percentage of the remaining contract value).`),
   });
 
   sections.push({
-    heading: 'Responsibilities & Maintenance',
+    heading: 'Maintenance and Production',
     body:
-      `${company} shall perform the services with reasonable skill and care and keep any equipment or ` +
-      `installations in good working condition. ${client} shall provide the access, materials, and information ` +
-      `reasonably required for ${company} to perform its obligations. ${company} shall not be liable for delays ` +
-      `or damage caused by events beyond its reasonable control.`,
+      `The Company shall ensure the billboard structure is maintained in good condition. The Advertiser is ` +
+      `responsible for providing high-resolution artwork conforming to the Company's specifications. The Company is ` +
+      `not liable for structural damage caused by severe weather or vandalism but will make reasonable efforts to ` +
+      `repair displays promptly.`,
   });
 
   if (i.comments && String(i.comments).trim()) {
     sections.push({ heading: 'Additional Terms', body: String(i.comments).trim() });
   }
-
-  sections.push({
-    heading: 'General',
-    body:
-      `This Agreement constitutes the entire agreement between the parties and supersedes any prior ` +
-      `understandings. Any amendment must be made in writing and signed by both parties. This Agreement shall be ` +
-      `governed by the laws of the jurisdiction in which ${company} operates.`,
-  });
 
   return sections;
 }
