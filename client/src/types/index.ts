@@ -114,6 +114,58 @@ export interface AttendanceSettings {
   min_gap_minutes: number;
 }
 
+// ---------------------------------------------------------------------------
+// Client contracts — a professional agreement generated from key inputs, with
+// editable clause sections, downloadable as PDF.
+// ---------------------------------------------------------------------------
+export type PaymentFrequency = 'monthly' | 'quarterly' | 'annually' | 'one-time' | 'custom';
+export type ContractStatus = 'draft' | 'active' | 'terminated' | 'completed';
+
+export interface ContractSection {
+  heading: string;
+  body: string;
+}
+
+export interface Contract {
+  id: number;
+  company_id: number;
+  created_by?: number;
+  client_id?: number | null;
+  contract_number: string;
+  title: string;
+  client_name: string;
+  client_address?: string | null;
+  client_email?: string | null;
+  client_phone?: string | null;
+  site?: string | null;
+  amount?: number;
+  currency?: string | null;
+  payment_frequency?: PaymentFrequency | string | null;
+  payment_amount?: number;
+  effective_date?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  contract_period?: string | null;
+  termination_rules?: string | null;
+  comments?: string | null;
+  sections?: ContractSection[];
+  status?: ContractStatus;
+  created_at?: string;
+  updated_at?: string;
+  created_by_name?: string;
+  company_name?: string;
+
+  // Joined company branding for the view / PDF
+  company_address?: string;
+  company_tpin?: string;
+  company_bank_details?: string;
+  company_logo?: string;
+  company_quote_logo?: string;
+  primary_color?: string;
+  secondary_color?: string;
+  company_currency?: string;
+}
+
 // A tenant. Managed by the platform owner (super-admin).
 export interface Organization {
   id: number;

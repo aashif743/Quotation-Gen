@@ -1,5 +1,5 @@
 SET FOREIGN_KEY_CHECKS = 0;
-DROP TABLE IF EXISTS `users`, `companies`, `quotations`, `quotation_items`, `invoices`, `invoice_items`, `delivery_notes`, `delivery_note_items`, `clients`, `payments`, `petty_cash`, `expenses`, `vendor_payments`, `purchase_items`, `purchases`, `vendors`, `attendance_punches`, `attendance_enrollments`, `attendance_settings`, `attendance_devices`, `organizations`;
+DROP TABLE IF EXISTS `users`, `companies`, `quotations`, `quotation_items`, `invoices`, `invoice_items`, `delivery_notes`, `delivery_note_items`, `clients`, `payments`, `petty_cash`, `expenses`, `vendor_payments`, `purchase_items`, `purchases`, `vendors`, `attendance_punches`, `attendance_enrollments`, `attendance_settings`, `attendance_devices`, `contracts`, `organizations`;
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- Organizations are tenants (separate customers). Each has its own users and
@@ -96,6 +96,41 @@ CREATE TABLE IF NOT EXISTS `quotations` (
     FOREIGN KEY (`created_by`) REFERENCES `users`(`id`) ON DELETE SET NULL,
     FOREIGN KEY (`client_id`) REFERENCES `clients`(`id`) ON DELETE SET NULL,
     UNIQUE KEY `unique_quote_per_company` (`company_id`, `quote_number`)
+) ENGINE=InnoDB;
+
+-- Client contracts — a professional agreement generated from key inputs
+-- (client, site, amounts, term, payment schedule, termination rules) with
+-- editable clause sections stored as JSON in `sections`. Company-scoped.
+CREATE TABLE IF NOT EXISTS `contracts` (
+    `id` INT PRIMARY KEY AUTO_INCREMENT,
+    `company_id` INT NOT NULL,
+    `created_by` INT,
+    `client_id` INT,
+    `contract_number` VARCHAR(50) NOT NULL,
+    `title` VARCHAR(255) NOT NULL DEFAULT 'Service Contract',
+    `client_name` VARCHAR(255) NOT NULL,
+    `client_address` TEXT,
+    `client_email` VARCHAR(255),
+    `client_phone` VARCHAR(50),
+    `site` TEXT,
+    `amount` DECIMAL(15,2) DEFAULT 0,
+    `currency` VARCHAR(3),
+    `payment_frequency` VARCHAR(20),
+    `payment_amount` DECIMAL(15,2) DEFAULT 0,
+    `effective_date` DATE,
+    `start_date` DATE,
+    `end_date` DATE,
+    `contract_period` VARCHAR(100),
+    `termination_rules` TEXT,
+    `comments` TEXT,
+    `sections` LONGTEXT,
+    `status` VARCHAR(20) NOT NULL DEFAULT 'draft',
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (`company_id`) REFERENCES `companies`(`id`) ON DELETE CASCADE,
+    FOREIGN KEY (`created_by`) REFERENCES `users`(`id`) ON DELETE SET NULL,
+    FOREIGN KEY (`client_id`) REFERENCES `clients`(`id`) ON DELETE SET NULL,
+    UNIQUE KEY `unique_contract_per_company` (`company_id`, `contract_number`)
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS `quotation_items` (

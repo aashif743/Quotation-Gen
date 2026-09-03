@@ -26,6 +26,7 @@ import {
   Wallet,
   Banknote,
   Fingerprint,
+  FileSignature,
   Sun,
   Moon,
 } from 'lucide-react';
@@ -195,6 +196,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       { to: '/history', icon: History, label: 'Quotation History' },
       { to: '/invoice-history', icon: Receipt, label: 'Invoice History' },
       { to: '/delivery-history', icon: Truck, label: 'Delivery Notes' },
+      { to: '/contracts', icon: FileSignature, label: 'Contracts' },
     ]},
     { label: 'Contacts', items: [
       { to: '/clients', icon: Briefcase, label: 'Clients' },

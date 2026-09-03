@@ -28,6 +28,9 @@ import PurchaseHistory from './pages/PurchaseHistory';
 import Expenses from './pages/Expenses';
 import PettyCash from './pages/PettyCash';
 import Attendance from './pages/Attendance';
+import Contracts from './pages/Contracts';
+import ContractForm from './pages/ContractForm';
+import ContractView from './pages/ContractView';
 import Organizations from './pages/Organizations';
 import UserManagement from './pages/UserManagement';
 import Login from './pages/Login';
@@ -155,6 +158,10 @@ function AppRoutes() {
                   <Route path="/purchase/:id" element={<PurchaseView />} />
                   <Route path="/expenses" element={<Expenses />} />
                   <Route path="/petty-cash" element={<PettyCash />} />
+                  <Route path="/contracts" element={<Contracts />} />
+                  <Route path="/contracts/new" element={<ContractForm />} />
+                  <Route path="/contracts/:id" element={<ContractView />} />
+                  <Route path="/contracts/:id/edit" element={<ContractForm />} />
                   <Route
                     path="/organizations"
                     element={

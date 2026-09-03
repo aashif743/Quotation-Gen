@@ -1,6 +1,6 @@
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
-import { Quotation, Invoice, DeliveryNote } from '../types';
+import { Quotation, Invoice, DeliveryNote, Contract } from '../types';
 
 /**
  * Wait until every <img> inside the element has finished loading (or failed).
@@ -93,7 +93,7 @@ async function saveElementAsPdf(
     // browser inside html2canvas's iframe ignores `aspect-ratio`.
     onclone: (clonedDoc) => {
       const root = clonedDoc.querySelector<HTMLElement>(
-        '.quotation-document, .invoice-document, .delivery-note-document'
+        '.quotation-document, .invoice-document, .delivery-note-document, .contract-document'
       );
       if (!root) return;
       root.style.width = `${captureWidth}px`;
@@ -612,6 +612,18 @@ export const generateQuotationHTML = (quotation: Quotation): string => {
     </body>
     </html>
   `;
+};
+
+export const generateContractPDF = async (contract: Contract): Promise<void> => {
+  try {
+    const element = document.querySelector('.contract-document') as HTMLElement | null;
+    if (!element) throw new Error('Contract document not found');
+    const filename = `${contract.contract_number}_${safeFileSegment(contract.client_name)}.pdf`;
+    await saveElementAsPdf(element, filename);
+  } catch (error) {
+    console.error('Error generating contract PDF:', error);
+    throw new Error('Failed to generate PDF');
+  }
 };
 
 export const generateInvoicePDF = async (invoice: Invoice): Promise<void> => {

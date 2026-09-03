@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { Company, Quotation, Invoice, DeliveryNote, User, AuthStatus, ManagedUser, UserRole, Client, ClientDocSummary, Payment, Vendor, Purchase, PurchaseDocSummary, Expense, PettyCashEntry, PettyCashSummary, Organization,
-  AttendanceDevice, AttendanceEnrollment, AttendanceEmployee, AttendancePunch, AttendanceTodayStaff, AttendanceReportRow, AttendanceSettings } from '../types';
+  AttendanceDevice, AttendanceEnrollment, AttendanceEmployee, AttendancePunch, AttendanceTodayStaff, AttendanceReportRow, AttendanceSettings,
+  Contract } from '../types';
 
 // Use a relative base so the same build works in development (proxied by CRA
 // to the local Express server) and in production (served by the same Express
@@ -624,6 +625,33 @@ export const getDashboard = async (companyId: number): Promise<DashboardData> =>
 // ---------------------------------------------------------------------------
 // Staff attendance API (admin)
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Contracts API
+// ---------------------------------------------------------------------------
+export const getNextContractNumber = async (companyId: number): Promise<{ contractNumber: string }> => {
+  const r = await api.get('/contracts/next-number', { params: { company_id: companyId } });
+  return r.data;
+};
+export const getContracts = async (companyId: number): Promise<Contract[]> => {
+  const r = await api.get('/contracts', { params: { company_id: companyId } });
+  return r.data;
+};
+export const getContract = async (id: number): Promise<Contract> => {
+  const r = await api.get(`/contracts/${id}`);
+  return r.data;
+};
+export const createContract = async (data: Partial<Contract> & { company_id: number }): Promise<Contract> => {
+  const r = await api.post('/contracts', data);
+  return r.data;
+};
+export const updateContract = async (id: number, data: Partial<Contract>): Promise<Contract> => {
+  const r = await api.put(`/contracts/${id}`, data);
+  return r.data;
+};
+export const deleteContract = async (id: number): Promise<void> => {
+  await api.delete(`/contracts/${id}`);
+};
+
 export const getAttendanceToday = async (companyId: number): Promise<{ settings: AttendanceSettings; staff: AttendanceTodayStaff[] }> => {
   const r = await api.get('/attendance/today', { params: { company_id: companyId } });
   return r.data;

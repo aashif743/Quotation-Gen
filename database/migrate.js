@@ -714,6 +714,46 @@ async function migrate() {
      WHERE p.employee_id IS NULL
   `);
 
+  // 3p. Contracts (added 2026-09) — professional client contracts generated
+  //     from key inputs; each carries editable clause sections (stored as JSON)
+  //     plus structured header fields, downloadable as PDF. Additive only.
+  if (!(await tableExists('contracts'))) {
+    console.log('  • Creating `contracts` table...');
+    await db.query(`
+      CREATE TABLE \`contracts\` (
+        \`id\` INT PRIMARY KEY AUTO_INCREMENT,
+        \`company_id\` INT NOT NULL,
+        \`created_by\` INT,
+        \`client_id\` INT,
+        \`contract_number\` VARCHAR(50) NOT NULL,
+        \`title\` VARCHAR(255) NOT NULL DEFAULT 'Service Contract',
+        \`client_name\` VARCHAR(255) NOT NULL,
+        \`client_address\` TEXT,
+        \`client_email\` VARCHAR(255),
+        \`client_phone\` VARCHAR(50),
+        \`site\` TEXT,
+        \`amount\` DECIMAL(15,2) DEFAULT 0,
+        \`currency\` VARCHAR(3),
+        \`payment_frequency\` VARCHAR(20),
+        \`payment_amount\` DECIMAL(15,2) DEFAULT 0,
+        \`effective_date\` DATE,
+        \`start_date\` DATE,
+        \`end_date\` DATE,
+        \`contract_period\` VARCHAR(100),
+        \`termination_rules\` TEXT,
+        \`comments\` TEXT,
+        \`sections\` LONGTEXT,
+        \`status\` VARCHAR(20) NOT NULL DEFAULT 'draft',
+        \`created_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        \`updated_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (\`company_id\`) REFERENCES \`companies\`(\`id\`) ON DELETE CASCADE,
+        FOREIGN KEY (\`created_by\`) REFERENCES \`users\`(\`id\`) ON DELETE SET NULL,
+        FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON DELETE SET NULL,
+        UNIQUE KEY \`unique_contract_per_company\` (\`company_id\`, \`contract_number\`)
+      ) ENGINE=InnoDB
+    `);
+  } else { console.log('  • contracts already present, skipping.'); }
+
   // 4. Backfill created_by from each row's company owner so existing records
   //    are attributed to the user who originally owned the company.
   const [qBackfill] = await db.query(
