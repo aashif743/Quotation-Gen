@@ -5,13 +5,14 @@ import { useTheme } from '../context/ThemeContext';
 import { brandColorFor } from '../utils/colors';
 import {
   getContract, createContract, updateContract, getNextContractNumber, getClients,
+  getContractTemplate, saveContractTemplate, uploadContractSignature, deleteContractSignature,
 } from '../services/api';
 import { Client, Contract, ContractSection } from '../types';
 import { buildDefaultSections, DEFAULT_CONTRACT_TITLE } from '../utils/contractTemplate';
 import ContractDocument from '../components/Contract/ContractDocument';
 import {
-  FileSignature, ArrowLeft, Plus, Trash2, ChevronUp, ChevronDown, Wand2, Eye, EyeOff,
-  Save, Loader2, AlertCircle,
+  FileSignature, ArrowLeft, Plus, Trash2, ChevronUp, ChevronDown, RotateCcw, Eye, EyeOff,
+  Save, Loader2, AlertCircle, Upload, Star,
 } from 'lucide-react';
 
 const FREQUENCIES = [
@@ -38,6 +39,8 @@ interface FormState {
   amount: string;
   payment_frequency: string;
   payment_amount: string;
+  insurance: string;
+  printing_charges: string;
   effective_date: string;
   start_date: string;
   end_date: string;
@@ -45,15 +48,16 @@ interface FormState {
   termination_rules: string;
   comments: string;
   status: string;
+  signature_url: string | null;
   sections: ContractSection[];
 }
 
 const blank = (): FormState => ({
   contract_number: '', title: DEFAULT_CONTRACT_TITLE, client_id: null, client_name: '',
   client_address: '', client_email: '', client_phone: '', site: '', amount: '',
-  payment_frequency: 'monthly', payment_amount: '', effective_date: today(),
-  start_date: today(), end_date: '', contract_period: '', termination_rules: '',
-  comments: '', status: 'draft', sections: [],
+  payment_frequency: 'monthly', payment_amount: '', insurance: '', printing_charges: '',
+  effective_date: today(), start_date: today(), end_date: '', contract_period: '',
+  termination_rules: '', comments: '', status: 'draft', signature_url: null, sections: [],
 });
 
 const ContractForm: React.FC = () => {
@@ -90,21 +94,29 @@ const ContractForm: React.FC = () => {
             amount: c.amount != null ? String(c.amount) : '',
             payment_frequency: c.payment_frequency || 'monthly',
             payment_amount: c.payment_amount != null ? String(c.payment_amount) : '',
+            insurance: c.insurance ? String(c.insurance) : '',
+            printing_charges: c.printing_charges ? String(c.printing_charges) : '',
             effective_date: (c.effective_date || '').slice(0, 10) || today(),
             start_date: (c.start_date || '').slice(0, 10) || '',
             end_date: (c.end_date || '').slice(0, 10) || '',
             contract_period: c.contract_period || '', termination_rules: c.termination_rules || '',
             comments: c.comments || '', status: c.status || 'draft',
+            signature_url: c.signature_url || null,
             sections: c.sections && c.sections.length ? c.sections : [],
           });
         } else {
-          const { contractNumber } = await getNextContractNumber(selectedCompany.id);
-          setForm((f) => ({ ...f, contract_number: contractNumber, sections: buildDefaultSections({
-            title: f.title, company_name: selectedCompany.name, client_name: f.client_name,
-            site: f.site, currency: selectedCompany.currency, amount: 0, payment_frequency: f.payment_frequency,
-            payment_amount: 0, start_date: f.start_date, end_date: f.end_date, contract_period: f.contract_period,
-            termination_rules: f.termination_rules, comments: f.comments,
-          }) }));
+          // New contract starts from THIS user's saved default template if they
+          // have one; otherwise the built-in default clauses.
+          const [{ contractNumber }, tpl] = await Promise.all([
+            getNextContractNumber(selectedCompany.id),
+            getContractTemplate(selectedCompany.id).catch(() => ({ title: null, sections: null })),
+          ]);
+          setForm((f) => ({
+            ...f,
+            contract_number: contractNumber,
+            title: tpl.title || f.title,
+            sections: tpl.sections && tpl.sections.length ? tpl.sections : buildDefaultSections(),
+          }));
         }
       } catch {
         setError('Failed to load. Please try again.');
@@ -126,16 +138,48 @@ const ContractForm: React.FC = () => {
     }));
   };
 
-  const regenerateClauses = () => {
+  // Reset the clauses to the built-in system default (ignores the user's saved
+  // personal default).
+  const resetToSystemDefault = () => {
+    if (form.sections.length && !window.confirm('Replace the current clauses with the built-in system default?')) return;
+    set('sections', buildDefaultSections());
+  };
+
+  // Save the current clauses (and title) as THIS user's personal default for
+  // future new contracts — only affects their own account.
+  const [savingTpl, setSavingTpl] = useState(false);
+  const saveAsMyDefault = async () => {
     if (!selectedCompany) return;
-    if (form.sections.length && !window.confirm('Replace the current clauses with freshly generated ones from the details above?')) return;
-    set('sections', buildDefaultSections({
-      title: form.title, company_name: selectedCompany.name, client_name: form.client_name,
-      site: form.site, currency: selectedCompany.currency, amount: Number(form.amount) || 0,
-      payment_frequency: form.payment_frequency, payment_amount: Number(form.payment_amount) || 0,
-      start_date: form.start_date, end_date: form.end_date, contract_period: form.contract_period,
-      termination_rules: form.termination_rules, comments: form.comments,
-    }));
+    setSavingTpl(true);
+    try {
+      await saveContractTemplate({ company_id: selectedCompany.id, title: form.title, sections: form.sections });
+      setError('');
+      window.alert('Saved as your default. Your next new contract will start with these clauses.');
+    } catch {
+      setError('Failed to save your default template.');
+    } finally {
+      setSavingTpl(false);
+    }
+  };
+
+  // Signature upload (only available once the contract exists, i.e. in edit mode).
+  const [uploadingSig, setUploadingSig] = useState(false);
+  const onSignatureFile = async (file: File | null) => {
+    if (!file || !isEdit) return;
+    setUploadingSig(true);
+    try {
+      const { signature_url } = await uploadContractSignature(Number(id), file);
+      set('signature_url', signature_url);
+    } catch {
+      setError('Failed to upload signature.');
+    } finally {
+      setUploadingSig(false);
+    }
+  };
+  const removeSignature = async () => {
+    if (!isEdit) { set('signature_url', null); return; }
+    try { await deleteContractSignature(Number(id)); set('signature_url', null); }
+    catch { setError('Failed to remove signature.'); }
   };
 
   const updateSection = (i: number, patch: Partial<ContractSection>) =>
@@ -156,12 +200,13 @@ const ContractForm: React.FC = () => {
     client_email: form.client_email, client_phone: form.client_phone, site: form.site,
     amount: Number(form.amount) || 0, currency: selectedCompany?.currency,
     payment_frequency: form.payment_frequency, payment_amount: Number(form.payment_amount) || 0,
+    insurance: Number(form.insurance) || 0, printing_charges: Number(form.printing_charges) || 0,
     effective_date: form.effective_date, start_date: form.start_date, end_date: form.end_date,
     contract_period: form.contract_period, termination_rules: form.termination_rules, comments: form.comments,
-    sections: form.sections, status: form.status as Contract['status'],
+    signature_url: form.signature_url, sections: form.sections, status: form.status as Contract['status'],
     company_name: selectedCompany?.name, company_address: selectedCompany?.address,
-    company_tpin: selectedCompany?.tpin, primary_color: selectedCompany?.primary_color,
-    company_currency: selectedCompany?.currency,
+    company_tpin: selectedCompany?.tpin, company_logo: selectedCompany?.logo_url,
+    primary_color: selectedCompany?.primary_color, company_currency: selectedCompany?.currency,
   }), [form, selectedCompany]);
 
   const save = async () => {
@@ -176,6 +221,7 @@ const ContractForm: React.FC = () => {
         client_email: form.client_email, client_phone: form.client_phone, site: form.site,
         amount: Number(form.amount) || 0, currency: selectedCompany.currency,
         payment_frequency: form.payment_frequency, payment_amount: Number(form.payment_amount) || 0,
+        insurance: Number(form.insurance) || 0, printing_charges: Number(form.printing_charges) || 0,
         effective_date: form.effective_date || null, start_date: form.start_date || null,
         end_date: form.end_date || null, contract_period: form.contract_period,
         termination_rules: form.termination_rules, comments: form.comments,
@@ -263,6 +309,8 @@ const ContractForm: React.FC = () => {
                 </select>
               </L>
               <L label={`Payment amount (${selectedCompany.currency})`}><input type="number" min={0} value={form.payment_amount} onChange={(e) => set('payment_amount', e.target.value)} className={inp} placeholder="Per payment" /></L>
+              <L label={`Insurance (${selectedCompany.currency})`}><input type="number" min={0} value={form.insurance} onChange={(e) => set('insurance', e.target.value)} className={inp} placeholder="Optional" /></L>
+              <L label={`Printing / production charges (${selectedCompany.currency})`}><input type="number" min={0} value={form.printing_charges} onChange={(e) => set('printing_charges', e.target.value)} className={inp} placeholder="Optional" /></L>
             </div>
           </Card>
 
@@ -279,12 +327,20 @@ const ContractForm: React.FC = () => {
 
           <Card title="Contract clauses"
             action={
-              <button onClick={regenerateClauses} className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
-                <Wand2 size={14} /> Regenerate from details
-              </button>
+              <div className="flex items-center gap-2">
+                <button onClick={saveAsMyDefault} disabled={savingTpl} title="Save these clauses as your personal default for future contracts"
+                  className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg text-white disabled:opacity-50" style={{ background: primary }}>
+                  <Star size={14} /> {savingTpl ? 'Saving…' : 'Save as my default'}
+                </button>
+                <button onClick={resetToSystemDefault} title="Reset to the built-in default wording"
+                  className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
+                  <RotateCcw size={14} /> Reset
+                </button>
+              </div>
             }>
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-              These clauses were auto-written from the details above. Edit any wording, reorder, add or remove clauses — the PDF uses exactly what's here.
+              Edit any wording, reorder, add or remove clauses — the PDF uses exactly what's here. Your edits are saved as
+              <strong> your own default</strong> when you save the contract (only for your account); use <strong>Save as my default</strong> to set them without saving a contract.
             </p>
             <div className="space-y-3">
               {form.sections.map((s, i) => (
@@ -305,6 +361,28 @@ const ContractForm: React.FC = () => {
             <button onClick={addSection} className="mt-3 flex items-center gap-1.5 text-sm px-3 py-2 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 w-full justify-center">
               <Plus size={15} /> Add clause
             </button>
+          </Card>
+
+          <Card title="Digital signature">
+            {isEdit ? (
+              <div className="flex items-center gap-4">
+                {form.signature_url ? (
+                  <img src={form.signature_url} alt="Signature" className="h-16 max-w-[200px] object-contain border border-gray-200 dark:border-gray-700 rounded bg-white p-1" />
+                ) : (
+                  <div className="h-16 w-40 flex items-center justify-center text-xs text-gray-400 border border-dashed border-gray-300 dark:border-gray-600 rounded">No signature</div>
+                )}
+                <div className="flex flex-col gap-2">
+                  <label className="flex items-center gap-1.5 text-sm px-3 py-2 rounded-lg text-white cursor-pointer w-fit" style={{ background: primary }}>
+                    <Upload size={15} /> {uploadingSig ? 'Uploading…' : (form.signature_url ? 'Replace' : 'Upload signature')}
+                    <input type="file" accept="image/*" className="hidden" onChange={(e) => onSignatureFile(e.target.files?.[0] || null)} disabled={uploadingSig} />
+                  </label>
+                  {form.signature_url && <button onClick={removeSignature} className="text-sm text-red-500 hover:underline text-left">Remove</button>}
+                  <p className="text-xs text-gray-400">Appears above the Company signature line. PNG with transparent background works best.</p>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500 dark:text-gray-400">Save the contract first, then reopen it (Edit) to upload a signature image.</p>
+            )}
           </Card>
         </div>
 

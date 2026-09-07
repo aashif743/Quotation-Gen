@@ -148,6 +148,9 @@ export interface Contract {
   contract_period?: string | null;
   termination_rules?: string | null;
   comments?: string | null;
+  insurance?: number;
+  printing_charges?: number;
+  signature_url?: string | null;
   sections?: ContractSection[];
   status?: ContractStatus;
   created_at?: string;

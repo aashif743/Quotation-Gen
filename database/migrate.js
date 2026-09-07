@@ -754,6 +754,39 @@ async function migrate() {
     `);
   } else { console.log('  • contracts already present, skipping.'); }
 
+  // 3p-extra. Contract add-ons: insurance & printing charges, an uploaded
+  // signature image, plus a per-USER default clause template.
+  for (const [col, ddl] of [
+    ['insurance', 'ALTER TABLE `contracts` ADD COLUMN `insurance` DECIMAL(15,2) DEFAULT 0'],
+    ['printing_charges', 'ALTER TABLE `contracts` ADD COLUMN `printing_charges` DECIMAL(15,2) DEFAULT 0'],
+    ['signature_url', 'ALTER TABLE `contracts` ADD COLUMN `signature_url` VARCHAR(255) NULL'],
+  ]) {
+    if (!(await columnExists('contracts', col))) {
+      console.log(`  • Adding \`${col}\` to contracts...`);
+      await db.query(ddl);
+    } else { console.log(`  • contracts.${col} already present, skipping.`); }
+  }
+
+  // Per-user (per-company) default contract clauses. When a user edits their
+  // clauses they become that user's default for future contracts — only for
+  // them. Falls back to the built-in template when a user has none saved.
+  if (!(await tableExists('contract_templates'))) {
+    console.log('  • Creating `contract_templates` table...');
+    await db.query(`
+      CREATE TABLE \`contract_templates\` (
+        \`id\` INT PRIMARY KEY AUTO_INCREMENT,
+        \`company_id\` INT NOT NULL,
+        \`user_id\` INT NOT NULL,
+        \`title\` VARCHAR(255),
+        \`sections\` LONGTEXT,
+        \`updated_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (\`company_id\`) REFERENCES \`companies\`(\`id\`) ON DELETE CASCADE,
+        FOREIGN KEY (\`user_id\`) REFERENCES \`users\`(\`id\`) ON DELETE CASCADE,
+        UNIQUE KEY \`uniq_template_company_user\` (\`company_id\`, \`user_id\`)
+      ) ENGINE=InnoDB
+    `);
+  } else { console.log('  • contract_templates already present, skipping.'); }
+
   // 4. Backfill created_by from each row's company owner so existing records
   //    are attributed to the user who originally owned the company.
   const [qBackfill] = await db.query(

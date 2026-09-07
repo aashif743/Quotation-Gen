@@ -1,5 +1,5 @@
 SET FOREIGN_KEY_CHECKS = 0;
-DROP TABLE IF EXISTS `users`, `companies`, `quotations`, `quotation_items`, `invoices`, `invoice_items`, `delivery_notes`, `delivery_note_items`, `clients`, `payments`, `petty_cash`, `expenses`, `vendor_payments`, `purchase_items`, `purchases`, `vendors`, `attendance_punches`, `attendance_enrollments`, `attendance_settings`, `attendance_devices`, `contracts`, `organizations`;
+DROP TABLE IF EXISTS `users`, `companies`, `quotations`, `quotation_items`, `invoices`, `invoice_items`, `delivery_notes`, `delivery_note_items`, `clients`, `payments`, `petty_cash`, `expenses`, `vendor_payments`, `purchase_items`, `purchases`, `vendors`, `attendance_punches`, `attendance_enrollments`, `attendance_settings`, `attendance_devices`, `contract_templates`, `contracts`, `organizations`;
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- Organizations are tenants (separate customers). Each has its own users and
@@ -123,6 +123,9 @@ CREATE TABLE IF NOT EXISTS `contracts` (
     `contract_period` VARCHAR(100),
     `termination_rules` TEXT,
     `comments` TEXT,
+    `insurance` DECIMAL(15,2) DEFAULT 0,
+    `printing_charges` DECIMAL(15,2) DEFAULT 0,
+    `signature_url` VARCHAR(255),
     `sections` LONGTEXT,
     `status` VARCHAR(20) NOT NULL DEFAULT 'draft',
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -131,6 +134,19 @@ CREATE TABLE IF NOT EXISTS `contracts` (
     FOREIGN KEY (`created_by`) REFERENCES `users`(`id`) ON DELETE SET NULL,
     FOREIGN KEY (`client_id`) REFERENCES `clients`(`id`) ON DELETE SET NULL,
     UNIQUE KEY `unique_contract_per_company` (`company_id`, `contract_number`)
+) ENGINE=InnoDB;
+
+-- Per-user default contract clauses (their personal template, per company).
+CREATE TABLE IF NOT EXISTS `contract_templates` (
+    `id` INT PRIMARY KEY AUTO_INCREMENT,
+    `company_id` INT NOT NULL,
+    `user_id` INT NOT NULL,
+    `title` VARCHAR(255),
+    `sections` LONGTEXT,
+    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (`company_id`) REFERENCES `companies`(`id`) ON DELETE CASCADE,
+    FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
+    UNIQUE KEY `uniq_template_company_user` (`company_id`, `user_id`)
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS `quotation_items` (

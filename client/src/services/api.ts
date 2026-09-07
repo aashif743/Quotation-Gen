@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { Company, Quotation, Invoice, DeliveryNote, User, AuthStatus, ManagedUser, UserRole, Client, ClientDocSummary, Payment, Vendor, Purchase, PurchaseDocSummary, Expense, PettyCashEntry, PettyCashSummary, Organization,
   AttendanceDevice, AttendanceEnrollment, AttendanceEmployee, AttendancePunch, AttendanceTodayStaff, AttendanceReportRow, AttendanceSettings,
-  Contract } from '../types';
+  Contract, ContractSection } from '../types';
 
 // Use a relative base so the same build works in development (proxied by CRA
 // to the local Express server) and in production (served by the same Express
@@ -650,6 +650,22 @@ export const updateContract = async (id: number, data: Partial<Contract>): Promi
 };
 export const deleteContract = async (id: number): Promise<void> => {
   await api.delete(`/contracts/${id}`);
+};
+export const getContractTemplate = async (companyId: number): Promise<{ title: string | null; sections: ContractSection[] | null }> => {
+  const r = await api.get('/contracts/template', { params: { company_id: companyId } });
+  return r.data;
+};
+export const saveContractTemplate = async (data: { company_id: number; title: string; sections: ContractSection[] }): Promise<void> => {
+  await api.put('/contracts/template', data);
+};
+export const uploadContractSignature = async (id: number, file: File): Promise<{ signature_url: string }> => {
+  const fd = new FormData();
+  fd.append('file', file);
+  const r = await api.post(`/contracts/${id}/signature`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+  return r.data;
+};
+export const deleteContractSignature = async (id: number): Promise<void> => {
+  await api.delete(`/contracts/${id}/signature`);
 };
 
 export const getAttendanceToday = async (companyId: number): Promise<{ settings: AttendanceSettings; staff: AttendanceTodayStaff[] }> => {

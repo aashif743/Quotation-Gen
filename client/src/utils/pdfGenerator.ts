@@ -231,8 +231,15 @@ function collectSafeBreakPoints(
   // The Y just below a row is a safe place to break to the next page.
   // We also pick up any element flagged with `data-pdf-keep` so document
   // templates can opt sections in by adding the attribute.
-  const selectors = 'tr, [data-pdf-keep]';
+  // `p` and `li` are added so long text (e.g. contract clauses) can break
+  // BETWEEN paragraphs instead of being sliced through the middle of a line.
+  const selectors = 'tr, li, p, [data-pdf-keep]';
   element.querySelectorAll<HTMLElement>(selectors).forEach((node) => {
+    // A `p`/`li` INSIDE a `data-pdf-keep` block must not become a break point,
+    // or we'd split a block that was explicitly marked to stay together (e.g.
+    // a totals card). Such blocks contribute only their own outer boundary.
+    const tag = node.tagName.toLowerCase();
+    if ((tag === 'p' || tag === 'li') && node.closest('[data-pdf-keep]')) return;
     const rect = node.getBoundingClientRect();
     const bottomRel = rect.bottom - elemTop;
     if (bottomRel <= 0) return;
