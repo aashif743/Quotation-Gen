@@ -128,7 +128,7 @@ const ContractDocument: React.FC<{ contract: Contract }> = ({ contract: c }) => 
       </div>
 
       {/* Key details table */}
-      <div data-pdf-keep>
+      <div data-pdf-keep data-pdf-break-before>
         <table style={s.table}>
           <tbody>
             {detailRows.map(([label, value], i) => (
@@ -141,22 +141,26 @@ const ContractDocument: React.FC<{ contract: Contract }> = ({ contract: c }) => 
         </table>
       </div>
 
-      {/* Clauses — heading stays with its first paragraph; further paragraphs can break */}
+      {/* Clauses. The heading is a "break-before" point so a clause that doesn't
+          fit is pushed whole to the next page; each paragraph is its own break
+          boundary so text never slices mid-line. The heading + its first
+          paragraph share a keep-block so a heading is never left orphaned at the
+          foot of a page. */}
       {allSections.map((sec, i) => {
         const paras = toParagraphs(sec.body);
         return (
           <React.Fragment key={i}>
-            <div data-pdf-keep>
+            <div data-pdf-keep data-pdf-break-before>
               <div style={s.sectionTitle}>{i + 1}. {sec.heading}</div>
-              <p style={s.para}>{paras[0] || ''}</p>
+              <p style={{ ...s.para, marginBottom: 0 }}>{paras[0] || ''}</p>
             </div>
-            {paras.slice(1).map((p, j) => <p key={j} style={s.para}>{p}</p>)}
+            {paras.slice(1).map((p, j) => <p key={j} style={{ ...s.para, marginTop: 8 }}>{p}</p>)}
           </React.Fragment>
         );
       })}
 
       {/* Execution + signatures */}
-      <div data-pdf-keep>
+      <div data-pdf-keep data-pdf-break-before>
         <p style={{ ...s.para, marginTop: 24 }}>
           IN WITNESS WHEREOF, the parties hereto have executed this {c.title || 'Agreement'} as of the date first written above.
         </p>

@@ -247,6 +247,17 @@ function collectSafeBreakPoints(
     if (yCanvas > 0 && yCanvas <= canvasHeight) ys.add(yCanvas);
   });
 
+  // "Break BEFORE" markers: a break may be placed at the TOP of these elements
+  // (e.g. a clause heading), so a block that doesn't fit in the remaining space
+  // is pushed WHOLE to the next page instead of being sliced through. Without a
+  // top-of-block candidate the slicer could only fall back to an arbitrary cut.
+  element.querySelectorAll<HTMLElement>('[data-pdf-break-before]').forEach((node) => {
+    const topRel = node.getBoundingClientRect().top - elemTop;
+    if (topRel <= 0) return;
+    const yCanvas = Math.round(topRel * scale);
+    if (yCanvas > 0 && yCanvas <= canvasHeight) ys.add(yCanvas);
+  });
+
   return Array.from(ys).sort((a, b) => a - b);
 }
 
