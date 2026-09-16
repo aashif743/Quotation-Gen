@@ -78,8 +78,9 @@ const ContractDocument: React.FC<{ contract: Contract }> = ({ contract: c }) => 
     table: { width: '100%', borderCollapse: 'collapse', margin: '4px 0 8px' },
     tdLabel: { width: '34%', background: '#f8fafc', border: '1px solid #e5e7eb', padding: '10px 14px', fontWeight: 700, color: '#374151', verticalAlign: 'top' },
     tdValue: { border: '1px solid #e5e7eb', padding: '10px 14px', color: '#1f2937', verticalAlign: 'top', whiteSpace: 'pre-wrap' },
-    signWrap: { display: 'flex', gap: 48, marginTop: 24 },
+    signWrap: { display: 'flex', gap: 48, marginTop: 10 },
     signCol: { flex: 1 },
+    signHeading: { fontWeight: 700, color: '#111827', minHeight: 44, lineHeight: 1.35 },
     signImgBox: { height: 56, display: 'flex', alignItems: 'flex-end', marginBottom: 2 },
     signImg: { maxHeight: 56, maxWidth: 200, objectFit: 'contain' },
     signLine: { borderBottom: '1px solid #9ca3af', height: 2, marginBottom: 6 },
@@ -156,32 +157,34 @@ const ContractDocument: React.FC<{ contract: Contract }> = ({ contract: c }) => 
         );
       })}
 
-      {/* Execution + signatures */}
-      <div data-pdf-keep data-pdf-break-before>
-        <p style={{ ...s.para, marginTop: 24 }}>
-          IN WITNESS WHEREOF, the parties hereto have executed this {c.title || 'Agreement'} as of the date first written above.
-        </p>
-        <div style={s.signWrap}>
-          <div style={s.signCol}>
-            <div style={{ fontWeight: 700, marginBottom: 10, color: '#111827' }}>For Client ({c.client_name})</div>
-            <div style={s.signImgBox} />
-            <div style={s.signLine} />
-            <div style={s.signCap}>Authorized Signature</div>
-            <div style={s.signField}>Name: ____________________________</div>
-            <div style={s.signField}>Title: _____________________________</div>
-            <div style={s.signField}>Date: _____________________________</div>
+      {/* Execution line — a normal paragraph (line-breakable) so it can sit at
+          the foot of a page without forcing the signatures to split. */}
+      <p style={{ ...s.para, marginTop: 24 }}>
+        IN WITNESS WHEREOF, the parties hereto have executed this {c.title || 'Agreement'} as of the date first written above.
+      </p>
+
+      {/* Signatures — one compact keep-block that never splits (both columns
+          share a fixed heading height so they stay aligned). */}
+      <div style={s.signWrap} data-pdf-keep data-pdf-break-before>
+        <div style={s.signCol}>
+          <div style={s.signHeading}>For Client ({c.client_name})</div>
+          <div style={s.signImgBox} />
+          <div style={s.signLine} />
+          <div style={s.signCap}>Authorized Signature</div>
+          <div style={s.signField}>Name: ____________________________</div>
+          <div style={s.signField}>Title: _____________________________</div>
+          <div style={s.signField}>Date: _____________________________</div>
+        </div>
+        <div style={s.signCol}>
+          <div style={s.signHeading}>For Company ({c.company_name})</div>
+          <div style={s.signImgBox}>
+            {c.signature_url ? <img src={c.signature_url} alt="Signature" style={s.signImg} crossOrigin="anonymous" /> : null}
           </div>
-          <div style={s.signCol}>
-            <div style={{ fontWeight: 700, marginBottom: 10, color: '#111827' }}>For Company ({c.company_name})</div>
-            <div style={s.signImgBox}>
-              {c.signature_url ? <img src={c.signature_url} alt="Signature" style={s.signImg} crossOrigin="anonymous" /> : null}
-            </div>
-            <div style={s.signLine} />
-            <div style={s.signCap}>Authorized Signature</div>
-            <div style={s.signField}>Name: ____________________________</div>
-            <div style={s.signField}>Title: _____________________________</div>
-            <div style={s.signField}>Date: _____________________________</div>
-          </div>
+          <div style={s.signLine} />
+          <div style={s.signCap}>Authorized Signature</div>
+          <div style={s.signField}>Name: ____________________________</div>
+          <div style={s.signField}>Title: _____________________________</div>
+          <div style={s.signField}>Date: _____________________________</div>
         </div>
       </div>
     </div>
