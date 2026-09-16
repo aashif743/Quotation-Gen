@@ -226,36 +226,45 @@ function collectSafeBreakPoints(
   const ys = new Set<number>();
   ys.add(0);
   ys.add(canvasHeight);
-
-  // Every <tr> within the captured element is treated as a no-break unit.
-  // The Y just below a row is a safe place to break to the next page.
-  // We also pick up any element flagged with `data-pdf-keep` so document
-  // templates can opt sections in by adding the attribute.
-  // `p` and `li` are added so long text (e.g. contract clauses) can break
-  // BETWEEN paragraphs instead of being sliced through the middle of a line.
-  const selectors = 'tr, li, p, [data-pdf-keep]';
-  element.querySelectorAll<HTMLElement>(selectors).forEach((node) => {
-    // A `p`/`li` INSIDE a `data-pdf-keep` block must not become a break point,
-    // or we'd split a block that was explicitly marked to stay together (e.g.
-    // a totals card). Such blocks contribute only their own outer boundary.
-    const tag = node.tagName.toLowerCase();
-    if ((tag === 'p' || tag === 'li') && node.closest('[data-pdf-keep]')) return;
-    const rect = node.getBoundingClientRect();
-    const bottomRel = rect.bottom - elemTop;
+  const addBottom = (bottomRel: number) => {
     if (bottomRel <= 0) return;
-    const yCanvas = Math.round(bottomRel * scale);
-    if (yCanvas > 0 && yCanvas <= canvasHeight) ys.add(yCanvas);
+    const y = Math.round(bottomRel * scale);
+    if (y > 0 && y <= canvasHeight) ys.add(y);
+  };
+
+  // Table rows and explicitly-kept blocks (`data-pdf-keep`, e.g. a totals card
+  // or the signature block) are no-break units — it's safe to break AFTER the
+  // whole element, never through it.
+  element.querySelectorAll<HTMLElement>('tr, [data-pdf-keep]').forEach((node) => {
+    addBottom(node.getBoundingClientRect().bottom - elemTop);
+  });
+
+  // Free-text paragraphs / list items that are NOT inside a kept block: add a
+  // break candidate after every VISUAL line (via the text node's line boxes),
+  // so long paragraphs break BETWEEN lines and text is never sliced mid-line —
+  // regardless of how the author wrapped or newlined it.
+  const range = document.createRange();
+  element.querySelectorAll<HTMLElement>('p, li').forEach((node) => {
+    if (node.closest('[data-pdf-keep]')) return;
+    const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+    let t: Node | null;
+    // eslint-disable-next-line no-cond-assign
+    while ((t = walker.nextNode())) {
+      range.selectNodeContents(t);
+      const rects = range.getClientRects();
+      for (let k = 0; k < rects.length; k++) addBottom(rects[k].bottom - elemTop);
+    }
+    addBottom(node.getBoundingClientRect().bottom - elemTop);
   });
 
   // "Break BEFORE" markers: a break may be placed at the TOP of these elements
   // (e.g. a clause heading), so a block that doesn't fit in the remaining space
-  // is pushed WHOLE to the next page instead of being sliced through. Without a
-  // top-of-block candidate the slicer could only fall back to an arbitrary cut.
+  // is pushed WHOLE to the next page instead of being sliced through.
   element.querySelectorAll<HTMLElement>('[data-pdf-break-before]').forEach((node) => {
     const topRel = node.getBoundingClientRect().top - elemTop;
     if (topRel <= 0) return;
-    const yCanvas = Math.round(topRel * scale);
-    if (yCanvas > 0 && yCanvas <= canvasHeight) ys.add(yCanvas);
+    const y = Math.round(topRel * scale);
+    if (y > 0 && y <= canvasHeight) ys.add(y);
   });
 
   return Array.from(ys).sort((a, b) => a - b);

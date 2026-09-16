@@ -142,19 +142,16 @@ const ContractDocument: React.FC<{ contract: Contract }> = ({ contract: c }) => 
       </div>
 
       {/* Clauses. The heading is a "break-before" point so a clause that doesn't
-          fit is pushed whole to the next page; each paragraph is its own break
-          boundary so text never slices mid-line. The heading + its first
-          paragraph share a keep-block so a heading is never left orphaned at the
-          foot of a page. */}
+          fit is pushed whole to the next page. Bodies are plain <p> (NOT inside
+          a keep block) so the PDF slicer can break between their visual lines —
+          text is never sliced mid-line. A heading isn't orphaned because the
+          first break after it can only fall after the first body line. */}
       {allSections.map((sec, i) => {
         const paras = toParagraphs(sec.body);
         return (
           <React.Fragment key={i}>
-            <div data-pdf-keep data-pdf-break-before>
-              <div style={s.sectionTitle}>{i + 1}. {sec.heading}</div>
-              <p style={{ ...s.para, marginBottom: 0 }}>{paras[0] || ''}</p>
-            </div>
-            {paras.slice(1).map((p, j) => <p key={j} style={{ ...s.para, marginTop: 8 }}>{p}</p>)}
+            <div style={s.sectionTitle} data-pdf-break-before>{i + 1}. {sec.heading}</div>
+            {paras.map((p, j) => <p key={j} style={{ ...s.para, marginTop: j === 0 ? 0 : 8 }}>{p}</p>)}
           </React.Fragment>
         );
       })}
