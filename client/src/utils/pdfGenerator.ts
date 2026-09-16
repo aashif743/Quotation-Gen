@@ -134,6 +134,7 @@ async function saveElementAsPdf(
   // never through the middle of one. The slicer below uses this to round each
   // page boundary down to the nearest safe Y so an item is never cut in half.
   const safeBreakYs = collectSafeBreakPoints(element, CAPTURE_SCALE, canvas.height);
+  const keepRanges = collectKeepRanges(element, CAPTURE_SCALE, canvas.height);
 
   // Single-page fast path: no slicing needed.
   if (canvas.height <= pageHeightPx + HEIGHT_TOLERANCE_PX) {
@@ -175,6 +176,23 @@ async function saveElementAsPdf(
         }
       }
       sliceEnd = bestBreak > 0 ? bestBreak : idealEnd;
+    }
+
+    // Hard guarantee: never cut through a kept block. If the chosen cut lands
+    // inside one that starts below the current page top, move the cut up to the
+    // block's top so the whole block moves to the next page. (If the block
+    // starts at/above the page top it's taller than a page — allow the cut so
+    // we keep making progress instead of looping forever.)
+    for (const r of keepRanges) {
+      if (r.top > offsetPx + HEIGHT_TOLERANCE_PX &&
+          sliceEnd > r.top + HEIGHT_TOLERANCE_PX &&
+          sliceEnd < r.bottom - HEIGHT_TOLERANCE_PX) {
+        sliceEnd = Math.min(sliceEnd, r.top);
+      }
+    }
+    // Safety: always advance at least a little so the loop terminates.
+    if (sliceEnd <= offsetPx + HEIGHT_TOLERANCE_PX) {
+      sliceEnd = Math.min(canvas.height, offsetPx + pageHeightPx);
     }
 
     const sliceHeightPx = sliceEnd - offsetPx;
@@ -268,6 +286,29 @@ function collectSafeBreakPoints(
   });
 
   return Array.from(ys).sort((a, b) => a - b);
+}
+
+/**
+ * Canvas-pixel [top, bottom] spans of every `data-pdf-keep` block. The slicer
+ * uses these to guarantee a page cut never lands *inside* one of them (e.g. the
+ * signature block, whose two columns can differ in height) — if a proposed cut
+ * falls within a block, it's moved up to the block's top so the whole block is
+ * pushed to the next page.
+ */
+function collectKeepRanges(
+  element: HTMLElement,
+  scale: number,
+  canvasHeight: number
+): Array<{ top: number; bottom: number }> {
+  const elemTop = element.getBoundingClientRect().top;
+  const ranges: Array<{ top: number; bottom: number }> = [];
+  element.querySelectorAll<HTMLElement>('[data-pdf-keep]').forEach((node) => {
+    const rect = node.getBoundingClientRect();
+    const top = Math.round((rect.top - elemTop) * scale);
+    const bottom = Math.round((rect.bottom - elemTop) * scale);
+    if (bottom > 0) ranges.push({ top: Math.max(0, top), bottom: Math.min(canvasHeight, bottom) });
+  });
+  return ranges;
 }
 
 const safeFileSegment = (s: string) => s.replace(/[^a-zA-Z0-9]/g, '_');
