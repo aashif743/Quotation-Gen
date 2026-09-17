@@ -165,13 +165,16 @@ async function saveElementAsPdf(
       sliceEnd = canvas.height;
     } else {
       // Aim for a full A4 page, but snap to the largest safe break Y that
-      // sits within the [offsetPx + 1, idealEnd] window. If none is found
-      // (e.g. a single row taller than a page) we fall back to the ideal end
-      // so we still make progress instead of looping forever.
+      // sits within the [offsetPx + 1, idealEnd] window. The upper bound is a
+      // HARD limit (no tolerance): a slice taller than the page would be drawn
+      // past the PDF page edge and its bottom pixels — the last line of text —
+      // would be clipped and lost. If no break is found (e.g. a single row
+      // taller than a page) we fall back to the ideal end so we still make
+      // progress instead of looping forever.
       const idealEnd = offsetPx + pageHeightPx;
       let bestBreak = -1;
       for (const by of safeBreakYs) {
-        if (by > offsetPx + HEIGHT_TOLERANCE_PX && by <= idealEnd + HEIGHT_TOLERANCE_PX) {
+        if (by > offsetPx + HEIGHT_TOLERANCE_PX && by <= idealEnd) {
           if (by > bestBreak) bestBreak = by;
         }
       }
