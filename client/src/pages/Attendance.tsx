@@ -12,12 +12,16 @@ import {
 } from '../services/api';
 import {
   AttendanceDevice, AttendanceEmployee, AttendancePunch, AttendanceTodayStaff,
-  AttendanceReportRow, AttendanceSettings,
+  AttendanceReportRow, AttendanceSettings, Company,
 } from '../types';
+import {
+  REPORT_TYPES, PERIODS, ReportType, PeriodKey, periodRange, ymd, buildDays, summarize, filterDays,
+  formatDay, formatRange, clock, downloadAttendancePdf,
+} from '../utils/attendanceReport';
 import { toCsv, downloadCsv } from '../utils/csv';
 import {
   Fingerprint, Clock, CalendarDays, Users, Cpu, RefreshCw, Plus, Trash2, X,
-  Download, Copy, Check, KeyRound, AlertCircle, Loader2, Settings as SettingsIcon,
+  Download, Copy, Check, KeyRound, AlertCircle, Loader2, Settings as SettingsIcon, FileText,
 } from 'lucide-react';
 
 type Tab = 'today' | 'records' | 'report' | 'staff' | 'devices';
@@ -45,7 +49,6 @@ const timePart = (s: string | null): string => {
 };
 const datePart = (s: string | null): string => (s ? s.slice(0, 10) : '—');
 const todayStr = () => new Date().toISOString().slice(0, 10);
-const monthStartStr = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`; };
 
 const Attendance: React.FC = () => {
   const { selectedCompany } = useCompany();
@@ -117,7 +120,7 @@ const Attendance: React.FC = () => {
         <>
           {tab === 'today' && <TodayTab companyId={companyId!} primary={primary} />}
           {tab === 'records' && <RecordsTab companyId={companyId!} primary={primary} employees={employees} flash={flash} />}
-          {tab === 'report' && <ReportTab companyId={companyId!} primary={primary} />}
+          {tab === 'report' && <ReportTab companyId={companyId!} primary={primary} employees={employees} company={selectedCompany} flash={flash} />}
           {tab === 'staff' && <StaffTab companyId={companyId!} primary={primary} employees={employees} reload={loadEmployees} flash={flash} />}
           {tab === 'devices' && <DevicesTab companyId={companyId!} primary={primary} flash={flash} />}
         </>
@@ -364,65 +367,228 @@ const ManualPunchModal: React.FC<{ companyId: number; employees: AttendanceEmplo
 };
 
 // ---------------------------------------------------------------------------
-const ReportTab: React.FC<{ companyId: number; primary: string }> = ({ companyId, primary }) => {
+const ReportTab: React.FC<{ companyId: number; primary: string; employees: AttendanceEmployee[]; company: Company; flash: (t: 'success' | 'error', m: string) => void }> = ({ companyId, primary, employees, company, flash }) => {
   const [rows, setRows] = useState<AttendanceReportRow[]>([]);
   const [loading, setLoading] = useState(false);
-  const [from, setFrom] = useState(monthStartStr());
-  const [to, setTo] = useState(todayStr());
+  const [period, setPeriod] = useState<PeriodKey>('this_month');
+  const [customFrom, setCustomFrom] = useState(periodRange('this_month').from);
+  const [customTo, setCustomTo] = useState(ymd(new Date()));
+  const [type, setType] = useState<ReportType>('summary');
+  const [staffId, setStaffId] = useState<number | ''>('');
+  // Weekly off days (0 = Sun … 6 = Sat) — not counted as absences. Remembered
+  // per company in this browser only; defaults to Sunday.
+  const offKey = `attendance-offdays-${companyId}`;
+  const [offDays, setOffDays] = useState<number[]>(() => {
+    try { const v = JSON.parse(localStorage.getItem(offKey) || 'null'); if (Array.isArray(v)) return v; } catch { /* ignore */ }
+    return [0];
+  });
+  useEffect(() => {
+    try { localStorage.setItem(offKey, JSON.stringify(offDays)); } catch { /* ignore */ }
+  }, [offKey, offDays]);
 
-  const load = async () => {
+  const { from, to } = period === 'custom' ? { from: customFrom, to: customTo } : periodRange(period);
+  const rangeOk = !!from && !!to && from <= to;
+
+  useEffect(() => {
+    if (!rangeOk) return;
+    let alive = true;
     setLoading(true);
-    try { const d = await getAttendanceReport(companyId, from, to); setRows(d.rows); }
-    finally { setLoading(false); }
+    getAttendanceReport(companyId, from, to)
+      .then((d) => { if (alive) setRows(d.rows); })
+      .catch(() => { if (alive) { setRows([]); flash('error', 'Failed to load the report.'); } })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companyId, from, to]);
+
+  const days = useMemo(
+    () => (rangeOk ? buildDays(rows, employees, from, to, offDays, staffId || null) : []),
+    [rows, employees, from, to, offDays, staffId, rangeOk]);
+  const summaries = useMemo(() => summarize(days), [days]);
+  const listed = useMemo(() => {
+    const f = filterDays(days, type);
+    return type === 'detailed'
+      ? f.slice().sort((a, b) => a.name.localeCompare(b.name) || a.date.localeCompare(b.date))
+      : f.slice().sort((a, b) => a.date.localeCompare(b.date) || a.name.localeCompare(b.name));
+  }, [days, type]);
+  const totals = summaries.reduce(
+    (a, s) => ({ wd: a.wd + s.workingDays, p: a.p + s.present, l: a.l + s.late, ab: a.ab + s.absent, h: a.h + s.hours }),
+    { wd: 0, p: 0, l: 0, ab: 0, h: 0 });
+
+  const staffLabel = staffId ? (employees.find((e) => e.id === staffId)?.name || 'Staff') : 'All staff';
+  const offDaysLabel = offDays.length
+    ? `Off days: ${[...offDays].sort().map((d) => WEEKDAYS[d]).join(', ')}`
+    : 'No off days';
+  const typeLabel = REPORT_TYPES.find((t) => t.key === type)?.label || '';
+
+  const downloadPdf = () => {
+    try {
+      downloadAttendancePdf({
+        type, from, to, companyName: company.name, primaryColor: company.primary_color,
+        staffLabel, offDaysLabel, days,
+      });
+    } catch (e) {
+      console.error(e);
+      flash('error', 'Failed to generate the PDF.');
+    }
   };
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [companyId]);
 
   const exportCsv = () => {
-    const csv = toCsv(
-      ['Staff', 'Date', 'Check-in', 'Check-out', 'Hours', 'Late'],
-      rows.map((r) => [
-        r.name, r.date, timePart(r.first_in), timePart(r.last_out), r.hours, r.late ? 'Yes' : 'No',
-      ]),
-    );
-    downloadCsv(`attendance-report-${from}_to_${to}.csv`, csv);
+    const csv = type === 'summary'
+      ? toCsv(['Staff', 'Working days', 'Present', 'Late', 'Absent', 'Hours', 'Attendance %'],
+          summaries.map((s) => [s.name, s.workingDays, s.present, s.late, s.absent, s.hours, s.rate]))
+      : toCsv(['Date', 'Staff', 'Check-in', 'Check-out', 'Hours', 'Status'],
+          listed.map((d) => [d.date, d.name, clock(d.first_in), clock(d.last_out), d.hours || '', d.status]));
+    downloadCsv(`attendance-${type}-${from}_to_${to}.csv`, csv);
   };
+
+  const toggleOff = (d: number) =>
+    setOffDays((cur) => (cur.includes(d) ? cur.filter((x) => x !== d) : [...cur, d]));
+
+  const pill = (active: boolean) =>
+    `px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${active
+      ? 'text-white border-transparent'
+      : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`;
 
   return (
     <div>
-      <div className={`${card} p-3 mb-4 flex flex-wrap items-end gap-3`}>
-        <Field label="From"><input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={inputCls} /></Field>
-        <Field label="To"><input type="date" value={to} onChange={(e) => setTo(e.target.value)} className={inputCls} /></Field>
-        <button onClick={load} className="px-4 py-2 rounded-lg text-white text-sm font-medium" style={{ background: primary }}>Run report</button>
-        <div className="flex-1" />
-        <button onClick={exportCsv} disabled={!rows.length} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-40"><Download size={15} /> CSV</button>
+      <div className={`${card} p-4 mb-4 space-y-4`}>
+        {/* Period */}
+        <div>
+          <span className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Period</span>
+          <div className="flex flex-wrap items-center gap-2">
+            {PERIODS.map((p) => (
+              <button key={p.key} onClick={() => setPeriod(p.key)} className={pill(period === p.key)}
+                style={period === p.key ? { background: primary } : undefined}>{p.label}</button>
+            ))}
+          </div>
+          {period === 'custom' ? (
+            <div className="flex flex-wrap items-end gap-3 mt-3">
+              <Field label="From"><input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className={inputCls} /></Field>
+              <Field label="To"><input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className={inputCls} /></Field>
+              {!rangeOk && <span className="text-sm text-red-600 pb-2">“From” must be on or before “To”.</span>}
+            </div>
+          ) : (
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">{formatRange(from, to)}</p>
+          )}
+        </div>
+
+        {/* Report type */}
+        <div>
+          <span className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Report</span>
+          <div className="flex flex-wrap gap-2">
+            {REPORT_TYPES.map((t) => (
+              <button key={t.key} onClick={() => setType(t.key)} title={t.hint} className={pill(type === t.key)}
+                style={type === t.key ? { background: primary } : undefined}>{t.label}</button>
+            ))}
+          </div>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">{REPORT_TYPES.find((t) => t.key === type)?.hint}</p>
+        </div>
+
+        {/* Staff + off days + actions */}
+        <div className="flex flex-wrap items-end gap-4">
+          <Field label="Staff">
+            <select value={staffId} onChange={(e) => setStaffId(e.target.value ? Number(e.target.value) : '')} className={inputCls}>
+              <option value="">All staff</option>
+              {employees.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
+            </select>
+          </Field>
+          <div>
+            <span className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Weekly off days (not counted absent)</span>
+            <div className="flex gap-1">
+              {[1, 2, 3, 4, 5, 6, 0].map((d) => (
+                <button key={d} onClick={() => toggleOff(d)}
+                  className={`w-11 py-2 rounded-lg text-xs font-medium border ${offDays.includes(d)
+                    ? 'bg-gray-700 text-white border-gray-700 dark:bg-gray-200 dark:text-gray-900'
+                    : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'}`}>
+                  {WEEKDAYS[d]}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="flex-1" />
+          <button onClick={exportCsv} disabled={loading || !rangeOk}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-40">
+            <Download size={15} /> CSV
+          </button>
+          <button onClick={downloadPdf} disabled={loading || !rangeOk}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-white text-sm font-medium disabled:opacity-50" style={{ background: primary }}>
+            <FileText size={15} /> Download PDF
+          </button>
+        </div>
+      </div>
+
+      {/* Totals */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
+        {([
+          ['Staff', String(summaries.length), ''],
+          ['Present', String(totals.p), 'text-green-600'],
+          ['Late', String(totals.l), 'text-amber-600'],
+          ['Absent', String(totals.ab), 'text-red-600'],
+          ['Hours', totals.h.toFixed(1), ''],
+          ['Attendance', totals.wd ? `${Math.round((totals.p / totals.wd) * 1000) / 10}%` : '—', ''],
+        ] as const).map(([label, value, cls]) => (
+          <div key={label} className={`${card} px-4 py-3`}>
+            <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">{label}</div>
+            <div className={`text-xl font-bold text-gray-900 dark:text-gray-100 ${cls}`}>{value}</div>
+          </div>
+        ))}
       </div>
 
       {loading ? <Spinner /> : (
-        <div className={`${card} overflow-hidden`}>
-          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-            <thead className="bg-gray-50 dark:bg-gray-900/40">
-              <tr><th className={th}>Staff</th><th className={th}>Date</th><th className={th}>Check-in</th><th className={th}>Check-out</th><th className={th}>Hours</th><th className={th}>Late</th></tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60">
-              {rows.length === 0 ? (
-                <tr><td className={`${td} text-center text-gray-400 py-10`} colSpan={6}>No attendance in this range.</td></tr>
-              ) : rows.map((r, i) => (
-                <tr key={`${r.user_id}-${r.date}-${i}`}>
-                  <td className={`${td} font-medium`}>{r.name}</td>
-                  <td className={td}>{r.date}</td>
-                  <td className={td}>{timePart(r.first_in)}</td>
-                  <td className={td}>{timePart(r.last_out)}</td>
-                  <td className={td}>{r.hours ? r.hours.toFixed(2) : '—'}</td>
-                  <td className={td}>{r.late ? <span className="text-amber-600 font-medium">Late</span> : <span className="text-gray-400">—</span>}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className={`${card} overflow-x-auto`}>
+          <div className="px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-200 border-b border-gray-200 dark:border-gray-700">
+            {typeLabel} · {formatRange(from, to)} · {staffLabel}
+          </div>
+          {type === 'summary' ? (
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <thead className="bg-gray-50 dark:bg-gray-900/40">
+                <tr><th className={th}>Staff</th><th className={th}>Working days</th><th className={th}>Present</th><th className={th}>Late</th><th className={th}>Absent</th><th className={th}>Hours</th><th className={th}>Attendance</th></tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60">
+                {summaries.length === 0 ? (
+                  <tr><td className={`${td} text-center text-gray-400 py-10`} colSpan={7}>No staff or attendance in this range.</td></tr>
+                ) : summaries.map((s) => (
+                  <tr key={s.employee_id}>
+                    <td className={`${td} font-medium`}>{s.name}</td>
+                    <td className={td}>{s.workingDays}</td>
+                    <td className={`${td} text-green-600`}>{s.present}</td>
+                    <td className={`${td} text-amber-600`}>{s.late}</td>
+                    <td className={`${td} text-red-600`}>{s.absent}</td>
+                    <td className={td}>{s.hours.toFixed(2)}</td>
+                    <td className={td}>{s.rate}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <thead className="bg-gray-50 dark:bg-gray-900/40">
+                <tr><th className={th}>Date</th><th className={th}>Staff</th><th className={th}>Check-in</th><th className={th}>Check-out</th><th className={th}>Hours</th><th className={th}>Status</th></tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60">
+                {listed.length === 0 ? (
+                  <tr><td className={`${td} text-center text-gray-400 py-10`} colSpan={6}>No records for this period and filter.</td></tr>
+                ) : listed.map((d) => (
+                  <tr key={`${d.employee_id}-${d.date}`}>
+                    <td className={td}>{formatDay(d.date)}</td>
+                    <td className={`${td} font-medium`}>{d.name}</td>
+                    <td className={td}>{clock(d.first_in)}</td>
+                    <td className={td}>{clock(d.last_out)}</td>
+                    <td className={td}>{d.hours ? d.hours.toFixed(2) : '—'}</td>
+                    <td className={td}><StatusPill status={d.status} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       )}
     </div>
   );
 };
+
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 // ---------------------------------------------------------------------------
 // Staff = the attendance roster (people who clock in/out). These are NOT login
