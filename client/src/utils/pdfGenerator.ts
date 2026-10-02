@@ -70,6 +70,14 @@ async function saveElementAsPdf(
   // multiple PDF pages.
   const captureHeight = Math.max(singlePageHeightPx, element.scrollHeight);
 
+  // Page-break candidates are measured INSIDE html2canvas's cloned document
+  // (in `onclone`), not on the live page: the clone is what actually gets
+  // painted, and its layout can drift a few pixels per page from the live DOM
+  // (different viewport, forced root size, font metrics). Measuring the live
+  // DOM put "safe" breaks partway through a line of text on long contracts.
+  let safeBreakYs: number[] = [];
+  let keepRanges: Array<{ top: number; bottom: number }> = [];
+
   // Capture at 1.5x device pixels — that's ~160 DPI on A4 which is still well
   // above print clarity for text and keeps the JPEG inside the PDF small. The
   // old `scale: 2` produced ~217 DPI which is overkill and roughly quadruples
@@ -105,6 +113,8 @@ async function saveElementAsPdf(
       // exported PDF and the rounding clips part of the document edge.
       root.style.boxShadow = 'none';
       root.style.borderRadius = '0';
+      safeBreakYs = collectSafeBreakPoints(root, CAPTURE_SCALE);
+      keepRanges = collectKeepRanges(root, CAPTURE_SCALE);
     },
   });
 
@@ -129,13 +139,6 @@ async function saveElementAsPdf(
   // extra page at the end.
   const HEIGHT_TOLERANCE_PX = 8;
 
-  // Build a sorted list of canvas-Y values where it's *safe* to put a page
-  // break — i.e. between table rows (or any element tagged `data-pdf-keep`),
-  // never through the middle of one. The slicer below uses this to round each
-  // page boundary down to the nearest safe Y so an item is never cut in half.
-  const safeBreakYs = collectSafeBreakPoints(element, CAPTURE_SCALE, canvas.height);
-  const keepRanges = collectKeepRanges(element, CAPTURE_SCALE, canvas.height);
-
   // Single-page fast path: no slicing needed.
   if (canvas.height <= pageHeightPx + HEIGHT_TOLERANCE_PX) {
     const heightMm = canvas.height / pxPerMm;
@@ -151,73 +154,76 @@ async function saveElementAsPdf(
     return;
   }
 
-  // Multi-page: cut the source canvas into per-page slices, snapping each cut
-  // line to the nearest safe break point so a table row is never split between
-  // two pages. Each slice becomes one PDF page.
+  // Multi-page: each PDF page gets a white margin at the bottom (and at the top
+  // of continuation pages — page 1 already has the document's own padding), so
+  // text never runs to the paper edge. The content slice for a page is the page
+  // height minus those margins, and its cut is snapped to the nearest safe break
+  // point so a line of text / table row is never split between two pages.
+  const MARGIN_PX = Math.round(12 * pxPerMm);
   let offsetPx = 0;
   let pageIndex = 0;
   while (canvas.height - offsetPx > HEIGHT_TOLERANCE_PX) {
+    const topMargin = pageIndex === 0 ? 0 : MARGIN_PX;
+    const usablePx = pageHeightPx - topMargin - MARGIN_PX;
     const remaining = canvas.height - offsetPx;
     let sliceEnd: number;
 
-    if (remaining <= pageHeightPx + HEIGHT_TOLERANCE_PX) {
+    if (remaining <= usablePx) {
       // Last page — take everything left, no snapping needed.
       sliceEnd = canvas.height;
     } else {
-      // Aim for a full A4 page, but snap to the largest safe break Y that
-      // sits within the [offsetPx + 1, idealEnd] window. The upper bound is a
-      // HARD limit (no tolerance): a slice taller than the page would be drawn
-      // past the PDF page edge and its bottom pixels — the last line of text —
-      // would be clipped and lost. If no break is found (e.g. a single row
-      // taller than a page) we fall back to the ideal end so we still make
-      // progress instead of looping forever.
-      const idealEnd = offsetPx + pageHeightPx;
+      // Snap to the largest safe break Y within (offsetPx, idealEnd]. The upper
+      // bound is a HARD limit: a taller slice would overflow the page and its
+      // bottom line would be clipped. If no break is found (e.g. a single row
+      // taller than a page) fall back to the ideal end so we still progress.
+      const idealEnd = offsetPx + usablePx;
       let bestBreak = -1;
       for (const by of safeBreakYs) {
-        if (by > offsetPx + HEIGHT_TOLERANCE_PX && by <= idealEnd) {
-          if (by > bestBreak) bestBreak = by;
+        if (by > offsetPx + HEIGHT_TOLERANCE_PX && by <= idealEnd && by > bestBreak) {
+          bestBreak = by;
         }
       }
       sliceEnd = bestBreak > 0 ? bestBreak : idealEnd;
-    }
 
-    // Hard guarantee: never cut through a kept block. If the chosen cut lands
-    // inside one that starts below the current page top, move the cut up to the
-    // block's top so the whole block moves to the next page. (If the block
-    // starts at/above the page top it's taller than a page — allow the cut so
-    // we keep making progress instead of looping forever.)
-    for (const r of keepRanges) {
-      if (r.top > offsetPx + HEIGHT_TOLERANCE_PX &&
-          sliceEnd > r.top + HEIGHT_TOLERANCE_PX &&
-          sliceEnd < r.bottom - HEIGHT_TOLERANCE_PX) {
-        sliceEnd = Math.min(sliceEnd, r.top);
+      // Hard guarantee: never cut through a kept block. If the cut lands inside
+      // one that starts below the current page top, move the cut up to the
+      // block's top so the whole block moves to the next page. (If the block
+      // starts at/above the page top it's taller than a page — allow the cut so
+      // we keep making progress instead of looping forever.)
+      for (const r of keepRanges) {
+        if (r.top > offsetPx + HEIGHT_TOLERANCE_PX &&
+            sliceEnd > r.top + HEIGHT_TOLERANCE_PX &&
+            sliceEnd < r.bottom - HEIGHT_TOLERANCE_PX) {
+          sliceEnd = Math.min(sliceEnd, r.top);
+        }
       }
-    }
-    // Safety: always advance at least a little so the loop terminates.
-    if (sliceEnd <= offsetPx + HEIGHT_TOLERANCE_PX) {
-      sliceEnd = Math.min(canvas.height, offsetPx + pageHeightPx);
+      // Safety: always advance at least a little so the loop terminates.
+      if (sliceEnd <= offsetPx + HEIGHT_TOLERANCE_PX) sliceEnd = idealEnd;
     }
 
     const sliceHeightPx = sliceEnd - offsetPx;
-    const slice = document.createElement('canvas');
-    slice.width = canvas.width;
-    slice.height = sliceHeightPx;
-    const ctx = slice.getContext('2d');
-    if (!ctx) throw new Error('Could not get 2D context for slice canvas');
+    const page = document.createElement('canvas');
+    page.width = canvas.width;
+    page.height = pageHeightPx;
+    const ctx = page.getContext('2d');
+    if (!ctx) throw new Error('Could not get 2D context for page canvas');
 
-    // Fill white so transparent regions of the source don't render as black.
+    // Fill white so transparent regions / margins don't render as black, then
+    // copy just this page's chunk of the source below the top margin.
     ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, slice.width, slice.height);
-    // Draw the source canvas shifted up so the page's chunk lands at y=0.
-    ctx.drawImage(canvas, 0, -offsetPx);
+    ctx.fillRect(0, 0, page.width, page.height);
+    ctx.drawImage(
+      canvas,
+      0, offsetPx, canvas.width, sliceHeightPx,
+      0, topMargin, canvas.width, sliceHeightPx
+    );
 
-    const sliceHeightMm = sliceHeightPx / pxPerMm;
     if (pageIndex > 0) pdf.addPage();
     pdf.addImage(
-      slice.toDataURL('image/jpeg', JPEG_QUALITY),
+      page.toDataURL('image/jpeg', JPEG_QUALITY),
       'JPEG',
       0, 0,
-      pageWidthMm, sliceHeightMm,
+      pageWidthMm, pageHeightPx / pxPerMm,
       undefined,
       'FAST'
     );
@@ -230,62 +236,70 @@ async function saveElementAsPdf(
 }
 
 /**
- * Find Y-coordinates (in canvas pixels) where it's safe to insert a page
- * break — i.e. between rows of a table, or between elements explicitly tagged
- * with `data-pdf-keep` (a sentinel the document templates use for blocks like
- * the totals card and the bottom notes/terms section that shouldn't be split).
+ * Find Y-coordinates (in canvas pixels, relative to `element`) where it's safe
+ * to insert a page break — i.e. between table rows, after every visual line of
+ * free text, after elements tagged `data-pdf-keep`, and before elements tagged
+ * `data-pdf-break-before`. Must be called on the element that is actually
+ * rendered (the html2canvas clone) so the positions match the canvas exactly.
  *
- * Returns a sorted ascending list including 0 and the canvas's full height
- * as boundary points.
+ * Returns a sorted ascending list.
  */
-function collectSafeBreakPoints(
-  element: HTMLElement,
-  scale: number,
-  canvasHeight: number
-): number[] {
+function collectSafeBreakPoints(element: HTMLElement, scale: number): number[] {
+  const doc = element.ownerDocument;
   const elemTop = element.getBoundingClientRect().top;
   const ys = new Set<number>();
-  ys.add(0);
-  ys.add(canvasHeight);
-  const addBottom = (bottomRel: number) => {
-    if (bottomRel <= 0) return;
-    const y = Math.round(bottomRel * scale);
-    if (y > 0 && y <= canvasHeight) ys.add(y);
+  const add = (rel: number) => {
+    if (rel <= 0) return;
+    ys.add(Math.floor(rel * scale));
   };
 
-  // Table rows and explicitly-kept blocks (`data-pdf-keep`, e.g. a totals card
-  // or the signature block) are no-break units — it's safe to break AFTER the
-  // whole element, never through it.
+  // Table rows and explicitly-kept blocks are no-break units — it's safe to
+  // break AFTER the whole element, never through it.
   element.querySelectorAll<HTMLElement>('tr, [data-pdf-keep]').forEach((node) => {
-    addBottom(node.getBoundingClientRect().bottom - elemTop);
+    add(node.getBoundingClientRect().bottom - elemTop);
   });
 
   // Free-text paragraphs / list items that are NOT inside a kept block: add a
   // break candidate after every VISUAL line (via the text node's line boxes),
-  // so long paragraphs break BETWEEN lines and text is never sliced mid-line —
-  // regardless of how the author wrapped or newlined it.
-  const range = document.createRange();
+  // so long paragraphs break BETWEEN lines and text is never sliced mid-line.
+  // A candidate is only accepted if it doesn't fall inside another line box of
+  // the same paragraph (guards against overlapping/odd rects).
+  const range = doc.createRange();
   element.querySelectorAll<HTMLElement>('p, li').forEach((node) => {
     if (node.closest('[data-pdf-keep]')) return;
-    const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+    const lines: Array<{ top: number; bottom: number }> = [];
+    const walker = doc.createTreeWalker(node, 4 /* NodeFilter.SHOW_TEXT */);
     let t: Node | null;
     // eslint-disable-next-line no-cond-assign
     while ((t = walker.nextNode())) {
       range.selectNodeContents(t);
       const rects = range.getClientRects();
-      for (let k = 0; k < rects.length; k++) addBottom(rects[k].bottom - elemTop);
+      for (let k = 0; k < rects.length; k++) {
+        if (rects[k].height > 0) {
+          lines.push({ top: rects[k].top - elemTop, bottom: rects[k].bottom - elemTop });
+        }
+      }
     }
-    addBottom(node.getBoundingClientRect().bottom - elemTop);
+    // A text range's rect ends right at the glyphs, but painted descenders
+    // (g, p, y) spill a pixel or two below it — breaking exactly there shaves
+    // them off. Break in the GAP below the line instead: a few px lower, but
+    // never past the midpoint to the next line.
+    lines.sort((a, b) => a.top - b.top);
+    lines.forEach((l, idx) => {
+      const insideAnother = lines.some((o) => l.bottom > o.top + 1 && l.bottom < o.bottom - 1);
+      if (insideAnother) return;
+      const next = lines.slice(idx + 1).find((o) => o.top >= l.bottom - 1);
+      const gapMid = next ? (l.bottom + next.top) / 2 : Infinity;
+      add(Math.min(l.bottom + 3, gapMid));
+    });
+    add(node.getBoundingClientRect().bottom - elemTop);
   });
 
   // "Break BEFORE" markers: a break may be placed at the TOP of these elements
   // (e.g. a clause heading), so a block that doesn't fit in the remaining space
   // is pushed WHOLE to the next page instead of being sliced through.
   element.querySelectorAll<HTMLElement>('[data-pdf-break-before]').forEach((node) => {
-    const topRel = node.getBoundingClientRect().top - elemTop;
-    if (topRel <= 0) return;
-    const y = Math.round(topRel * scale);
-    if (y > 0 && y <= canvasHeight) ys.add(y);
+    add(node.getBoundingClientRect().top - elemTop);
   });
 
   return Array.from(ys).sort((a, b) => a - b);
@@ -294,22 +308,20 @@ function collectSafeBreakPoints(
 /**
  * Canvas-pixel [top, bottom] spans of every `data-pdf-keep` block. The slicer
  * uses these to guarantee a page cut never lands *inside* one of them (e.g. the
- * signature block, whose two columns can differ in height) — if a proposed cut
- * falls within a block, it's moved up to the block's top so the whole block is
- * pushed to the next page.
+ * signature block) — if a proposed cut falls within a block, it's moved up to
+ * the block's top so the whole block is pushed to the next page.
  */
 function collectKeepRanges(
   element: HTMLElement,
-  scale: number,
-  canvasHeight: number
+  scale: number
 ): Array<{ top: number; bottom: number }> {
   const elemTop = element.getBoundingClientRect().top;
   const ranges: Array<{ top: number; bottom: number }> = [];
   element.querySelectorAll<HTMLElement>('[data-pdf-keep]').forEach((node) => {
     const rect = node.getBoundingClientRect();
-    const top = Math.round((rect.top - elemTop) * scale);
-    const bottom = Math.round((rect.bottom - elemTop) * scale);
-    if (bottom > 0) ranges.push({ top: Math.max(0, top), bottom: Math.min(canvasHeight, bottom) });
+    const top = Math.floor((rect.top - elemTop) * scale);
+    const bottom = Math.ceil((rect.bottom - elemTop) * scale);
+    if (bottom > 0) ranges.push({ top: Math.max(0, top), bottom });
   });
   return ranges;
 }

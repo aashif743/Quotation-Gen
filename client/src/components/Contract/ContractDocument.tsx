@@ -157,34 +157,34 @@ const ContractDocument: React.FC<{ contract: Contract }> = ({ contract: c }) => 
         );
       })}
 
-      {/* Execution line — a normal paragraph (line-breakable) so it can sit at
-          the foot of a page without forcing the signatures to split. */}
-      <p style={{ ...s.para, marginTop: 24 }}>
-        IN WITNESS WHEREOF, the parties hereto have executed this {c.title || 'Agreement'} as of the date first written above.
-      </p>
-
-      {/* Signatures — one compact keep-block that never splits (both columns
-          share a fixed heading height so they stay aligned). */}
-      <div style={s.signWrap} data-pdf-keep data-pdf-break-before>
-        <div style={s.signCol}>
-          <div style={s.signHeading}>For Client ({c.client_name})</div>
-          <div style={s.signImgBox} />
-          <div style={s.signLine} />
-          <div style={s.signCap}>Authorized Signature</div>
-          <div style={s.signField}>Name: ____________________________</div>
-          <div style={s.signField}>Title: _____________________________</div>
-          <div style={s.signField}>Date: _____________________________</div>
+      {/* Execution line + signatures — one keep-block that never splits, so the
+          signatures are never left alone on a page without the witness line
+          (both columns share a fixed heading height so they stay aligned). */}
+      <div data-pdf-keep data-pdf-break-before style={{ paddingTop: 16 }}>
+        <div style={{ ...s.para, marginBottom: 14 }}>
+          IN WITNESS WHEREOF, the parties hereto have executed this {c.title || 'Agreement'} as of the date first written above.
         </div>
-        <div style={s.signCol}>
-          <div style={s.signHeading}>For Company ({c.company_name})</div>
-          <div style={s.signImgBox}>
-            {c.signature_url ? <img src={c.signature_url} alt="Signature" style={s.signImg} crossOrigin="anonymous" /> : null}
+        <div style={s.signWrap}>
+          <div style={s.signCol}>
+            <div style={s.signHeading}>For Client ({c.client_name})</div>
+            <div style={s.signImgBox} />
+            <div style={s.signLine} />
+            <div style={s.signCap}>Authorized Signature</div>
+            <div style={s.signField}>Name: ____________________________</div>
+            <div style={s.signField}>Title: _____________________________</div>
+            <div style={s.signField}>Date: _____________________________</div>
           </div>
-          <div style={s.signLine} />
-          <div style={s.signCap}>Authorized Signature</div>
-          <div style={s.signField}>Name: ____________________________</div>
-          <div style={s.signField}>Title: _____________________________</div>
-          <div style={s.signField}>Date: _____________________________</div>
+          <div style={s.signCol}>
+            <div style={s.signHeading}>For Company ({c.company_name})</div>
+            <div style={s.signImgBox}>
+              {c.signature_url ? <img src={c.signature_url} alt="Signature" style={s.signImg} crossOrigin="anonymous" /> : null}
+            </div>
+            <div style={s.signLine} />
+            <div style={s.signCap}>Authorized Signature</div>
+            <div style={s.signField}>Name: ____________________________</div>
+            <div style={s.signField}>Title: _____________________________</div>
+            <div style={s.signField}>Date: _____________________________</div>
+          </div>
         </div>
       </div>
     </div>
