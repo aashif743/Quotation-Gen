@@ -139,6 +139,11 @@ router.post('/', async (req, res) => {
       items,
     } = req.body;
 
+    if (!company_id || !String(delivery_note_number || '').trim() || !String(client_name || '').trim() || !date) {
+      await connection.rollback();
+      return res.status(400).json({ error: 'Company, delivery note number, client name and date are required.' });
+    }
+
     const resolvedClientId = await resolveClientId(connection, {
       company_id, client_id, client_name, client_address, client_email, client_phone,
       created_by: req.user.id,
@@ -150,8 +155,8 @@ router.post('/', async (req, res) => {
        client_name, client_address, client_email, client_phone, date)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
-      company_id, req.user.id, resolvedClientId, quotation_id || null, delivery_note_number,
-      client_name, client_address, client_email, client_phone, date,
+      company_id, req.user.id, resolvedClientId ?? null, quotation_id || null, delivery_note_number,
+      client_name, client_address || null, client_email || null, client_phone || null, date,
     ]);
     const id = insertResult.insertId;
 
@@ -160,7 +165,7 @@ router.post('/', async (req, res) => {
       await connection.execute(`
         INSERT INTO delivery_note_items (delivery_note_id, description, quantity, sort_order)
         VALUES (?, ?, ?, ?)
-      `, [id, item.description, item.quantity, i]);
+      `, [id, item.description || '', Number(item.quantity) || 0, i]);
     }
 
     await connection.commit();
@@ -293,7 +298,7 @@ router.put('/:id', async (req, res) => {
          SET delivery_note_number = ?, client_name = ?, client_address = ?,
              client_email = ?, client_phone = ?, date = ?
        WHERE id = ?
-    `, [delivery_note_number, client_name, client_address, client_email, client_phone, date, id]);
+    `, [delivery_note_number, client_name, client_address || null, client_email || null, client_phone || null, date, id]);
 
     if (updateResult.affectedRows === 0) {
       await connection.rollback();
@@ -306,7 +311,7 @@ router.put('/:id', async (req, res) => {
       await connection.execute(`
         INSERT INTO delivery_note_items (delivery_note_id, description, quantity, sort_order)
         VALUES (?, ?, ?, ?)
-      `, [id, item.description, item.quantity, i]);
+      `, [id, item.description || '', Number(item.quantity) || 0, i]);
     }
 
     await connection.commit();

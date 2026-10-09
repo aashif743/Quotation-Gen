@@ -148,6 +148,7 @@ function AppRoutes() {
                   <Route path="/delivery-note/:id" element={<DeliveryNoteView />} />
                   <Route path="/delivery-history" element={<DeliveryNoteHistory />} />
                   <Route path="/edit-delivery-note/:id" element={<EditDeliveryNote />} />
+                  <Route path="/new-delivery-note" element={<EditDeliveryNote />} />
                   <Route path="/clients" element={<Clients />} />
                   <Route path="/clients/:id" element={<ClientDetail />} />
                   <Route path="/clients/:id/statement" element={<ClientStatementPage />} />

@@ -1,17 +1,32 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { DeliveryNote, DeliveryNoteItem } from '../types';
-import { getDeliveryNote, updateDeliveryNote } from '../services/api';
+import { useCompany } from '../context/CompanyContext';
+import { Client, DeliveryNote, DeliveryNoteItem } from '../types';
+import {
+  getDeliveryNote, updateDeliveryNote, createDeliveryNote, getNextDeliveryNoteNumber,
+} from '../services/api';
+import ClientPicker from '../components/Quotation/ClientPicker';
 import { ArrowLeft, Save, Plus, Trash2 } from 'lucide-react';
 
+/** Today as a local 'YYYY-MM-DD' (toISOString would use UTC). */
+const localToday = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
 /**
- * Minimal edit page for delivery notes. DN don't carry money (no totals,
+ * Create / edit page for delivery notes. DN don't carry money (no totals,
  * no taxes, no terms), so the form is just: number / date / client info /
  * line items. Items are { description, quantity }.
+ *
+ * `/edit-delivery-note/:id` edits an existing note; `/new-delivery-note`
+ * creates a standalone one (not generated from a quotation).
  */
 const EditDeliveryNote: React.FC = () => {
   const { id } = useParams<{ id: string }>();
+  const isNew = !id;
   const navigate = useNavigate();
+  const { selectedCompany } = useCompany();
 
   const [data, setData] = useState<Partial<DeliveryNote>>({});
   const [initialLoading, setInitialLoading] = useState(true);
@@ -19,10 +34,28 @@ const EditDeliveryNote: React.FC = () => {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (!id) return;
+    if (isNew) {
+      if (!selectedCompany) return;
+      let alive = true;
+      setInitialLoading(true);
+      setData({
+        company_id: selectedCompany.id,
+        delivery_note_number: '',
+        client_name: '',
+        date: localToday(),
+        items: [{ description: '', quantity: 1 }],
+      });
+      getNextDeliveryNoteNumber(selectedCompany.id)
+        .then(({ deliveryNoteNumber }) => {
+          if (alive) setData((prev) => ({ ...prev, delivery_note_number: prev.delivery_note_number || deliveryNoteNumber }));
+        })
+        .catch(() => { /* user can type a number */ })
+        .finally(() => { if (alive) setInitialLoading(false); });
+      return () => { alive = false; };
+    }
     (async () => {
       try {
-        const dn = await getDeliveryNote(parseInt(id, 10));
+        const dn = await getDeliveryNote(parseInt(id!, 10));
         setData(dn);
       } catch (e) {
         console.error(e);
@@ -31,7 +64,20 @@ const EditDeliveryNote: React.FC = () => {
         setInitialLoading(false);
       }
     })();
-  }, [id]);
+  }, [id, isNew, selectedCompany]);
+
+  // Picking an existing client fills their details and links client_id so the
+  // backend doesn't create a duplicate client record.
+  const handleClientSelected = (client: Client) => {
+    setData((prev) => ({
+      ...prev,
+      client_id: client.id,
+      client_name: client.name,
+      client_address: client.address || prev.client_address || '',
+      client_email: client.email || prev.client_email || '',
+      client_phone: client.phone || prev.client_phone || '',
+    }));
+  };
 
   const handleChange = (field: keyof DeliveryNote, value: any) => {
     setData((prev) => ({ ...prev, [field]: value }));
@@ -64,7 +110,6 @@ const EditDeliveryNote: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!id) return;
     if (!data.delivery_note_number?.trim()) {
       alert('Please enter a delivery note number.');
       return;
@@ -77,21 +122,36 @@ const EditDeliveryNote: React.FC = () => {
       alert('Please add at least one item.');
       return;
     }
+    if (data.items.some((it) => !String(it.description || '').trim())) {
+      alert('Please enter a description for every item.');
+      return;
+    }
 
     setSaving(true);
     try {
-      await updateDeliveryNote(parseInt(id, 10), data);
-      navigate(`/delivery-note/${id}`);
+      if (isNew) {
+        const created = await createDeliveryNote({ ...data, company_id: selectedCompany!.id });
+        navigate(`/delivery-note/${created.id}`);
+      } else {
+        await updateDeliveryNote(parseInt(id!, 10), data);
+        navigate(`/delivery-note/${id}`);
+      }
     } catch (err: any) {
       const message =
         err?.response?.data?.error ||
         err?.response?.data?.message ||
-        'Failed to update delivery note. Please try again.';
+        `Failed to ${isNew ? 'create' : 'update'} delivery note. Please try again.`;
       alert(message);
     } finally {
       setSaving(false);
     }
   };
+
+  if (isNew && !selectedCompany) {
+    return (
+      <div className="text-center py-12 text-gray-600">Select a company to create a delivery note.</div>
+    );
+  }
 
   if (initialLoading) {
     return (
@@ -124,8 +184,10 @@ const EditDeliveryNote: React.FC = () => {
             Back
           </button>
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Edit Delivery Note</h1>
-            <p className="text-gray-600 mt-1">Editing {data.delivery_note_number}</p>
+            <h1 className="text-3xl font-bold text-gray-900">{isNew ? 'New Delivery Note' : 'Edit Delivery Note'}</h1>
+            <p className="text-gray-600 mt-1">
+              {isNew ? `For ${selectedCompany!.name}` : `Editing ${data.delivery_note_number}`}
+            </p>
           </div>
         </div>
         <button
@@ -141,7 +203,7 @@ const EditDeliveryNote: React.FC = () => {
           ) : (
             <>
               <Save className="h-4 w-4 mr-2" />
-              Save Changes
+              {isNew ? 'Create Delivery Note' : 'Save Changes'}
             </>
           )}
         </button>
@@ -173,12 +235,28 @@ const EditDeliveryNote: React.FC = () => {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <h2 className="text-xl font-semibold mb-6">Client Information</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Field
-              label="Client Name *"
-              value={data.client_name || ''}
-              onChange={(v) => handleChange('client_name', v)}
-              required
-            />
+            {isNew ? (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Client Name *</label>
+                <ClientPicker
+                  companyId={selectedCompany!.id}
+                  value={data.client_name || ''}
+                  onChange={(name) => {
+                    // Typing a new name breaks any picked-client link.
+                    setData((prev) => ({ ...prev, client_id: null, client_name: name }));
+                  }}
+                  onSelect={handleClientSelected}
+                  required
+                />
+              </div>
+            ) : (
+              <Field
+                label="Client Name *"
+                value={data.client_name || ''}
+                onChange={(v) => handleChange('client_name', v)}
+                required
+              />
+            )}
             <Field
               label="Email"
               type="email"

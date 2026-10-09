@@ -229,6 +229,11 @@ export const getDeliveryNote = async (id: number): Promise<DeliveryNote> => {
   return response.data;
 };
 
+export const createDeliveryNote = async (data: Partial<DeliveryNote>): Promise<DeliveryNote> => {
+  const response = await api.post('/delivery-notes', data);
+  return response.data;
+};
+
 export const createDeliveryNoteFromQuotation = async (quotationId: number): Promise<DeliveryNote> => {
   const response = await api.post(`/delivery-notes/from-quotation/${quotationId}`);
   return response.data;

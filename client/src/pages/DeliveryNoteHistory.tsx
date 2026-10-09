@@ -4,7 +4,7 @@ import { useCompany } from '../context/CompanyContext';
 import { useAuth } from '../context/AuthContext';
 import { getDeliveryNotes, deleteDeliveryNote, uploadSignedDeliveryNote } from '../services/api';
 import { DeliveryNote } from '../types';
-import { Truck, Search, Calendar, User, Eye, Trash2, Filter, CheckCircle2, Clock, Upload, Loader2 } from 'lucide-react';
+import { Truck, Search, Calendar, User, Eye, Trash2, Filter, CheckCircle2, Clock, Upload, Loader2, Plus } from 'lucide-react';
 import { brandColorFor } from '../utils/colors';
 import { useTheme } from '../context/ThemeContext';
 
@@ -176,6 +176,14 @@ const DeliveryNoteHistory: React.FC = () => {
               : `Your delivery notes for ${selectedCompany.name}`}
           </p>
         </div>
+        <Link
+          to="/new-delivery-note"
+          className="inline-flex items-center px-4 py-2 rounded-lg text-white text-sm font-medium shadow-sm hover:opacity-90"
+          style={{ backgroundColor: primary }}
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          New Delivery Note
+        </Link>
       </div>
 
       <div className="bg-white rounded-lg shadow-sm border border-gray-200">
@@ -370,7 +378,7 @@ const DeliveryNoteHistory: React.FC = () => {
               <Truck className="h-16 w-16 text-gray-300 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">No delivery notes found</h3>
               <p className="text-gray-600 mb-6">
-                Generate a delivery note from a quotation to get started.
+                Create a new delivery note, or generate one from a quotation.
               </p>
             </div>
           )}

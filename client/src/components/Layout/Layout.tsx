@@ -191,6 +191,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { label: 'Create', items: [
       { to: '/new-quotation', icon: FileText, label: 'New Quotation' },
       { to: '/new-invoice', icon: Receipt, label: 'New Invoice' },
+      { to: '/new-delivery-note', icon: Truck, label: 'New Delivery Note' },
     ]},
     { label: 'Records', items: [
       { to: '/history', icon: History, label: 'Quotation History' },
