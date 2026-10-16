@@ -27,6 +27,9 @@ import {
   Banknote,
   Fingerprint,
   FileSignature,
+  ClipboardList,
+  PackageCheck,
+  HandCoins,
   Sun,
   Moon,
 } from 'lucide-react';
@@ -190,11 +193,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { items: [{ to: '/', icon: Home, label: 'Dashboard' }] },
     { label: 'Create', items: [
       { to: '/new-quotation', icon: FileText, label: 'New Quotation' },
+      { to: '/job-cards/new', icon: ClipboardList, label: 'New Job Card' },
       { to: '/new-invoice', icon: Receipt, label: 'New Invoice' },
       { to: '/new-delivery-note', icon: Truck, label: 'New Delivery Note' },
+      { to: '/lpos/new', icon: PackageCheck, label: 'New LPO' },
     ]},
     { label: 'Records', items: [
       { to: '/history', icon: History, label: 'Quotation History' },
+      { to: '/job-cards', icon: ClipboardList, label: 'Job Cards' },
       { to: '/invoice-history', icon: Receipt, label: 'Invoice History' },
       { to: '/delivery-history', icon: Truck, label: 'Delivery Notes' },
       { to: '/contracts', icon: FileSignature, label: 'Contracts' },
@@ -204,6 +210,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       { to: '/vendors', icon: Store, label: 'Vendors' },
     ]},
     { label: 'Finance', items: [
+      { to: '/lpos', icon: PackageCheck, label: 'LPOs' },
       { to: '/purchases', icon: ShoppingCart, label: 'Purchases' },
       { to: '/expenses', icon: Wallet, label: 'Expenses' },
       { to: '/petty-cash', icon: Banknote, label: 'Petty Cash' },
@@ -214,6 +221,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     ]}] : []),
     ...(isAdmin ? [{ label: 'Admin', items: [
       { to: '/attendance', icon: Fingerprint, label: 'Attendance' },
+      { to: '/payroll', icon: HandCoins, label: 'Payroll' },
       { to: '/users', icon: Users, label: 'User Management' },
       { to: '/settings', icon: Settings, label: 'Company Settings' },
     ]}] : []),
@@ -408,7 +416,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
         </div>
 
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           {actingOrganization && (
             <div className="no-print bg-amber-500 text-white px-6 py-2 flex items-center justify-between gap-3 text-sm">
               <span className="flex items-center min-w-0">

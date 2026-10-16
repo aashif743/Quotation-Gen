@@ -280,6 +280,8 @@ export interface Invoice {
   company_id: number;
   client_id?: number | null;
   quotation_id?: number;
+  job_card_id?: number | null;
+  job_card_number?: string | null;
   invoice_number: string;
   client_name: string;
   client_address?: string;
@@ -484,6 +486,8 @@ export interface DeliveryNote {
   company_id: number;
   client_id?: number | null;
   quotation_id?: number;
+  invoice_id?: number | null;
+  invoice_number?: string | null;
   delivery_note_number: string;
   client_name: string;
   client_address?: string;

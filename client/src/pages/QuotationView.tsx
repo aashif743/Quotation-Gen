@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getQuotation, createInvoiceFromQuotation, createDeliveryNoteFromQuotation } from '../services/api';
+import { createJobCardFromQuotation } from '../services/jobCardsApi';
 import { useAuth } from '../context/AuthContext';
 import { Quotation } from '../types';
 import { generatePDF } from '../utils/pdfGenerator';
@@ -8,7 +9,7 @@ import QuotationDocument from '../components/Quotation/QuotationDocument';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { brandColorFor } from '../utils/colors';
 import { useTheme } from '../context/ThemeContext';
-import { Download, Edit2, ArrowLeft, Printer, FileText, Truck } from 'lucide-react';
+import { Download, Edit2, ArrowLeft, Printer, FileText, Truck, ClipboardList } from 'lucide-react';
 
 const QuotationView: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -20,6 +21,7 @@ const QuotationView: React.FC = () => {
   const [generating, setGenerating] = useState(false);
   const [generatingInvoice, setGeneratingInvoice] = useState(false);
   const [generatingDeliveryNote, setGeneratingDeliveryNote] = useState(false);
+  const [generatingJobCard, setGeneratingJobCard] = useState(false);
 
   useEffect(() => {
     const loadQuotation = async () => {
@@ -96,6 +98,22 @@ const QuotationView: React.FC = () => {
     }
   };
 
+  const handleGenerateJobCard = async () => {
+    if (!quotation?.id) return;
+
+    setGeneratingJobCard(true);
+    try {
+      const jc = await createJobCardFromQuotation(quotation.id);
+      navigate(`/job-cards/${jc.id}`);
+    } catch (error: any) {
+      console.error('Error generating job card:', error);
+      const message = error?.response?.data?.error || 'Failed to generate job card. Please try again.';
+      alert(message);
+    } finally {
+      setGeneratingJobCard(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -159,6 +177,24 @@ const QuotationView: React.FC = () => {
           >
             <Printer className="h-4 w-4 mr-1.5" />
             Print
+          </button>
+
+          <button
+            onClick={handleGenerateJobCard}
+            disabled={generatingJobCard}
+            className="inline-flex items-center px-3 py-1.5 text-sm font-medium border border-violet-500 text-violet-700 rounded-lg bg-white hover:bg-violet-50 transition-colors disabled:opacity-50"
+          >
+            {generatingJobCard ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-violet-600 mr-1.5" />
+                Creating...
+              </>
+            ) : (
+              <>
+                <ClipboardList className="h-4 w-4 mr-1.5" />
+                Job Card
+              </>
+            )}
           </button>
 
           <button

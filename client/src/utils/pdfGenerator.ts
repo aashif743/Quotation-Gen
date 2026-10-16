@@ -102,7 +102,7 @@ async function saveElementAsPdf(
     // browser inside html2canvas's iframe ignores `aspect-ratio`.
     onclone: (clonedDoc) => {
       const root = clonedDoc.querySelector<HTMLElement>(
-        '.quotation-document, .invoice-document, .delivery-note-document, .contract-document'
+        '.quotation-document, .invoice-document, .delivery-note-document, .contract-document, .job-card-document, .lpo-document, .payslip-document'
       );
       if (!root) return;
       root.style.width = `${captureWidth}px`;
@@ -842,3 +842,22 @@ export const generateDeliveryNotePDF = async (deliveryNote: DeliveryNote): Promi
   }
 };
 
+
+/**
+ * Generic helper for newer document types (job cards, LPOs, pay slips): capture
+ * the first element matching `selector` and save it as `filename`. The root
+ * element must carry one of the class names recognised in saveElementAsPdf's
+ * onclone (`.job-card-document`, `.lpo-document`, `.payslip-document`).
+ */
+export const generateDocumentPDF = async (selector: string, filename: string): Promise<void> => {
+  try {
+    const element = document.querySelector(selector) as HTMLElement | null;
+    if (!element) throw new Error(`Document not found: ${selector}`);
+    await saveElementAsPdf(element, filename.endsWith('.pdf') ? filename : `${filename}.pdf`);
+  } catch (error) {
+    console.error('Error generating PDF:', error);
+    throw new Error('Failed to generate PDF');
+  }
+};
+
+export const pdfFileSegment = safeFileSegment;

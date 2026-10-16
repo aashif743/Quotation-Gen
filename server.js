@@ -119,6 +119,9 @@ const organizationRoutes = require('./routes/organizations');
 const dashboardRoutes = require('./routes/dashboard');
 const attendanceRoutes = require('./routes/attendance');
 const contractRoutes = require('./routes/contracts');
+const jobCardRoutes = require('./routes/jobCards');
+const purchaseOrderRoutes = require('./routes/purchaseOrders');
+const payrollRoutes = require('./routes/payroll');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
@@ -136,6 +139,9 @@ app.use('/api/organizations', organizationRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/contracts', contractRoutes);
+app.use('/api/job-cards', jobCardRoutes);
+app.use('/api/purchase-orders', purchaseOrderRoutes);
+app.use('/api/payroll', payrollRoutes);
 
 // Serve the React build in production. Express 5 tightened path syntax, so
 // the catch-all uses a regular expression that excludes API/uploads paths

@@ -731,3 +731,6 @@ export const updateAttendanceSettings = async (data: { company_id: number; work_
   const r = await api.put('/attendance/settings', data);
   return r.data;
 };
+// Shared axios instance for feature-specific API modules (job cards, LPOs,
+// payroll) so they reuse the same base URL, credentials and interceptors.
+export { api };

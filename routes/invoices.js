@@ -12,6 +12,7 @@ router.use(isAuthenticated);
 router.use(requireCompanyAccess);
 router.param("id", companyTableParamGuard("invoices"));
 router.param("quotationId", companyTableParamGuard("quotations"));
+router.param("jobCardId", companyTableParamGuard("job_cards"));
 
 // Get all invoices (optionally filtered by company_id). Staff see only their
 // own invoices; admins see everything.
@@ -73,6 +74,7 @@ router.get('/:id', async (req, res) => {
              c.quote_logo_url as company_quote_logo,
              c.primary_color, c.secondary_color,
              u.name as created_by_name,
+             jc.job_card_number,
              IFNULL(p.paid, 0) AS amount_paid,
              (i.grand_total - IFNULL(p.paid, 0)) AS balance_due,
              CASE
@@ -83,6 +85,7 @@ router.get('/:id', async (req, res) => {
       FROM invoices i
       JOIN companies c ON i.company_id = c.id
       LEFT JOIN users u ON i.created_by = u.id
+      LEFT JOIN job_cards jc ON i.job_card_id = jc.id
       LEFT JOIN (
         SELECT invoice_id, SUM(amount) AS paid
           FROM payments
@@ -128,6 +131,7 @@ router.post('/', async (req, res) => {
       company_id,
       client_id,
       quotation_id,
+      job_card_id,
       invoice_number,
       client_name,
       client_address,
@@ -149,13 +153,23 @@ router.post('/', async (req, res) => {
       created_by: req.user.id,
     });
 
+    // Only link a job card from the same company (ignore anything else).
+    let linkedJobCardId = null;
+    if (job_card_id) {
+      const [jcRows] = await connection.execute(
+        'SELECT id FROM job_cards WHERE id = ? AND company_id = ?',
+        [job_card_id, company_id]
+      );
+      if (jcRows.length > 0) linkedJobCardId = jcRows[0].id;
+    }
+
     const [invoiceResult] = await connection.execute(`
       INSERT INTO invoices
-      (company_id, created_by, client_id, quotation_id, invoice_number, client_name, client_address, client_email, client_phone,
+      (company_id, created_by, client_id, quotation_id, job_card_id, invoice_number, client_name, client_address, client_email, client_phone,
        date, due_days, subtotal, vat_amount, ppda_amount, grand_total, notes, terms_conditions)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
-      company_id, req.user.id, resolvedClientId, quotation_id || null, invoice_number, client_name, client_address, client_email, client_phone,
+      company_id, req.user.id, resolvedClientId, quotation_id || null, linkedJobCardId, invoice_number, client_name, client_address, client_email, client_phone,
       date, due_days, subtotal, vat_amount, ppda_amount, grand_total, notes, terms_conditions
     ]);
 
@@ -294,6 +308,148 @@ router.post('/from-quotation/:quotationId', async (req, res) => {
     await connection.rollback();
     console.error('Error generating invoice from quotation:', error);
     res.status(500).json({ error: 'Failed to generate invoice from quotation' });
+  } finally {
+    connection.release();
+  }
+});
+
+// Generate invoice from a job card. Copies client + items (with the job
+// card's internal unit prices). Tax rates: if the job card came from a
+// quotation that still exists, use that quotation's EFFECTIVE rates (so a
+// VAT-exempt quotation stays exempt); otherwise the company's rates.
+router.post('/from-job-card/:jobCardId', async (req, res) => {
+  const connection = await db.getConnection();
+
+  try {
+    await connection.beginTransaction();
+
+    const { jobCardId } = req.params;
+
+    const [jobCards] = await connection.execute(`
+      SELECT jc.*, c.name as company_name, c.vat_rate as company_vat_rate, c.ppda_rate as company_ppda_rate
+      FROM job_cards jc
+      JOIN companies c ON jc.company_id = c.id
+      WHERE jc.id = ?
+    `, [jobCardId]);
+
+    if (jobCards.length === 0) {
+      await connection.rollback();
+      return res.status(404).json({ error: 'Job card not found' });
+    }
+
+    const jobCard = jobCards[0];
+
+    // Staff may only convert job cards they created.
+    if (req.user.role !== 'admin' && jobCard.created_by !== req.user.id) {
+      await connection.rollback();
+      return res.status(403).json({ error: 'You do not have access to this job card' });
+    }
+
+    const [jobCardItems] = await connection.execute(
+      'SELECT description, quantity, unit_price FROM job_card_items WHERE job_card_id = ? ORDER BY sort_order, id',
+      [jobCardId]
+    );
+
+    let vatRate = Number(jobCard.company_vat_rate) || 0;
+    let ppdaRate = Number(jobCard.company_ppda_rate) || 0;
+    let dueDays = 30;
+    let quotationId = null;
+    if (jobCard.quotation_id) {
+      const [quotations] = await connection.execute(
+        'SELECT id, subtotal, vat_amount, ppda_amount, expiry_days FROM quotations WHERE id = ?',
+        [jobCard.quotation_id]
+      );
+      if (quotations.length > 0) {
+        const q = quotations[0];
+        quotationId = q.id;
+        const qSubtotal = Number(q.subtotal) || 0;
+        if (qSubtotal > 0) {
+          vatRate = (Number(q.vat_amount) || 0) / qSubtotal;
+          ppdaRate = (Number(q.ppda_amount) || 0) / qSubtotal;
+        }
+        if (q.expiry_days != null && Number(q.expiry_days) > 0) dueDays = Number(q.expiry_days);
+      }
+    }
+
+    const round2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
+    const items = jobCardItems.map((it) => {
+      const quantity = Number(it.quantity) || 0;
+      const unitPrice = Number(it.unit_price) || 0;
+      return { description: it.description, quantity, unit_price: unitPrice, total: round2(quantity * unitPrice) };
+    });
+    const subtotal = round2(items.reduce((sum, it) => sum + it.quantity * it.unit_price, 0));
+    const vatAmount = round2(subtotal * vatRate);
+    const ppdaAmount = round2(subtotal * ppdaRate);
+    const grandTotal = round2(subtotal + vatAmount + ppdaAmount);
+
+    // Same numbering scheme as from-quotation.
+    const prefix = `${getCompanyPrefix(jobCard.company_name)}-INV`;
+    const [maxResult] = await connection.execute(
+      `SELECT MAX(CAST(SUBSTRING_INDEX(invoice_number, '-', -1) AS UNSIGNED)) AS max_num
+         FROM invoices
+        WHERE company_id = ? AND invoice_number LIKE ?`,
+      [jobCard.company_id, `${prefix}-%`]
+    );
+    const nextNumber = (maxResult[0].max_num || 0) + 1;
+    const invoiceNumber = `${prefix}-${String(nextNumber).padStart(4, '0')}`;
+
+    const d = new Date();
+    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+    const [invoiceResult] = await connection.execute(`
+      INSERT INTO invoices
+      (company_id, created_by, client_id, quotation_id, job_card_id, invoice_number, client_name, client_address, client_email, client_phone,
+       date, due_days, subtotal, vat_amount, ppda_amount, grand_total, notes, terms_conditions)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [
+      jobCard.company_id,
+      req.user.id,
+      jobCard.client_id ?? null,
+      quotationId,
+      jobCard.id,
+      invoiceNumber,
+      jobCard.client_name,
+      jobCard.client_address ?? null,
+      jobCard.client_email ?? null,
+      jobCard.client_phone ?? null,
+      today,
+      dueDays,
+      subtotal,
+      vatAmount,
+      ppdaAmount,
+      grandTotal,
+      jobCard.notes ?? null,
+      null
+    ]);
+
+    const invoiceId = invoiceResult.insertId;
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      await connection.execute(`
+        INSERT INTO invoice_items
+        (invoice_id, description, quantity, unit_price, total, sort_order)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `, [invoiceId, item.description, item.quantity, item.unit_price, item.total, i]);
+    }
+
+    await connection.commit();
+
+    const [newInvoice] = await db.execute(`
+      SELECT i.*, c.name as company_name
+      FROM invoices i
+      JOIN companies c ON i.company_id = c.id
+      WHERE i.id = ?
+    `, [invoiceId]);
+
+    res.status(201).json(newInvoice[0]);
+  } catch (error) {
+    await connection.rollback();
+    console.error('Error generating invoice from job card:', error);
+    if (error && error.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({ error: 'An invoice with that number already exists for this company.' });
+    }
+    res.status(500).json({ error: 'Failed to generate invoice from job card' });
   } finally {
     connection.release();
   }

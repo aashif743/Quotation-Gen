@@ -15,6 +15,7 @@ router.use(isAuthenticated);
 router.use(requireCompanyAccess);
 router.param("id", companyTableParamGuard("delivery_notes"));
 router.param("quotationId", companyTableParamGuard("quotations"));
+router.param("invoiceId", companyTableParamGuard("invoices"));
 
 // Multer config for uploading the signed/stamped scan or photo. Saved under
 // <UPLOADS_ROOT>/signed/ (a persistent location outside the deployed app dir
@@ -93,11 +94,13 @@ router.get('/:id', async (req, res) => {
              c.primary_color, c.secondary_color,
              c.template as company_template,
              u.name as created_by_name,
-             su.name as signed_by_name
+             su.name as signed_by_name,
+             inv.invoice_number
         FROM delivery_notes d
         JOIN companies c ON d.company_id = c.id
         LEFT JOIN users u ON d.created_by = u.id
         LEFT JOIN users su ON d.signed_by = su.id
+        LEFT JOIN invoices inv ON d.invoice_id = inv.id
        WHERE d.id = ?
     `, [req.params.id]);
 
@@ -260,6 +263,87 @@ router.post('/from-quotation/:quotationId', async (req, res) => {
       return res.status(409).json({ error: 'A delivery note with that number already exists for this company.' });
     }
     res.status(500).json({ error: 'Failed to generate delivery note from quotation' });
+  } finally {
+    connection.release();
+  }
+});
+
+// Generate delivery note from an invoice (copies client + items, drops prices)
+router.post('/from-invoice/:invoiceId', async (req, res) => {
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+    const { invoiceId } = req.params;
+
+    const [invoices] = await connection.execute(`
+      SELECT i.*, c.name as company_name
+        FROM invoices i
+        JOIN companies c ON i.company_id = c.id
+       WHERE i.id = ?
+    `, [invoiceId]);
+
+    if (invoices.length === 0) {
+      await connection.rollback();
+      return res.status(404).json({ error: 'Invoice not found' });
+    }
+    const invoice = invoices[0];
+
+    if (req.user.role !== 'admin' && invoice.created_by !== req.user.id) {
+      await connection.rollback();
+      return res.status(403).json({ error: 'You do not have access to this invoice' });
+    }
+
+    const [invoiceItems] = await connection.execute(
+      'SELECT description, quantity, sort_order FROM invoice_items WHERE invoice_id = ? ORDER BY sort_order, id',
+      [invoiceId]
+    );
+
+    const prefix = `${getCompanyPrefix(invoice.company_name)}-DN`;
+    const [maxResult] = await connection.execute(
+      `SELECT MAX(CAST(SUBSTRING_INDEX(delivery_note_number, '-', -1) AS UNSIGNED)) AS max_num
+         FROM delivery_notes
+        WHERE company_id = ? AND delivery_note_number LIKE ?`,
+      [invoice.company_id, `${prefix}-%`]
+    );
+    const nextNumber = (maxResult[0].max_num || 0) + 1;
+    const deliveryNoteNumber = `${prefix}-${String(nextNumber).padStart(4, '0')}`;
+
+    const d = new Date();
+    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const [result] = await connection.execute(`
+      INSERT INTO delivery_notes
+      (company_id, created_by, client_id, quotation_id, invoice_id, delivery_note_number,
+       client_name, client_address, client_email, client_phone, date)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [
+      invoice.company_id, req.user.id, invoice.client_id || null, invoice.quotation_id || null, invoice.id,
+      deliveryNoteNumber,
+      invoice.client_name, invoice.client_address ?? null,
+      invoice.client_email ?? null, invoice.client_phone ?? null, today,
+    ]);
+    const id = result.insertId;
+
+    for (let i = 0; i < invoiceItems.length; i++) {
+      const item = invoiceItems[i];
+      await connection.execute(`
+        INSERT INTO delivery_note_items (delivery_note_id, description, quantity, sort_order)
+        VALUES (?, ?, ?, ?)
+      `, [id, item.description, item.quantity, item.sort_order ?? i]);
+    }
+
+    await connection.commit();
+    const [created] = await db.execute(
+      `SELECT d.*, c.name as company_name FROM delivery_notes d JOIN companies c ON d.company_id = c.id WHERE d.id = ?`,
+      [id]
+    );
+    res.status(201).json(created[0]);
+  } catch (error) {
+    await connection.rollback();
+    console.error('Error generating delivery note from invoice:', error);
+    if (error && error.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({ error: 'A delivery note with that number already exists for this company.' });
+    }
+    res.status(500).json({ error: 'Failed to generate delivery note from invoice' });
   } finally {
     connection.release();
   }

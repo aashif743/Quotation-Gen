@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { getInvoice, getPaymentsForInvoice, deletePayment } from '../services/api';
+import { createDeliveryNoteFromInvoice } from '../services/jobCardsApi';
 import RecordPaymentModal from '../components/Payment/RecordPaymentModal';
 import { useAuth } from '../context/AuthContext';
 import { Invoice, Payment } from '../types';
@@ -27,6 +28,7 @@ import {
   CheckCircle2,
   AlertCircle,
   XCircle,
+  Truck,
 } from 'lucide-react';
 
 const InvoiceView: React.FC = () => {
@@ -37,6 +39,7 @@ const InvoiceView: React.FC = () => {
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [generatingDeliveryNote, setGeneratingDeliveryNote] = useState(false);
 
   // Payment state
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -102,6 +105,22 @@ const InvoiceView: React.FC = () => {
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleGenerateDeliveryNote = async () => {
+    if (!invoice?.id) return;
+
+    setGeneratingDeliveryNote(true);
+    try {
+      const dn = await createDeliveryNoteFromInvoice(invoice.id);
+      navigate(`/delivery-note/${dn.id}`);
+    } catch (error: any) {
+      console.error('Error generating delivery note:', error);
+      const message = error?.response?.data?.error || 'Failed to generate delivery note. Please try again.';
+      alert(message);
+    } finally {
+      setGeneratingDeliveryNote(false);
+    }
   };
 
   const getCompanyColors = () => {
@@ -194,6 +213,24 @@ const InvoiceView: React.FC = () => {
           </button>
 
           <button
+            onClick={handleGenerateDeliveryNote}
+            disabled={generatingDeliveryNote}
+            className="inline-flex items-center px-3 py-1.5 text-sm font-medium border border-amber-500 text-amber-700 rounded-lg bg-white hover:bg-amber-50 transition-colors disabled:opacity-50"
+          >
+            {generatingDeliveryNote ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-amber-600 mr-1.5" />
+                Creating...
+              </>
+            ) : (
+              <>
+                <Truck className="h-4 w-4 mr-1.5" />
+                Delivery Note
+              </>
+            )}
+          </button>
+
+          <button
             onClick={handleDownloadPDF}
             disabled={generating}
             className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white rounded-lg shadow-sm hover:opacity-90 transition-all disabled:opacity-50"
@@ -213,6 +250,15 @@ const InvoiceView: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {invoice.job_card_id && (
+        <p className="text-sm text-gray-500 mb-2 no-print">
+          From Job Card{' '}
+          <Link to={`/job-cards/${invoice.job_card_id}`} className="font-medium hover:underline" style={{ color: accentColor }}>
+            {invoice.job_card_number || `#${invoice.job_card_id}`}
+          </Link>
+        </p>
+      )}
 
       {/* Payment tracking section — outside the .invoice-document so it
           doesn't appear in the PDF or print. */}

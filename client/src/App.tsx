@@ -31,6 +31,13 @@ import Attendance from './pages/Attendance';
 import Contracts from './pages/Contracts';
 import ContractForm from './pages/ContractForm';
 import ContractView from './pages/ContractView';
+import JobCards from './pages/JobCards';
+import JobCardForm from './pages/JobCardForm';
+import JobCardView from './pages/JobCardView';
+import PurchaseOrders from './pages/PurchaseOrders';
+import PurchaseOrderForm from './pages/PurchaseOrderForm';
+import PurchaseOrderView from './pages/PurchaseOrderView';
+import Payroll from './pages/Payroll';
 import Organizations from './pages/Organizations';
 import UserManagement from './pages/UserManagement';
 import Login from './pages/Login';
@@ -163,6 +170,22 @@ function AppRoutes() {
                   <Route path="/contracts/new" element={<ContractForm />} />
                   <Route path="/contracts/:id" element={<ContractView />} />
                   <Route path="/contracts/:id/edit" element={<ContractForm />} />
+                  <Route path="/job-cards" element={<JobCards />} />
+                  <Route path="/job-cards/new" element={<JobCardForm />} />
+                  <Route path="/job-cards/:id" element={<JobCardView />} />
+                  <Route path="/job-cards/:id/edit" element={<JobCardForm />} />
+                  <Route path="/lpos" element={<PurchaseOrders />} />
+                  <Route path="/lpos/new" element={<PurchaseOrderForm />} />
+                  <Route path="/lpos/:id" element={<PurchaseOrderView />} />
+                  <Route path="/lpos/:id/edit" element={<PurchaseOrderForm />} />
+                  <Route
+                    path="/payroll"
+                    element={
+                      <AdminRoute>
+                        <Payroll />
+                      </AdminRoute>
+                    }
+                  />
                   <Route
                     path="/organizations"
                     element={

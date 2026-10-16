@@ -787,6 +787,229 @@ async function migrate() {
     `);
   } else { console.log('  • contract_templates already present, skipping.'); }
 
+  // 3q. Job cards (added 2026-10) — the work order between a quotation and an
+  //     invoice (quotation → job card → invoice → delivery note). Can be created
+  //     standalone or from a quotation. Items keep an internal unit_price (never
+  //     printed on the job card) so an invoice can be generated from it.
+  //     ADDITIVE ONLY: new tables + nullable link columns; nothing existing is
+  //     altered or deleted. Deleting a parent only unlinks (SET NULL).
+  if (!(await tableExists('job_cards'))) {
+    console.log('  • Creating `job_cards` table...');
+    await db.query(`
+      CREATE TABLE \`job_cards\` (
+        \`id\` INT PRIMARY KEY AUTO_INCREMENT,
+        \`company_id\` INT NOT NULL,
+        \`created_by\` INT,
+        \`client_id\` INT,
+        \`quotation_id\` INT,
+        \`job_card_number\` VARCHAR(50) NOT NULL,
+        \`client_name\` VARCHAR(255) NOT NULL,
+        \`client_address\` TEXT,
+        \`client_email\` VARCHAR(255),
+        \`client_phone\` VARCHAR(50),
+        \`date\` DATE NOT NULL,
+        \`due_date\` DATE NULL,
+        \`completed_date\` DATE NULL,
+        \`status\` VARCHAR(20) NOT NULL DEFAULT 'pending',
+        \`assigned_to\` VARCHAR(255) NULL,
+        \`description\` TEXT,
+        \`notes\` TEXT,
+        \`created_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        \`updated_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (\`company_id\`) REFERENCES \`companies\`(\`id\`) ON DELETE CASCADE,
+        FOREIGN KEY (\`created_by\`) REFERENCES \`users\`(\`id\`) ON DELETE SET NULL,
+        FOREIGN KEY (\`client_id\`) REFERENCES \`clients\`(\`id\`) ON DELETE SET NULL,
+        FOREIGN KEY (\`quotation_id\`) REFERENCES \`quotations\`(\`id\`) ON DELETE SET NULL,
+        UNIQUE KEY \`unique_job_card_per_company\` (\`company_id\`, \`job_card_number\`)
+      ) ENGINE=InnoDB
+    `);
+  } else { console.log('  • job_cards already present, skipping.'); }
+
+  if (!(await tableExists('job_card_items'))) {
+    console.log('  • Creating `job_card_items` table...');
+    await db.query(`
+      CREATE TABLE \`job_card_items\` (
+        \`id\` INT PRIMARY KEY AUTO_INCREMENT,
+        \`job_card_id\` INT NOT NULL,
+        \`description\` TEXT NOT NULL,
+        \`quantity\` DECIMAL(10,2) NOT NULL DEFAULT 1,
+        \`unit_price\` DECIMAL(15,2) NOT NULL DEFAULT 0,
+        \`sort_order\` INT DEFAULT 0,
+        \`created_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (\`job_card_id\`) REFERENCES \`job_cards\`(\`id\`) ON DELETE CASCADE
+      ) ENGINE=InnoDB
+    `);
+  } else { console.log('  • job_card_items already present, skipping.'); }
+
+  // Workflow links: invoice ← job card, delivery note ← invoice. Nullable, so
+  // every existing invoice / delivery note is untouched (NULL = no link).
+  for (const [table, col, refTable] of [
+    ['invoices', 'job_card_id', 'job_cards'],
+    ['delivery_notes', 'invoice_id', 'invoices'],
+  ]) {
+    if (!(await columnExists(table, col))) {
+      console.log(`  • Adding \`${col}\` to ${table}...`);
+      await db.query(`ALTER TABLE \`${table}\` ADD COLUMN \`${col}\` INT NULL`);
+    } else { console.log(`  • ${table}.${col} already present, skipping.`); }
+    if ((await foreignKeyExists(table, col)).length === 0) {
+      // Adding an FK rebuilds the table, and strict SQL modes refuse to copy
+      // legacy rows holding zero dates ('0000-00-00'). Relax ONLY the zero-date
+      // checks, only on this dedicated connection, so existing rows are copied
+      // exactly as they are (no data is modified).
+      const conn = await db.getConnection();
+      try {
+        await conn.query(
+          "SET SESSION sql_mode = REPLACE(REPLACE(@@SESSION.sql_mode, 'NO_ZERO_IN_DATE', ''), 'NO_ZERO_DATE', '')"
+        );
+        await conn.query(
+          `ALTER TABLE \`${table}\` ADD CONSTRAINT \`fk_${table}_${col}\`
+             FOREIGN KEY (\`${col}\`) REFERENCES \`${refTable}\`(\`id\`) ON DELETE SET NULL`
+        );
+        console.log(`  • Added FK ${table}.${col} → ${refTable}.id`);
+      } catch (e) {
+        console.warn(`  ⚠️  Could not add FK on ${table}.${col}: ${e.message}`);
+      } finally {
+        conn.release();
+      }
+    }
+  }
+
+  // 3r. LPOs — Local Purchase Orders WE issue to suppliers (vendors). An LPO
+  //     can later be converted into a Purchase (vendor bill) when goods arrive.
+  if (!(await tableExists('purchase_orders'))) {
+    console.log('  • Creating `purchase_orders` table...');
+    await db.query(`
+      CREATE TABLE \`purchase_orders\` (
+        \`id\` INT PRIMARY KEY AUTO_INCREMENT,
+        \`company_id\` INT NOT NULL,
+        \`created_by\` INT,
+        \`vendor_id\` INT,
+        \`lpo_number\` VARCHAR(50) NOT NULL,
+        \`vendor_name\` VARCHAR(255) NOT NULL,
+        \`vendor_address\` TEXT,
+        \`vendor_email\` VARCHAR(255),
+        \`vendor_phone\` VARCHAR(50),
+        \`quotation_id\` INT,
+        \`job_card_id\` INT,
+        \`purchase_id\` INT,
+        \`date\` DATE NOT NULL,
+        \`delivery_date\` DATE NULL,
+        \`delivery_address\` TEXT,
+        \`payment_terms\` VARCHAR(255),
+        \`subtotal\` DECIMAL(15,2) NOT NULL DEFAULT 0,
+        \`vat_amount\` DECIMAL(15,2) NOT NULL DEFAULT 0,
+        \`grand_total\` DECIMAL(15,2) NOT NULL DEFAULT 0,
+        \`status\` VARCHAR(20) NOT NULL DEFAULT 'draft',
+        \`notes\` TEXT,
+        \`terms_conditions\` TEXT,
+        \`created_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        \`updated_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (\`company_id\`) REFERENCES \`companies\`(\`id\`) ON DELETE CASCADE,
+        FOREIGN KEY (\`created_by\`) REFERENCES \`users\`(\`id\`) ON DELETE SET NULL,
+        FOREIGN KEY (\`vendor_id\`) REFERENCES \`vendors\`(\`id\`) ON DELETE SET NULL,
+        FOREIGN KEY (\`quotation_id\`) REFERENCES \`quotations\`(\`id\`) ON DELETE SET NULL,
+        FOREIGN KEY (\`job_card_id\`) REFERENCES \`job_cards\`(\`id\`) ON DELETE SET NULL,
+        FOREIGN KEY (\`purchase_id\`) REFERENCES \`purchases\`(\`id\`) ON DELETE SET NULL,
+        UNIQUE KEY \`unique_lpo_per_company\` (\`company_id\`, \`lpo_number\`)
+      ) ENGINE=InnoDB
+    `);
+  } else { console.log('  • purchase_orders already present, skipping.'); }
+
+  if (!(await tableExists('purchase_order_items'))) {
+    console.log('  • Creating `purchase_order_items` table...');
+    await db.query(`
+      CREATE TABLE \`purchase_order_items\` (
+        \`id\` INT PRIMARY KEY AUTO_INCREMENT,
+        \`purchase_order_id\` INT NOT NULL,
+        \`description\` TEXT NOT NULL,
+        \`quantity\` DECIMAL(10,2) NOT NULL DEFAULT 1,
+        \`unit_cost\` DECIMAL(15,2) NOT NULL DEFAULT 0,
+        \`total\` DECIMAL(15,2) NOT NULL DEFAULT 0,
+        \`sort_order\` INT DEFAULT 0,
+        \`created_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (\`purchase_order_id\`) REFERENCES \`purchase_orders\`(\`id\`) ON DELETE CASCADE
+      ) ENGINE=InnoDB
+    `);
+  } else { console.log('  • purchase_order_items already present, skipping.'); }
+
+  // 3s. Payroll (staff salary + pay slips) built on the attendance staff
+  //     roster. Salary details are new NULLABLE/defaulted columns on
+  //     attendance_employees (existing rows untouched).
+  for (const [col, ddl] of [
+    ['position', 'ALTER TABLE `attendance_employees` ADD COLUMN `position` VARCHAR(120) NULL'],
+    ['basic_salary', 'ALTER TABLE `attendance_employees` ADD COLUMN `basic_salary` DECIMAL(15,2) NOT NULL DEFAULT 0'],
+    ['bank_name', 'ALTER TABLE `attendance_employees` ADD COLUMN `bank_name` VARCHAR(120) NULL'],
+    ['bank_account', 'ALTER TABLE `attendance_employees` ADD COLUMN `bank_account` VARCHAR(60) NULL'],
+    ['employee_tpin', 'ALTER TABLE `attendance_employees` ADD COLUMN `employee_tpin` VARCHAR(40) NULL'],
+    // JSON array of recurring pay lines that prefill each month's pay slip:
+    // [{ type: 'allowance' | 'deduction', label, amount, taxable }]
+    ['salary_lines', 'ALTER TABLE `attendance_employees` ADD COLUMN `salary_lines` LONGTEXT NULL'],
+  ]) {
+    if (!(await columnExists('attendance_employees', col))) {
+      console.log(`  • Adding \`${col}\` to attendance_employees...`);
+      await db.query(ddl);
+    } else { console.log(`  • attendance_employees.${col} already present, skipping.`); }
+  }
+
+  // Per-company payroll settings: PAYE bands (JSON, editable because MRA
+  // revises them) and optional pension percentages.
+  if (!(await tableExists('payroll_settings'))) {
+    console.log('  • Creating `payroll_settings` table...');
+    await db.query(`
+      CREATE TABLE \`payroll_settings\` (
+        \`company_id\` INT PRIMARY KEY,
+        \`paye_bands\` LONGTEXT,
+        \`pension_employee_percent\` DECIMAL(5,2) NOT NULL DEFAULT 0,
+        \`pension_employer_percent\` DECIMAL(5,2) NOT NULL DEFAULT 0,
+        \`updated_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (\`company_id\`) REFERENCES \`companies\`(\`id\`) ON DELETE CASCADE
+      ) ENGINE=InnoDB
+    `);
+  } else { console.log('  • payroll_settings already present, skipping.'); }
+
+  // One pay slip per staff member per month. employee_id is SET NULL on staff
+  // removal and the slip keeps a snapshot of name/position/code, so removing a
+  // staff member never deletes their payroll history.
+  if (!(await tableExists('payslips'))) {
+    console.log('  • Creating `payslips` table...');
+    await db.query(`
+      CREATE TABLE \`payslips\` (
+        \`id\` INT PRIMARY KEY AUTO_INCREMENT,
+        \`company_id\` INT NOT NULL,
+        \`created_by\` INT,
+        \`employee_id\` INT NULL,
+        \`employee_name\` VARCHAR(255) NOT NULL,
+        \`employee_code\` VARCHAR(50) NULL,
+        \`position\` VARCHAR(120) NULL,
+        \`period\` CHAR(7) NOT NULL,
+        \`basic_salary\` DECIMAL(15,2) NOT NULL DEFAULT 0,
+        \`lines\` LONGTEXT,
+        \`gross_pay\` DECIMAL(15,2) NOT NULL DEFAULT 0,
+        \`taxable_pay\` DECIMAL(15,2) NOT NULL DEFAULT 0,
+        \`paye\` DECIMAL(15,2) NOT NULL DEFAULT 0,
+        \`pension_employee\` DECIMAL(15,2) NOT NULL DEFAULT 0,
+        \`pension_employer\` DECIMAL(15,2) NOT NULL DEFAULT 0,
+        \`total_deductions\` DECIMAL(15,2) NOT NULL DEFAULT 0,
+        \`net_pay\` DECIMAL(15,2) NOT NULL DEFAULT 0,
+        \`days_present\` INT NULL,
+        \`days_absent\` INT NULL,
+        \`status\` VARCHAR(20) NOT NULL DEFAULT 'draft',
+        \`payment_date\` DATE NULL,
+        \`payment_method\` VARCHAR(60) NULL,
+        \`bank_name\` VARCHAR(120) NULL,
+        \`bank_account\` VARCHAR(60) NULL,
+        \`notes\` TEXT,
+        \`created_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        \`updated_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (\`company_id\`) REFERENCES \`companies\`(\`id\`) ON DELETE CASCADE,
+        FOREIGN KEY (\`created_by\`) REFERENCES \`users\`(\`id\`) ON DELETE SET NULL,
+        FOREIGN KEY (\`employee_id\`) REFERENCES \`attendance_employees\`(\`id\`) ON DELETE SET NULL,
+        UNIQUE KEY \`uniq_payslip_emp_period\` (\`company_id\`, \`employee_id\`, \`period\`),
+        INDEX \`idx_payslip_period\` (\`company_id\`, \`period\`)
+      ) ENGINE=InnoDB
+    `);
+  } else { console.log('  • payslips already present, skipping.'); }
+
   // 4. Backfill created_by from each row's company owner so existing records
   //    are attributed to the user who originally owned the company.
   const [qBackfill] = await db.query(

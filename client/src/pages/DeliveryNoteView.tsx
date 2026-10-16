@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   getDeliveryNote,
   uploadSignedDeliveryNote,
@@ -289,6 +289,15 @@ const DeliveryNoteView: React.FC = () => {
       {dn.created_by_name && (
         <p className="text-sm text-gray-500 mb-2 no-print">
           Prepared by {dn.created_by_name}
+        </p>
+      )}
+
+      {dn.invoice_id && (
+        <p className="text-sm text-gray-500 mb-2 no-print">
+          From Invoice{' '}
+          <Link to={`/invoice/${dn.invoice_id}`} className="font-medium hover:underline" style={{ color: primary }}>
+            {dn.invoice_number || `#${dn.invoice_id}`}
+          </Link>
         </p>
       )}
 
