@@ -1,5 +1,8 @@
 import React from 'react';
-import { formatNumber } from '../../utils/calculations';
+
+// Quantities are counts: show "60", not "60.00" (keep decimals only if used).
+const formatQty = (n: number) =>
+  new Intl.NumberFormat('en', { maximumFractionDigits: 2 }).format(Number(n) || 0);
 
 export interface DeliveryDocData {
   delivery_note_number?: string;
@@ -111,14 +114,14 @@ const DeliveryNoteDocument: React.FC<DeliveryNoteDocumentProps> = ({
             {hasItems ? (
               items.map((item, i) => (
                 <tr key={i} style={{ backgroundColor: i % 2 ? tint(0.04) : 'transparent' }}>
-                  <td className="px-4 py-3 text-sm text-center border-b border-gray-100 text-gray-500">
+                  <td className="px-4 py-3 text-sm text-center align-top border-b border-gray-100 text-gray-500">
                     {i + 1}
                   </td>
-                  <td className="px-4 py-3 text-sm border-b border-gray-100 whitespace-pre-wrap">
+                  <td className="px-4 py-3 text-sm align-top border-b border-gray-100 whitespace-pre-wrap">
                     {item.description}
                   </td>
-                  <td className="px-4 py-3 text-sm text-center border-b border-gray-100 font-medium tabular-nums">
-                    {formatNumber(item.quantity)}
+                  <td className="px-4 py-3 text-sm text-center align-top border-b border-gray-100 font-medium tabular-nums">
+                    {formatQty(item.quantity)}
                   </td>
                 </tr>
               ))

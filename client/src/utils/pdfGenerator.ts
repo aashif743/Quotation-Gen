@@ -77,6 +77,7 @@ async function saveElementAsPdf(
   // DOM put "safe" breaks partway through a line of text on long contracts.
   let safeBreakYs: number[] = [];
   let keepRanges: Array<{ top: number; bottom: number }> = [];
+  let contentEnd = Infinity;
 
   // Capture at 1.5x device pixels — that's ~160 DPI on A4 which is still well
   // above print clarity for text and keeps the JPEG inside the PDF small. The
@@ -115,6 +116,7 @@ async function saveElementAsPdf(
       root.style.borderRadius = '0';
       safeBreakYs = collectSafeBreakPoints(root, CAPTURE_SCALE);
       keepRanges = collectKeepRanges(root, CAPTURE_SCALE);
+      contentEnd = collectContentEnd(root, CAPTURE_SCALE);
     },
   });
 
@@ -154,6 +156,42 @@ async function saveElementAsPdf(
     return;
   }
 
+  // html2canvas doesn't always paint text exactly where the DOM lays it out
+  // (pre-wrap text in table cells can be drawn ~10px off), so every cut is
+  // verified against the PIXELS: a row is "clear" when it has no high-contrast
+  // content — only background, stripes or faint borders — so cutting there
+  // can't slice through a glyph.
+  const pixels = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data;
+  const rowIsClear = (y: number): boolean => {
+    if (y <= 0 || y >= canvas.height) return true;
+    let min = 255;
+    let max = 0;
+    const base = y * canvas.width * 4;
+    for (let x = 0; x < canvas.width; x++) {
+      const i = base + x * 4;
+      const lum = (pixels[i] * 3 + pixels[i + 1] * 6 + pixels[i + 2]) / 10;
+      if (lum < min) min = lum;
+      if (lum > max) max = lum;
+      if (max - min > 48) return false;
+    }
+    return true;
+  };
+  // A cut at Y is clean when the rows just above and below it are clear.
+  const cutIsClean = (y: number) => rowIsClear(y - 1) && rowIsClear(y);
+  // Clean cut closest to `y` within [lo, hi] (preferring higher rows on ties
+  // to keep a page from overflowing), or -1.
+  const nearestClearRow = (y: number, lo: number, hi: number): number => {
+    for (let d = 0; d <= Math.max(y - lo, hi - y); d++) {
+      if (y - d >= lo && cutIsClean(y - d)) return y - d;
+      if (y + d <= hi && cutIsClean(y + d)) return y + d;
+    }
+    return -1;
+  };
+  const isClearBand = (from: number, to: number) => {
+    for (let y = from; y < to; y++) if (!rowIsClear(y)) return false;
+    return true;
+  };
+
   // Multi-page: each PDF page gets a white margin at the bottom (and at the top
   // of continuation pages — page 1 already has the document's own padding), so
   // text never runs to the paper edge. The content slice for a page is the page
@@ -167,21 +205,40 @@ async function saveElementAsPdf(
     const usablePx = pageHeightPx - topMargin - MARGIN_PX;
     const remaining = canvas.height - offsetPx;
     let sliceEnd: number;
+    let isLast = false;
 
     if (remaining <= usablePx) {
       // Last page — take everything left, no snapping needed.
       sliceEnd = canvas.height;
+      isLast = true;
+    } else if (contentEnd - offsetPx <= usablePx && isClearBand(offsetPx + usablePx, canvas.height)) {
+      // All remaining CONTENT fits; what's left beyond the page is only blank
+      // padding (e.g. the root's bottom padding) — don't spill it onto an
+      // extra, empty-looking page.
+      sliceEnd = offsetPx + usablePx;
+      isLast = true;
     } else {
       // Snap to the largest safe break Y within (offsetPx, idealEnd]. The upper
       // bound is a HARD limit: a taller slice would overflow the page and its
       // bottom line would be clipped. If no break is found (e.g. a single row
       // taller than a page) fall back to the ideal end so we still progress.
       const idealEnd = offsetPx + usablePx;
+      const minEnd = offsetPx + HEIGHT_TOLERANCE_PX;
       let bestBreak = -1;
-      for (const by of safeBreakYs) {
-        if (by > offsetPx + HEIGHT_TOLERANCE_PX && by <= idealEnd && by > bestBreak) {
-          bestBreak = by;
-        }
+      // Largest layout break point whose cut is (or can be nudged a few px to)
+      // a pixel row with no painted content.
+      const candidates = safeBreakYs.filter((by) => by > minEnd && by <= idealEnd).sort((a, b) => b - a);
+      for (const by of candidates) {
+        const clear = nearestClearRow(by, Math.max(minEnd, by - 24), Math.min(idealEnd, by + 4));
+        if (clear > 0) { bestBreak = clear; break; }
+      }
+      const halfPage = offsetPx + Math.floor(usablePx / 2);
+      if (bestBreak < halfPage) {
+        // No usable layout break, or one that would leave most of the page
+        // blank (e.g. a table row taller than a page): cut instead at the
+        // lowest blank pixel row in the bottom half — between lines of text.
+        const clear = nearestClearRow(idealEnd, halfPage, idealEnd);
+        if (clear > 0) bestBreak = clear;
       }
       sliceEnd = bestBreak > 0 ? bestBreak : idealEnd;
 
@@ -230,6 +287,7 @@ async function saveElementAsPdf(
 
     offsetPx = sliceEnd;
     pageIndex++;
+    if (isLast) break;
   }
 
   pdf.save(filename);
@@ -256,19 +314,17 @@ function collectSafeBreakPoints(element: HTMLElement, scale: number): number[] {
   // Table rows and explicitly-kept blocks are no-break units — it's safe to
   // break AFTER the whole element, never through it.
   element.querySelectorAll<HTMLElement>('tr, [data-pdf-keep]').forEach((node) => {
-    add(node.getBoundingClientRect().bottom - elemTop);
+    add(visualBottom(node) - elemTop);
   });
 
-  // Free-text paragraphs / list items that are NOT inside a kept block: add a
-  // break candidate after every VISUAL line (via the text node's line boxes),
-  // so long paragraphs break BETWEEN lines and text is never sliced mid-line.
-  // A candidate is only accepted if it doesn't fall inside another line box of
-  // the same paragraph (guards against overlapping/odd rects).
+  // Add a break candidate after every VISUAL line of text inside `container`
+  // (via the text nodes' line boxes), so text breaks BETWEEN lines and is never
+  // sliced mid-line. A candidate is dropped if it would fall inside any other
+  // line box in the container (e.g. a neighbouring table cell's text).
   const range = doc.createRange();
-  element.querySelectorAll<HTMLElement>('p, li').forEach((node) => {
-    if (node.closest('[data-pdf-keep]')) return;
+  const addLineBreaks = (container: HTMLElement) => {
     const lines: Array<{ top: number; bottom: number }> = [];
-    const walker = doc.createTreeWalker(node, 4 /* NodeFilter.SHOW_TEXT */);
+    const walker = doc.createTreeWalker(container, 4 /* NodeFilter.SHOW_TEXT */);
     let t: Node | null;
     // eslint-disable-next-line no-cond-assign
     while ((t = walker.nextNode())) {
@@ -286,13 +342,29 @@ function collectSafeBreakPoints(element: HTMLElement, scale: number): number[] {
     // never past the midpoint to the next line.
     lines.sort((a, b) => a.top - b.top);
     lines.forEach((l, idx) => {
-      const insideAnother = lines.some((o) => l.bottom > o.top + 1 && l.bottom < o.bottom - 1);
-      if (insideAnother) return;
       const next = lines.slice(idx + 1).find((o) => o.top >= l.bottom - 1);
       const gapMid = next ? (l.bottom + next.top) / 2 : Infinity;
-      add(Math.min(l.bottom + 3, gapMid));
+      const y = Math.min(l.bottom + 3, gapMid);
+      if (lines.some((o) => y > o.top + 1 && y < o.bottom - 1)) return;
+      add(y);
     });
+  };
+
+  // Free-text paragraphs / list items that are NOT inside a kept block.
+  element.querySelectorAll<HTMLElement>('p, li').forEach((node) => {
+    if (node.closest('[data-pdf-keep]')) return;
+    addLineBreaks(node);
     add(node.getBoundingClientRect().bottom - elemTop);
+  });
+
+  // Table rows normally move to the next page whole. But a row too tall to sit
+  // comfortably on a page (e.g. one item listing dozens of serial numbers) would
+  // leave a near-empty page and still overflow — let such rows break between
+  // their text lines instead.
+  const pageHeightCss = element.getBoundingClientRect().width * 297 / 210;
+  element.querySelectorAll<HTMLElement>('tr').forEach((row) => {
+    if (row.closest('[data-pdf-keep]')) return;
+    if (row.getBoundingClientRect().height > pageHeightCss * 0.4) addLineBreaks(row);
   });
 
   // "Break BEFORE" markers: a break may be placed at the TOP of these elements
@@ -318,12 +390,49 @@ function collectKeepRanges(
   const elemTop = element.getBoundingClientRect().top;
   const ranges: Array<{ top: number; bottom: number }> = [];
   element.querySelectorAll<HTMLElement>('[data-pdf-keep]').forEach((node) => {
-    const rect = node.getBoundingClientRect();
-    const top = Math.floor((rect.top - elemTop) * scale);
-    const bottom = Math.ceil((rect.bottom - elemTop) * scale);
+    const top = Math.floor((node.getBoundingClientRect().top - elemTop) * scale);
+    const bottom = Math.ceil((visualBottom(node) - elemTop) * scale);
     if (bottom > 0) ranges.push({ top: Math.max(0, top), bottom });
   });
   return ranges;
+}
+
+/**
+ * Bottom edge (viewport px) of what an element actually PAINTS: its box, or
+ * its text if the glyphs overflow the box (tight line-heights, letter-spaced
+ * captions) — plus a few px for descenders. Breaking at the bare box bottom can
+ * shave the last line of a block.
+ */
+function visualBottom(node: HTMLElement): number {
+  let bottom = node.getBoundingClientRect().bottom;
+  const doc = node.ownerDocument;
+  const range = doc.createRange();
+  const walker = doc.createTreeWalker(node, 4 /* NodeFilter.SHOW_TEXT */);
+  let t: Node | null;
+  // eslint-disable-next-line no-cond-assign
+  while ((t = walker.nextNode())) {
+    if (!t.textContent || !t.textContent.trim()) continue;
+    range.selectNodeContents(t);
+    const r = range.getBoundingClientRect();
+    if (r.height > 0) bottom = Math.max(bottom, r.bottom + 3);
+  }
+  return bottom;
+}
+
+/**
+ * Canvas-pixel Y where the document's visible content ends (the lowest painted
+ * element or text, ignoring the root's own box/padding). Lets the slicer skip a
+ * trailing page that would hold nothing but blank padding.
+ */
+function collectContentEnd(element: HTMLElement, scale: number): number {
+  const elemTop = element.getBoundingClientRect().top;
+  let end = 0;
+  element.querySelectorAll<HTMLElement>('*').forEach((node) => {
+    const r = node.getBoundingClientRect();
+    if (r.height > 0 && r.width > 0) end = Math.max(end, r.bottom);
+  });
+  end = Math.max(end, visualBottom(element.lastElementChild as HTMLElement || element));
+  return Math.ceil((end - elemTop) * scale);
 }
 
 const safeFileSegment = (s: string) => s.replace(/[^a-zA-Z0-9]/g, '_');
