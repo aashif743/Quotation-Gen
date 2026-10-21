@@ -1,7 +1,19 @@
 const express = require('express');
 const db = require('../config/database');
-const { isAuthenticated } = require('../middleware/auth');
+const { isAuthenticated, isAdmin } = require('../middleware/auth');
 const { requireCompanyAccess } = require("../utils/tenancy");
+const {
+  makeProofUpload, acceptProofFile, publicProofUrl, discardUploaded, deleteStoredProof, originalName,
+} = require('../utils/proofUpload');
+
+const proofUpload = acceptProofFile(makeProofUpload('inv'));
+
+// Columns returned for a payment everywhere (recorder + proof uploader names).
+const PAYMENT_SELECT = `
+  SELECT p.*, u.name AS recorded_by_name, pu.name AS proof_uploaded_by_name
+    FROM payments p
+    LEFT JOIN users u  ON p.recorded_by = u.id
+    LEFT JOIN users pu ON p.proof_uploaded_by = pu.id`;
 
 const router = express.Router();
 router.use(isAuthenticated);
@@ -53,9 +65,7 @@ router.get('/', async (req, res) => {
     if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
 
     const [rows] = await db.execute(
-      `SELECT p.*, u.name AS recorded_by_name
-         FROM payments p
-         LEFT JOIN users u ON p.recorded_by = u.id
+      `${PAYMENT_SELECT}
         WHERE p.invoice_id = ?
         ORDER BY p.payment_date DESC, p.id DESC`,
       [invoiceId]
@@ -91,8 +101,7 @@ router.post('/', async (req, res) => {
       [invoice.id, amt, payment_date, method || null, reference || null, notes || null, req.user.id]
     );
     const [created] = await db.execute(
-      `SELECT p.*, u.name AS recorded_by_name
-         FROM payments p LEFT JOIN users u ON p.recorded_by = u.id
+      `${PAYMENT_SELECT}
         WHERE p.id = ?`,
       [result.insertId]
     );
@@ -134,8 +143,7 @@ router.put('/:id', async (req, res) => {
       values
     );
     const [updated] = await db.execute(
-      `SELECT p.*, u.name AS recorded_by_name
-         FROM payments p LEFT JOIN users u ON p.recorded_by = u.id
+      `${PAYMENT_SELECT}
         WHERE p.id = ?`,
       [req.params.id]
     );
@@ -153,11 +161,88 @@ router.delete('/:id', async (req, res) => {
     if (!payment) {
       return res.status(403).json({ error: 'You can only delete payments you recorded.' });
     }
+    // The payment's proof file (if any) is intentionally left on disk: uploaded
+    // documents are never deleted as a side effect.
     await db.execute('DELETE FROM payments WHERE id = ?', [req.params.id]);
     res.json({ message: 'Payment deleted.' });
   } catch (error) {
     console.error('Error deleting payment:', error);
     res.status(500).json({ error: 'Failed to delete payment' });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Payment proof (one uploaded image/PDF per payment)
+// ---------------------------------------------------------------------------
+
+// Load a payment for proof actions: it must belong to the caller's
+// organization, and staff must either own the invoice or have recorded the
+// payment. Admins can act on any payment in their organization.
+async function loadPaymentForProof(req, paymentId) {
+  const [rows] = await db.execute(
+    `SELECT p.id, p.invoice_id, p.recorded_by, p.proof_file_url, i.created_by AS invoice_created_by
+       FROM payments p
+       JOIN invoices i  ON p.invoice_id = i.id
+       JOIN companies c ON i.company_id = c.id
+      WHERE p.id = ? AND c.organization_id = ?`,
+    [paymentId, req.user.organization_id]
+  );
+  if (rows.length === 0) return null;
+  const row = rows[0];
+  if (req.user.role !== 'admin' && row.recorded_by !== req.user.id && row.invoice_created_by !== req.user.id) {
+    return null;
+  }
+  return row;
+}
+
+// POST /api/payments/:id/proof — upload the proof (multipart field "file").
+// Replacing an existing proof is admin-only so nobody can accidentally
+// overwrite a document someone else uploaded.
+router.post('/:id/proof', proofUpload, async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    const payment = await loadPaymentForProof(req, req.params.id);
+    if (!payment) {
+      discardUploaded(req);
+      return res.status(404).json({ error: 'Payment not found' });
+    }
+    if (payment.proof_file_url && req.user.role !== 'admin') {
+      discardUploaded(req);
+      return res.status(403).json({ error: 'A proof is already attached. Only an admin can replace it.' });
+    }
+    if (payment.proof_file_url) deleteStoredProof(payment.proof_file_url);
+
+    await db.execute(
+      `UPDATE payments
+          SET proof_file_url = ?, proof_file_name = ?, proof_uploaded_at = NOW(), proof_uploaded_by = ?
+        WHERE id = ?`,
+      [publicProofUrl(req.file.filename), originalName(req.file), req.user.id, payment.id]
+    );
+    const [updated] = await db.execute(`${PAYMENT_SELECT} WHERE p.id = ?`, [payment.id]);
+    res.json(updated[0]);
+  } catch (error) {
+    discardUploaded(req);
+    console.error('Error uploading payment proof:', error);
+    res.status(500).json({ error: 'Failed to upload payment proof' });
+  }
+});
+
+// DELETE /api/payments/:id/proof — remove the proof (admin only).
+router.delete('/:id/proof', isAdmin, async (req, res) => {
+  try {
+    const payment = await loadPaymentForProof(req, req.params.id);
+    if (!payment) return res.status(404).json({ error: 'Payment not found' });
+    if (payment.proof_file_url) deleteStoredProof(payment.proof_file_url);
+    await db.execute(
+      `UPDATE payments
+          SET proof_file_url = NULL, proof_file_name = NULL, proof_uploaded_at = NULL, proof_uploaded_by = NULL
+        WHERE id = ?`,
+      [payment.id]
+    );
+    res.json({ message: 'Payment proof removed.' });
+  } catch (error) {
+    console.error('Error removing payment proof:', error);
+    res.status(500).json({ error: 'Failed to remove payment proof' });
   }
 });
 

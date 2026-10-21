@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { Company, Quotation, Invoice, DeliveryNote, User, AuthStatus, ManagedUser, UserRole, Client, ClientDocSummary, Payment, Vendor, Purchase, PurchaseDocSummary, Expense, PettyCashEntry, PettyCashSummary, Organization,
   AttendanceDevice, AttendanceEnrollment, AttendanceEmployee, AttendancePunch, AttendanceTodayStaff, AttendanceReportRow, AttendanceSettings,
-  Contract, ContractSection } from '../types';
+  Contract, ContractSection, VendorPayment } from '../types';
 
 // Use a relative base so the same build works in development (proxied by CRA
 // to the local Express server) and in production (served by the same Express
@@ -386,6 +386,29 @@ export const deletePayment = async (id: number): Promise<void> => {
   await api.delete(`/payments/${id}`);
 };
 
+// Payment proof (bank slip / receipt) — one image or PDF per payment.
+export const uploadPaymentProof = async (paymentId: number, file: File): Promise<Payment> => {
+  const formData = new FormData();
+  formData.append('file', file);
+  const response = await api.post(`/payments/${paymentId}/proof`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return response.data;
+};
+
+export const deletePaymentProof = async (paymentId: number): Promise<void> => {
+  await api.delete(`/payments/${paymentId}/proof`);
+};
+
+// Duplicate an invoice (new number + date; payments are not copied).
+export const duplicateInvoice = async (
+  invoiceId: number,
+  data: { date: string; invoice_number?: string }
+): Promise<Invoice> => {
+  const response = await api.post(`/invoices/${invoiceId}/duplicate`, data);
+  return response.data;
+};
+
 // ---------------------------------------------------------------------------
 // Vendors API (buy side)
 // ---------------------------------------------------------------------------
@@ -457,13 +480,26 @@ export const deletePurchase = async (id: number): Promise<void> => {
 export const recordVendorPayment = async (
   purchaseId: number,
   data: { amount: number; payment_date: string; method?: string; reference?: string; notes?: string }
-): Promise<{ amount_paid: number; balance_due: number; payment_status: 'pending' | 'partial' | 'paid' }> => {
+): Promise<{ payment_id: number; amount_paid: number; balance_due: number; payment_status: 'pending' | 'partial' | 'paid' }> => {
   const response = await api.post(`/purchases/${purchaseId}/payments`, data);
   return response.data;
 };
 
 export const deleteVendorPayment = async (purchaseId: number, paymentId: number): Promise<void> => {
   await api.delete(`/purchases/${purchaseId}/payments/${paymentId}`);
+};
+
+export const uploadVendorPaymentProof = async (purchaseId: number, paymentId: number, file: File): Promise<VendorPayment> => {
+  const formData = new FormData();
+  formData.append('file', file);
+  const response = await api.post(`/purchases/${purchaseId}/payments/${paymentId}/proof`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return response.data;
+};
+
+export const deleteVendorPaymentProof = async (purchaseId: number, paymentId: number): Promise<void> => {
+  await api.delete(`/purchases/${purchaseId}/payments/${paymentId}/proof`);
 };
 
 // ---------------------------------------------------------------------------

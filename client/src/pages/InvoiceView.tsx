@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { getInvoice, getPaymentsForInvoice, deletePayment } from '../services/api';
+import { getInvoice, getPaymentsForInvoice, deletePayment, uploadPaymentProof, deletePaymentProof } from '../services/api';
+import { PaymentProofCell } from '../components/Payment/PaymentProof';
 import { createDeliveryNoteFromInvoice } from '../services/jobCardsApi';
 import RecordPaymentModal from '../components/Payment/RecordPaymentModal';
 import { useAuth } from '../context/AuthContext';
@@ -29,7 +30,9 @@ import {
   AlertCircle,
   XCircle,
   Truck,
+  Copy,
 } from 'lucide-react';
+import DuplicateInvoiceModal from '../components/Invoice/DuplicateInvoiceModal';
 
 const InvoiceView: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -47,6 +50,7 @@ const InvoiceView: React.FC = () => {
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   // When set, the modal opens in edit mode for this payment.
   const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
+  const [showDuplicate, setShowDuplicate] = useState(false);
 
   // Reload both the invoice (to refresh status/balance) and the payment list.
   const loadAll = async (invoiceId: number) => {
@@ -204,6 +208,18 @@ const InvoiceView: React.FC = () => {
             </button>
           )}
 
+          {/* Duplicate — e.g. the same monthly invoice for a recurring client. */}
+          {(isAdmin || (user && invoice.created_by === user.id)) && (
+            <button
+              onClick={() => setShowDuplicate(true)}
+              className="inline-flex items-center px-3 py-1.5 text-sm font-medium border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition-colors"
+              title="Create a copy of this invoice with a new number and date"
+            >
+              <Copy className="h-4 w-4 mr-1.5" />
+              Duplicate
+            </button>
+          )}
+
           <button
             onClick={handlePrint}
             className="inline-flex items-center px-3 py-1.5 text-sm font-medium border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition-colors"
@@ -273,6 +289,14 @@ const InvoiceView: React.FC = () => {
           onAddClick={() => setShowPaymentForm(true)}
           onEditPayment={(p) => setEditingPayment(p)}
           onDeletePayment={handleDeletePayment}
+          onUploadProof={async (paymentId, file) => {
+            await uploadPaymentProof(paymentId, file);
+            if (invoice.id) await loadAll(invoice.id);
+          }}
+          onRemoveProof={async (paymentId) => {
+            await deletePaymentProof(paymentId);
+            if (invoice.id) await loadAll(invoice.id);
+          }}
         />
       </div>
 
@@ -499,6 +523,20 @@ const InvoiceView: React.FC = () => {
         </div>
       </div>
 
+      {showDuplicate && invoice.id && (
+        <DuplicateInvoiceModal
+          invoice={{
+            id: invoice.id,
+            company_id: invoice.company_id,
+            invoice_number: invoice.invoice_number,
+            client_name: invoice.client_name,
+            grand_total: invoice.grand_total,
+          }}
+          primary={accentColor}
+          onClose={() => setShowDuplicate(false)}
+        />
+      )}
+
       {showPaymentForm && invoice.id && (
         <RecordPaymentModal
           invoice={{
@@ -549,7 +587,9 @@ const PaymentPanel: React.FC<{
   onAddClick: () => void;
   onEditPayment: (payment: Payment) => void;
   onDeletePayment: (id: number) => void;
-}> = ({ invoice, payments, loading, isAdmin, currentUserId, canRecord, onAddClick, onEditPayment, onDeletePayment }) => {
+  onUploadProof: (paymentId: number, file: File) => Promise<void>;
+  onRemoveProof: (paymentId: number) => Promise<void>;
+}> = ({ invoice, payments, loading, isAdmin, currentUserId, canRecord, onAddClick, onEditPayment, onDeletePayment, onUploadProof, onRemoveProof }) => {
   const status = invoice.payment_status || 'pending';
   const meta = STATUS_LABEL[status] || STATUS_LABEL.pending;
   const total = Number(invoice.grand_total || 0);
@@ -624,6 +664,7 @@ const PaymentPanel: React.FC<{
                 <th className="px-5 py-2 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">Reference</th>
                 <th className="px-5 py-2 text-right text-[11px] font-medium text-gray-500 uppercase tracking-wider">Amount</th>
                 <th className="px-5 py-2 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">Recorded by</th>
+                <th className="px-5 py-2 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">Proof</th>
                 <th className="px-5 py-2"></th>
               </tr>
             </thead>
@@ -643,6 +684,17 @@ const PaymentPanel: React.FC<{
                       {formatCurrency(Number(p.amount))}
                     </td>
                     <td className="px-5 py-2 text-sm text-gray-600">{p.recorded_by_name || '—'}</td>
+                    <td className="px-5 py-2 whitespace-nowrap">
+                      <PaymentProofCell
+                        url={p.proof_file_url}
+                        fileName={p.proof_file_name}
+                        uploadedBy={p.proof_uploaded_by_name}
+                        canUpload={canAct || !!canRecord}
+                        isAdmin={isAdmin}
+                        onUpload={(file) => onUploadProof(p.id, file)}
+                        onRemove={() => onRemoveProof(p.id)}
+                      />
+                    </td>
                     <td className="px-5 py-2 text-right whitespace-nowrap">
                       {canAct && (
                         <div className="inline-flex items-center space-x-1">

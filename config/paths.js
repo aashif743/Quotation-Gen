@@ -37,10 +37,10 @@ function resolveRoot() {
 
 const UPLOADS_ROOT = resolveRoot();
 
-// The signed/ subfolder is referenced directly by the delivery-note route, so
-// guarantee both it and the root exist on startup (e.g. a fresh persistent
-// volume) before any upload or static read happens.
-for (const dir of [UPLOADS_ROOT, path.join(UPLOADS_ROOT, 'signed')]) {
+// The signed/ (delivery-note scans) and payment-proofs/ subfolders are
+// referenced directly by their routes, so guarantee they and the root exist on
+// startup (e.g. a fresh persistent volume) before any upload or static read.
+for (const dir of [UPLOADS_ROOT, path.join(UPLOADS_ROOT, 'signed'), path.join(UPLOADS_ROOT, 'payment-proofs')]) {
   try {
     fs.mkdirSync(dir, { recursive: true });
   } catch {

@@ -4,6 +4,11 @@ const { isAuthenticated, isAdmin } = require('../middleware/auth');
 const { requireCompanyAccess, companyTableParamGuard } = require("../utils/tenancy");
 const { getCompanyPrefix } = require('../utils/quotePrefix');
 const { resolveVendorId } = require('../utils/vendorResolver');
+const {
+  makeProofUpload, acceptProofFile, publicProofUrl, discardUploaded, deleteStoredProof, originalName,
+} = require('../utils/proofUpload');
+
+const proofUpload = acceptProofFile(makeProofUpload('vendor'));
 
 const router = express.Router();
 
@@ -111,9 +116,10 @@ router.get('/:id', async (req, res) => {
       [req.params.id]
     );
     const [payments] = await db.execute(
-      `SELECT vp.*, u.name AS recorded_by_name
+      `SELECT vp.*, u.name AS recorded_by_name, pu.name AS proof_uploaded_by_name
          FROM vendor_payments vp
-         LEFT JOIN users u ON vp.recorded_by = u.id
+         LEFT JOIN users u  ON vp.recorded_by = u.id
+         LEFT JOIN users pu ON vp.proof_uploaded_by = pu.id
         WHERE vp.purchase_id = ?
         ORDER BY vp.payment_date, vp.id`,
       [req.params.id]
@@ -321,7 +327,7 @@ router.post('/:id/payments', async (req, res) => {
       return res.status(400).json({ error: 'A positive amount is required.' });
     }
 
-    await db.execute(
+    const [inserted] = await db.execute(
       `INSERT INTO vendor_payments (purchase_id, amount, payment_date, method, reference, notes, recorded_by)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [id, amt, payment_date || new Date().toISOString().split('T')[0],
@@ -334,6 +340,7 @@ router.post('/:id/payments', async (req, res) => {
     const paid = Number(paidRow.paid || 0);
     const grand = Number(rows[0].grand_total || 0);
     res.status(201).json({
+      payment_id: inserted.insertId,
       amount_paid: paid,
       balance_due: Math.round((grand - paid) * 100) / 100,
       payment_status: paid >= grand ? 'paid' : paid > 0 ? 'partial' : 'pending',
@@ -359,11 +366,88 @@ router.delete('/:id/payments/:paymentId', async (req, res) => {
     if (req.user.role !== 'admin' && rows[0].created_by !== req.user.id) {
       return res.status(403).json({ error: 'You can only delete payments on your own purchases.' });
     }
+    // Any proof file is intentionally left on disk: uploaded documents are
+    // never deleted as a side effect of removing a payment.
     await db.execute('DELETE FROM vendor_payments WHERE id = ?', [req.params.paymentId]);
     res.json({ message: 'Payment removed.' });
   } catch (error) {
     console.error('Error deleting vendor payment:', error);
     res.status(500).json({ error: 'Failed to delete payment' });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Vendor payment proof (one uploaded image/PDF per payment). The :id param
+// guard above already confines the purchase to the caller's organization.
+// ---------------------------------------------------------------------------
+async function loadVendorPaymentForProof(req) {
+  const [rows] = await db.execute(
+    `SELECT vp.id, vp.recorded_by, vp.proof_file_url, pu.created_by AS purchase_created_by
+       FROM vendor_payments vp JOIN purchases pu ON vp.purchase_id = pu.id
+      WHERE vp.id = ? AND vp.purchase_id = ?`,
+    [req.params.paymentId, req.params.id]
+  );
+  if (rows.length === 0) return null;
+  const row = rows[0];
+  if (req.user.role !== 'admin' && row.recorded_by !== req.user.id && row.purchase_created_by !== req.user.id) {
+    return null;
+  }
+  return row;
+}
+
+// POST /api/purchases/:id/payments/:paymentId/proof — upload (field "file").
+// Replacing an existing proof is admin-only.
+router.post('/:id/payments/:paymentId/proof', proofUpload, async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    const payment = await loadVendorPaymentForProof(req);
+    if (!payment) {
+      discardUploaded(req);
+      return res.status(404).json({ error: 'Payment not found' });
+    }
+    if (payment.proof_file_url && req.user.role !== 'admin') {
+      discardUploaded(req);
+      return res.status(403).json({ error: 'A proof is already attached. Only an admin can replace it.' });
+    }
+    if (payment.proof_file_url) deleteStoredProof(payment.proof_file_url);
+    await db.execute(
+      `UPDATE vendor_payments
+          SET proof_file_url = ?, proof_file_name = ?, proof_uploaded_at = NOW(), proof_uploaded_by = ?
+        WHERE id = ?`,
+      [publicProofUrl(req.file.filename), originalName(req.file), req.user.id, payment.id]
+    );
+    const [updated] = await db.execute(
+      `SELECT vp.*, u.name AS recorded_by_name, pu.name AS proof_uploaded_by_name
+         FROM vendor_payments vp
+         LEFT JOIN users u  ON vp.recorded_by = u.id
+         LEFT JOIN users pu ON vp.proof_uploaded_by = pu.id
+        WHERE vp.id = ?`,
+      [payment.id]
+    );
+    res.json(updated[0]);
+  } catch (error) {
+    discardUploaded(req);
+    console.error('Error uploading vendor payment proof:', error);
+    res.status(500).json({ error: 'Failed to upload payment proof' });
+  }
+});
+
+// DELETE /api/purchases/:id/payments/:paymentId/proof — admin only.
+router.delete('/:id/payments/:paymentId/proof', isAdmin, async (req, res) => {
+  try {
+    const payment = await loadVendorPaymentForProof(req);
+    if (!payment) return res.status(404).json({ error: 'Payment not found' });
+    if (payment.proof_file_url) deleteStoredProof(payment.proof_file_url);
+    await db.execute(
+      `UPDATE vendor_payments
+          SET proof_file_url = NULL, proof_file_name = NULL, proof_uploaded_at = NULL, proof_uploaded_by = NULL
+        WHERE id = ?`,
+      [payment.id]
+    );
+    res.json({ message: 'Payment proof removed.' });
+  } catch (error) {
+    console.error('Error removing vendor payment proof:', error);
+    res.status(500).json({ error: 'Failed to remove payment proof' });
   }
 });
 

@@ -455,6 +455,97 @@ router.post('/from-job-card/:jobCardId', async (req, res) => {
   }
 });
 
+// Duplicate an invoice (e.g. the same monthly bill for a recurring client).
+// Body: { date?: 'YYYY-MM-DD', invoice_number?: string }. Copies client,
+// items, taxes, totals and notes into a NEW invoice with a new number (the
+// next in the series unless one is given) and the given date (default today).
+// Payments are NOT copied, and the copy is not linked to the original's
+// quotation / job card — it's a new, independent invoice.
+router.post('/:id/duplicate', async (req, res) => {
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    const [rows] = await connection.execute(`
+      SELECT i.*, c.name as company_name
+        FROM invoices i
+        JOIN companies c ON i.company_id = c.id
+       WHERE i.id = ?
+    `, [req.params.id]);
+    if (rows.length === 0) {
+      await connection.rollback();
+      return res.status(404).json({ error: 'Invoice not found' });
+    }
+    const source = rows[0];
+    if (req.user.role !== 'admin' && source.created_by !== req.user.id) {
+      await connection.rollback();
+      return res.status(403).json({ error: 'You can only duplicate your own invoices.' });
+    }
+
+    const pad = (n) => String(n).padStart(2, '0');
+    const now = new Date();
+    const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+    const rawDate = req.body && req.body.date ? String(req.body.date).slice(0, 10) : today;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(rawDate) || Number.isNaN(Date.parse(rawDate))) {
+      await connection.rollback();
+      return res.status(400).json({ error: 'Invalid invoice date.' });
+    }
+
+    let invoiceNumber = req.body && req.body.invoice_number ? String(req.body.invoice_number).trim() : '';
+    if (!invoiceNumber) {
+      const prefix = `${getCompanyPrefix(source.company_name)}-INV`;
+      const [maxResult] = await connection.execute(
+        `SELECT MAX(CAST(SUBSTRING_INDEX(invoice_number, '-', -1) AS UNSIGNED)) AS max_num
+           FROM invoices
+          WHERE company_id = ? AND invoice_number LIKE ?`,
+        [source.company_id, `${prefix}-%`]
+      );
+      invoiceNumber = `${prefix}-${String((maxResult[0].max_num || 0) + 1).padStart(4, '0')}`;
+    }
+
+    const [items] = await connection.execute(
+      'SELECT description, quantity, unit_price, total FROM invoice_items WHERE invoice_id = ? ORDER BY sort_order, id',
+      [source.id]
+    );
+
+    const [result] = await connection.execute(`
+      INSERT INTO invoices
+      (company_id, created_by, client_id, quotation_id, job_card_id, invoice_number, client_name, client_address, client_email, client_phone,
+       date, due_days, subtotal, vat_amount, ppda_amount, grand_total, notes, terms_conditions)
+      VALUES (?, ?, ?, NULL, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [
+      source.company_id, req.user.id, source.client_id ?? null, invoiceNumber,
+      source.client_name, source.client_address ?? null, source.client_email ?? null, source.client_phone ?? null,
+      rawDate, source.due_days ?? 30, source.subtotal, source.vat_amount, source.ppda_amount, source.grand_total,
+      source.notes ?? null, source.terms_conditions ?? null,
+    ]);
+    const newId = result.insertId;
+
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      await connection.execute(`
+        INSERT INTO invoice_items (invoice_id, description, quantity, unit_price, total, sort_order)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `, [newId, it.description, it.quantity, it.unit_price, it.total, i]);
+    }
+
+    await connection.commit();
+    const [created] = await db.execute(`
+      SELECT i.*, c.name as company_name FROM invoices i JOIN companies c ON i.company_id = c.id WHERE i.id = ?
+    `, [newId]);
+    res.status(201).json(created[0]);
+  } catch (error) {
+    await connection.rollback();
+    if (error && error.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({ error: 'An invoice with that number already exists for this company.' });
+    }
+    console.error('Error duplicating invoice:', error);
+    res.status(500).json({ error: 'Failed to duplicate invoice' });
+  } finally {
+    connection.release();
+  }
+});
+
 // Update invoice — staff may edit their own; admins may edit any. Delete
 // remains admin-only.
 router.put('/:id', async (req, res) => {

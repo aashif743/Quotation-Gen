@@ -329,6 +329,12 @@ export interface Payment {
   recorded_by?: number | null;
   recorded_by_name?: string | null;
   created_at?: string;
+  // Uploaded proof of payment (bank slip / receipt photo or PDF).
+  proof_file_url?: string | null;
+  proof_file_name?: string | null;
+  proof_uploaded_at?: string | null;
+  proof_uploaded_by?: number | null;
+  proof_uploaded_by_name?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -425,6 +431,12 @@ export interface VendorPayment {
   recorded_by?: number | null;
   recorded_by_name?: string | null;
   created_at?: string;
+  // Uploaded proof of payment (bank slip / receipt photo or PDF).
+  proof_file_url?: string | null;
+  proof_file_name?: string | null;
+  proof_uploaded_at?: string | null;
+  proof_uploaded_by?: number | null;
+  proof_uploaded_by_name?: string | null;
 }
 
 // Petty cash ledger entry — a top-up ('in') or payout ('out') of the cash fund.

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { recordPayment, updatePayment } from '../../services/api';
+import { recordPayment, updatePayment, uploadPaymentProof } from '../../services/api';
+import { ProofFilePicker } from './PaymentProof';
 import { formatCurrency } from '../../utils/calculations';
 import CurrencyInput from '../common/CurrencyInput';
 import { Payment } from '../../types';
@@ -74,6 +75,11 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
   const [notes, setNotes] = useState<string>(
     isEdit ? existingPayment!.notes || '' : ''
   );
+  // Optional proof document. Offered when recording, and when editing a
+  // payment that has no proof yet (replacing an existing proof is done from
+  // the payments list, admin-only).
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const canAttachProof = !isEdit || !existingPayment!.proof_file_url;
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string>('');
 
@@ -109,7 +115,9 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
     setSaving(true);
     setError('');
     try {
+      let paymentId: number;
       if (isEdit) {
+        paymentId = existingPayment!.id;
         await updatePayment(existingPayment!.id, {
           amount: amount,
           payment_date: paymentDate,
@@ -118,7 +126,7 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
           notes: notes || undefined,
         });
       } else {
-        await recordPayment({
+        const created = await recordPayment({
           invoice_id: invoice.id,
           amount: amount,
           payment_date: paymentDate,
@@ -126,6 +134,19 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
           reference: reference || undefined,
           notes: notes || undefined,
         });
+        paymentId = created.id;
+      }
+      if (proofFile && canAttachProof) {
+        try {
+          await uploadPaymentProof(paymentId, proofFile);
+        } catch (upErr: any) {
+          // The payment itself is saved — only the attachment failed.
+          alert(
+            `The payment was saved, but the proof could not be uploaded: ${
+              upErr?.response?.data?.error || 'please try again'
+            }. You can upload it from the payments list.`
+          );
+        }
       }
       if (onRecorded) onRecorded();
       onClose();
@@ -287,6 +308,10 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
               className="w-full px-2.5 py-2 text-sm rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
             />
           </div>
+
+          {canAttachProof && (
+            <ProofFilePicker file={proofFile} onChange={setProofFile} onError={setError} />
+          )}
 
           {/* Notes */}
           <div>

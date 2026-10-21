@@ -16,8 +16,10 @@ import {
   Eye,
   Trash2,
   Filter,
-  Plus
+  Plus,
+  Copy
 } from 'lucide-react';
+import DuplicateInvoiceModal from '../components/Invoice/DuplicateInvoiceModal';
 
 const InvoiceHistory: React.FC = () => {
   const { selectedCompany } = useCompany();
@@ -30,6 +32,7 @@ const InvoiceHistory: React.FC = () => {
   const [sortBy, setSortBy] = useState('newest');
   // Which invoice the user is recording a payment for (null = modal closed).
   const [payingInvoice, setPayingInvoice] = useState<Invoice | null>(null);
+  const [duplicatingInvoice, setDuplicatingInvoice] = useState<Invoice | null>(null);
   // For editing the most recent payment on an already-paid invoice.
   const [editingPaymentFor, setEditingPaymentFor] = useState<{
     invoice: Invoice;
@@ -462,6 +465,16 @@ const InvoiceHistory: React.FC = () => {
                         >
                           <Eye className="h-4 w-4" />
                         </Link>
+                        {(isAdmin || (user && invoice.created_by === user.id)) && (
+                          <button
+                            onClick={() => setDuplicatingInvoice(invoice)}
+                            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                            style={getTextStyle()}
+                            title="Duplicate (new number & date)"
+                          >
+                            <Copy className="h-4 w-4" />
+                          </button>
+                        )}
                         {isAdmin && (
                           <button
                             onClick={() => handleDelete(invoice.id!)}
@@ -490,6 +503,20 @@ const InvoiceHistory: React.FC = () => {
           )}
         </div>
       </div>
+
+      {duplicatingInvoice && duplicatingInvoice.id && (
+        <DuplicateInvoiceModal
+          invoice={{
+            id: duplicatingInvoice.id,
+            company_id: duplicatingInvoice.company_id,
+            invoice_number: duplicatingInvoice.invoice_number,
+            client_name: duplicatingInvoice.client_name,
+            grand_total: duplicatingInvoice.grand_total,
+          }}
+          primary={primaryColor}
+          onClose={() => setDuplicatingInvoice(null)}
+        />
+      )}
 
       {payingInvoice && payingInvoice.id && (
         <RecordPaymentModal

@@ -5,7 +5,8 @@ import { useCompany } from '../context/CompanyContext';
 import { useTheme } from '../context/ThemeContext';
 import { brandColorFor } from '../utils/colors';
 import { formatCurrency } from '../utils/calculations';
-import { getPurchase, recordVendorPayment, deleteVendorPayment, deletePurchase } from '../services/api';
+import { getPurchase, recordVendorPayment, deleteVendorPayment, deletePurchase, uploadVendorPaymentProof, deleteVendorPaymentProof } from '../services/api';
+import { PaymentProofCell, ProofFilePicker } from '../components/Payment/PaymentProof';
 import { Purchase } from '../types';
 import { ArrowLeft, Trash2, Plus, Loader2, TrendingUp, Link as LinkIcon, X } from 'lucide-react';
 
@@ -200,6 +201,16 @@ const PurchaseView: React.FC = () => {
                     {p.recorded_by_name ? ` · ${p.recorded_by_name}` : ''}
                   </p>
                 </div>
+                <div className="flex items-center gap-2">
+                <PaymentProofCell
+                  url={p.proof_file_url}
+                  fileName={p.proof_file_name}
+                  uploadedBy={p.proof_uploaded_by_name}
+                  canUpload={!!canEdit}
+                  isAdmin={isAdmin}
+                  onUpload={async (file) => { if (purchase.id) { await uploadVendorPaymentProof(purchase.id, p.id, file); await load(); } }}
+                  onRemove={async () => { if (purchase.id) { await deleteVendorPaymentProof(purchase.id, p.id); await load(); } }}
+                />
                 {canEdit && (
                   <button
                     onClick={async () => { if (purchase.id) { await deleteVendorPayment(purchase.id, p.id); load(); } }}
@@ -209,6 +220,7 @@ const PurchaseView: React.FC = () => {
                     <Trash2 className="h-4 w-4" />
                   </button>
                 )}
+                </div>
               </div>
             ))}
           </div>
@@ -260,6 +272,7 @@ const PaymentModal: React.FC<{
   const [method, setMethod] = useState('');
   const [reference, setReference] = useState('');
   const [notes, setNotes] = useState('');
+  const [proofFile, setProofFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -269,7 +282,15 @@ const PaymentModal: React.FC<{
     setSaving(true);
     setError('');
     try {
-      await recordVendorPayment(purchaseId, { amount: amt, payment_date: paymentDate, method, reference, notes });
+      const res = await recordVendorPayment(purchaseId, { amount: amt, payment_date: paymentDate, method, reference, notes });
+      if (proofFile && res.payment_id) {
+        try {
+          await uploadVendorPaymentProof(purchaseId, res.payment_id, proofFile);
+        } catch (upErr: any) {
+          // The payment itself is saved — only the attachment failed.
+          alert(`The payment was saved, but the proof could not be uploaded: ${upErr?.response?.data?.error || 'please try again'}. You can upload it from the payments list.`);
+        }
+      }
       onSaved();
     } catch (e: any) {
       setError(e?.response?.data?.error || 'Failed to record payment.');
@@ -312,6 +333,7 @@ const PaymentModal: React.FC<{
             <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
             <textarea className={cls} rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
           </div>
+          <ProofFilePicker file={proofFile} onChange={setProofFile} onError={setError} />
         </div>
         <div className="px-6 py-4 border-t border-gray-200 flex justify-end space-x-3">
           <button onClick={onClose} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">Cancel</button>

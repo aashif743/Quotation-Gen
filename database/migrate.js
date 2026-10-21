@@ -1010,6 +1010,24 @@ async function migrate() {
     `);
   } else { console.log('  • payslips already present, skipping.'); }
 
+  // 3t. Payment proofs (added 2026-10) — one uploaded proof document (bank
+  //     slip / receipt photo or PDF) per payment, for client payments on
+  //     invoices AND payments made to vendors. Files live in the persistent
+  //     uploads dir (<UPLOADS_ROOT>/payment-proofs/). Additive, nullable only.
+  for (const table of ['payments', 'vendor_payments']) {
+    for (const [col, type] of [
+      ['proof_file_url', 'VARCHAR(255) NULL'],
+      ['proof_file_name', 'VARCHAR(255) NULL'],
+      ['proof_uploaded_at', 'DATETIME NULL'],
+      ['proof_uploaded_by', 'INT NULL'],
+    ]) {
+      if (!(await columnExists(table, col))) {
+        console.log(`  • Adding \`${col}\` to ${table}...`);
+        await db.query(`ALTER TABLE \`${table}\` ADD COLUMN \`${col}\` ${type}`);
+      } else { console.log(`  • ${table}.${col} already present, skipping.`); }
+    }
+  }
+
   // 4. Backfill created_by from each row's company owner so existing records
   //    are attributed to the user who originally owned the company.
   const [qBackfill] = await db.query(
