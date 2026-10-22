@@ -1,6 +1,7 @@
 import React from 'react';
 import { QuotationTemplate } from '../../types';
 import { formatCurrency, formatNumber } from '../../utils/calculations';
+import SupremeDocument from '../Letterhead/SupremeDocument';
 
 export interface QuotationDocData {
   quote_number?: string;
@@ -17,6 +18,7 @@ export interface QuotationDocData {
   grand_total?: number;
   notes?: string;
   terms_conditions?: string;
+  title?: string | null;
 }
 
 export interface QuotationDocCompany {
@@ -29,6 +31,9 @@ export interface QuotationDocCompany {
   secondary_color?: string;
   vat_rate?: number;
   ppda_rate?: number;
+  /** Letterhead JSON — used only by the 'supreme' design. */
+  letterhead?: string | null;
+  currency?: string;
 }
 
 interface QuotationDocumentProps {
@@ -61,6 +66,22 @@ const QuotationDocument: React.FC<QuotationDocumentProps> = ({
   template = 'classic',
   rootClassName = '',
 }) => {
+  // Client-specific letterhead design (Supreme Printers).
+  if (template === 'supreme') {
+    return (
+      <SupremeDocument
+        kind="quotation"
+        rootClassName={rootClassName}
+        data={{ ...data, number: data.quote_number }}
+        company={{
+          name: company.name, tpin: company.tpin, bank_details: company.bank_details, logo_url: company.logo_url,
+          primary_color: company.primary_color, secondary_color: company.secondary_color,
+          vat_rate: company.vat_rate, currency: company.currency, letterhead: company.letterhead,
+        }}
+      />
+    );
+  }
+
   const primary = company.primary_color || '#111827';
   const secondary = company.secondary_color || '#ffffff';
   const rgb = hexToRgb(primary);

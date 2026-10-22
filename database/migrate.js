@@ -1050,6 +1050,35 @@ async function migrate() {
     await db.query("ALTER TABLE `organizations` ALTER COLUMN `contract_style` SET DEFAULT 'general'");
   }
 
+  // 3v. Letterhead design + finer permissions (added 2026-10). ADDITIVE ONLY —
+  //     nullable / defaulted columns; nothing existing is altered or deleted.
+  //  - companies.letterhead: JSON with extra letterhead details (contact lines,
+  //    services, footer tagline…) used only by the 'supreme' document design.
+  //  - quotations.title / invoices.title: optional subject line ("TITLE :").
+  //  - job_cards: card type (job / interiors) + sign-off names; job_card_items:
+  //    size, service and cost per square metre (printing jobs).
+  //  - users.no_payroll_access: an admin who must NOT see staff salaries /
+  //    pay slips (e.g. Sales, Operations). Default 0 = unchanged behaviour.
+  for (const [table, col, type] of [
+    ['companies', 'letterhead', 'TEXT NULL'],
+    ['quotations', 'title', 'VARCHAR(255) NULL'],
+    ['invoices', 'title', 'VARCHAR(255) NULL'],
+    ['job_cards', 'card_type', 'VARCHAR(20) NULL'],
+    ['job_cards', 'prepared_by', 'VARCHAR(255) NULL'],
+    ['job_cards', 'checked_by', 'VARCHAR(255) NULL'],
+    ['job_cards', 'approved_by', 'VARCHAR(255) NULL'],
+    ['job_cards', 'link_person', 'VARCHAR(255) NULL'],
+    ['job_card_items', 'size', 'VARCHAR(100) NULL'],
+    ['job_card_items', 'service', 'VARCHAR(255) NULL'],
+    ['job_card_items', 'rate_per_sqm', 'DECIMAL(15,2) NULL'],
+    ['users', 'no_payroll_access', 'TINYINT(1) NOT NULL DEFAULT 0'],
+  ]) {
+    if (!(await columnExists(table, col))) {
+      console.log(`  • Adding \`${col}\` to ${table}...`);
+      await db.query(`ALTER TABLE \`${table}\` ADD COLUMN \`${col}\` ${type}`);
+    } else { console.log(`  • ${table}.${col} already present, skipping.`); }
+  }
+
   // 4. Backfill created_by from each row's company owner so existing records
   //    are attributed to the user who originally owned the company.
   const [qBackfill] = await db.query(

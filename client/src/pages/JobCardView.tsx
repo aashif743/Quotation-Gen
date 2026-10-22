@@ -262,6 +262,8 @@ const JobCardView: React.FC = () => {
           logo_url: jc.company_quote_logo || jc.company_logo,
           primary_color: jc.primary_color,
           secondary_color: jc.secondary_color,
+          template: jc.company_template,
+          letterhead: jc.company_letterhead,
         }}
       />
     </div>

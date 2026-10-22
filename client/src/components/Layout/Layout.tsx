@@ -78,7 +78,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { selectedCompany, companies, loading: companiesLoading, createCompany } = useCompany();
-  const { user, logout, isAdmin, isSuperAdmin, canManageAttendance, actingOrganization } = useAuth();
+  const { user, logout, isAdmin, isSuperAdmin, canManageAttendance, canAccessPayroll, actingOrganization } = useAuth();
   const { theme, toggle: toggleTheme } = useTheme();
   const isDark = theme === 'dark';
 
@@ -221,7 +221,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     ]}] : []),
     ...(isAdmin ? [{ label: 'Admin', items: [
       { to: '/attendance', icon: Fingerprint, label: 'Attendance' },
-      { to: '/payroll', icon: HandCoins, label: 'Payroll' },
+      ...(canAccessPayroll ? [{ to: '/payroll', icon: HandCoins, label: 'Payroll' }] : []),
       { to: '/users', icon: Users, label: 'User Management' },
       { to: '/settings', icon: Settings, label: 'Company Settings' },
     ]}] : []),

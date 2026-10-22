@@ -108,6 +108,17 @@ const AttendanceRoute: React.FC<{ children: React.ReactNode }> = ({ children }) 
   return <>{children}</>;
 };
 
+// Payroll route: admins who are not restricted from staff salaries.
+const PayrollRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { canAccessPayroll } = useAuth();
+
+  if (!canAccessPayroll) {
+    return <Navigate to="/" replace />;
+  }
+
+  return <>{children}</>;
+};
+
 // Super-admin (platform owner) route wrapper.
 const SuperAdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isSuperAdmin } = useAuth();
@@ -181,9 +192,9 @@ function AppRoutes() {
                   <Route
                     path="/payroll"
                     element={
-                      <AdminRoute>
+                      <PayrollRoute>
                         <Payroll />
-                      </AdminRoute>
+                      </PayrollRoute>
                     }
                   />
                   <Route

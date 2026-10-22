@@ -28,6 +28,17 @@ function canManageAttendance(req, res, next) {
   res.status(403).json({ message: 'You do not have access to attendance.' });
 }
 
+// Staff salaries & pay slips: admins only, minus any admin explicitly
+// flagged `no_payroll_access` (e.g. Sales / Operations who otherwise see
+// everything).
+const hasPayrollAccess = (user) =>
+  !!user && user.role === 'admin' && !(user.no_payroll_access === 1 || user.no_payroll_access === true);
+
+function canAccessPayroll(req, res, next) {
+  if (req.isAuthenticated() && hasPayrollAccess(req.user)) return next();
+  res.status(403).json({ message: 'You do not have access to staff salaries and pay slips.' });
+}
+
 // Platform owner — manages organizations (tenants). Distinct from an org-admin.
 function isSuperAdmin(req, res, next) {
   if (req.isAuthenticated() && (req.user.is_super_admin === 1 || req.user.is_super_admin === true)) {
@@ -40,5 +51,7 @@ module.exports = {
   isAuthenticated,
   isAdmin,
   canManageAttendance,
+  canAccessPayroll,
+  hasPayrollAccess,
   isSuperAdmin,
 };

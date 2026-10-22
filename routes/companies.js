@@ -131,6 +131,17 @@ router.put('/:id', isAdmin, upload.single('logo'), async (req, res) => {
       default_terms_conditions ?? null,
     ];
 
+    // Letterhead details (contact lines, services, tagline…) used by the
+    // 'supreme' design. Only touched when the form sends them, so saving a
+    // company that doesn't use that design leaves the column as it was.
+    if (req.body.letterhead !== undefined) {
+      let lh = req.body.letterhead;
+      if (typeof lh !== 'string') lh = JSON.stringify(lh || {});
+      try { JSON.parse(lh || '{}'); } catch { return res.status(400).json({ error: 'Invalid letterhead details.' }); }
+      updateQuery += ', letterhead = ?';
+      queryParams.push(lh || null);
+    }
+
     if (req.file) {
       updateQuery += ', logo_url = ?';
       queryParams.push(`/uploads/${req.file.filename}`);

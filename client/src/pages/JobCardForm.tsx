@@ -107,10 +107,18 @@ const JobCardForm: React.FC = () => {
   const updateItem = (idx: number, field: keyof JobCardItem, value: any) => {
     setData((prev) => {
       const items = [...(prev.items || [])];
-      items[idx] = {
+      const next: JobCardItem = {
         ...items[idx],
         [field]: field === 'quantity' || field === 'unit_price' ? parseFloat(value) || 0 : value,
       };
+      // Letterhead design: size (e.g. "2 x 3") × cost per square metre fills
+      // in the cost per item. The cost stays editable afterwards.
+      if (field === 'size' || field === 'rate_per_sqm') {
+        const area = sizeArea(next.size);
+        const rate = parseFloat(String(next.rate_per_sqm ?? ''));
+        if (area && rate > 0) next.unit_price = Math.round(area * rate * 100) / 100;
+      }
+      items[idx] = next;
       return { ...prev, items };
     });
   };
@@ -165,6 +173,10 @@ const JobCardForm: React.FC = () => {
       setSaving(false);
     }
   };
+
+  // Client-specific letterhead design: the job card prints costs, size and
+  // service, plus sign-off names — so the form shows those fields too.
+  const isSupreme = selectedCompany?.template === 'supreme';
 
   if (isNew && !selectedCompany) {
     return <div className="text-center py-12 text-gray-600">Select a company to create a job card.</div>;
@@ -283,6 +295,25 @@ const JobCardForm: React.FC = () => {
               </>
             )}
           </div>
+          {isSupreme && (
+            <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Job Card Type</label>
+                <select
+                  value={data.card_type || 'job'}
+                  onChange={(e) => handleChange('card_type', e.target.value)}
+                  className={inputCls}
+                >
+                  <option value="job">Job Card</option>
+                  <option value="interiors">Interiors Job Card</option>
+                </select>
+              </div>
+              <Field label="Job Card Prepared By" value={data.prepared_by || ''} onChange={(v) => handleChange('prepared_by', v)} />
+              <Field label="Job Card Checked By" value={data.checked_by || ''} onChange={(v) => handleChange('checked_by', v)} />
+              <Field label="Job Card Approved By" value={data.approved_by || ''} onChange={(v) => handleChange('approved_by', v)} />
+              <Field label="Business Link Person" value={data.link_person || ''} onChange={(v) => handleChange('link_person', v)} />
+            </div>
+          )}
           <div className="mt-6">
             <TextField
               label="Job Description / Instructions"
@@ -355,7 +386,9 @@ const JobCardForm: React.FC = () => {
             </button>
           </div>
           <p className="text-sm text-gray-500 mb-6">
-            Prices are internal — they are used only when generating an invoice and are never printed on the job card.
+            {isSupreme
+              ? 'Costs are printed on the job card and used when generating an invoice. Enter a size like "2 x 3" and a cost per square metre to fill in the cost per item.'
+              : 'Prices are internal — they are used only when generating an invoice and are never printed on the job card.'}
           </p>
 
           <div className="space-y-3">
@@ -407,9 +440,9 @@ const JobCardForm: React.FC = () => {
                   <div className="col-span-6 sm:col-span-3">
                     <label
                       className="block text-xs font-medium uppercase tracking-wide text-gray-500 mb-1.5"
-                      title="Used when generating an invoice. Not printed on the job card."
+                      title={isSupreme ? 'Printed on the job card and used for the invoice.' : 'Used when generating an invoice. Not printed on the job card.'}
                     >
-                      Price (for invoice — not printed)
+                      {isSupreme ? 'Cost per item' : 'Price (for invoice — not printed)'}
                     </label>
                     <input
                       type="number"
@@ -423,6 +456,46 @@ const JobCardForm: React.FC = () => {
                       step="any"
                     />
                   </div>
+                  {isSupreme && (
+                    <>
+                      {data.card_type !== 'interiors' && (
+                        <div className="col-span-6 sm:col-span-3">
+                          <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 mb-1.5">Size (m)</label>
+                          <input
+                            value={item.size || ''}
+                            onChange={(e) => updateItem(idx, 'size', e.target.value)}
+                            placeholder="e.g. 2 x 3"
+                            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          />
+                        </div>
+                      )}
+                      <div className={`col-span-6 ${data.card_type !== 'interiors' ? 'sm:col-span-5' : 'sm:col-span-7'}`}>
+                        <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 mb-1.5">Service</label>
+                        <input
+                          value={item.service || ''}
+                          onChange={(e) => updateItem(idx, 'service', e.target.value)}
+                          placeholder="e.g. Printing & installation"
+                          className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                      </div>
+                      {data.card_type !== 'interiors' && (
+                        <div className="col-span-6 sm:col-span-4">
+                          <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 mb-1.5">Cost per square metre</label>
+                          <input
+                            type="number"
+                            inputMode="decimal"
+                            value={item.rate_per_sqm ?? ''}
+                            onChange={(e) => updateItem(idx, 'rate_per_sqm', e.target.value)}
+                            onWheel={(e) => e.currentTarget.blur()}
+                            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-right text-sm tabular-nums focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            placeholder="0.00"
+                            min="0"
+                            step="any"
+                          />
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
               </div>
             ))}
@@ -456,6 +529,14 @@ const JobCardForm: React.FC = () => {
       </form>
     </div>
   );
+};
+
+// "2 x 3", "2.4×1.2 m", "2 by 3" → area in square metres (null if not a size).
+const sizeArea = (size?: string | null): number | null => {
+  const m = String(size || '').match(/(\d+(?:\.\d+)?)\s*(?:x|×|\*|by)\s*(\d+(?:\.\d+)?)/i);
+  if (!m) return null;
+  const a = parseFloat(m[1]) * parseFloat(m[2]);
+  return a > 0 ? a : null;
 };
 
 const Field: React.FC<{

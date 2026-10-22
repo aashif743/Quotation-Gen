@@ -23,12 +23,14 @@ interface FormState {
   password: string;
   role: UserRole;
   canManageAttendance: boolean;
+  /** Admin only: hide staff salaries & pay slips (e.g. Sales, Operations). */
+  noPayrollAccess: boolean;
 }
 
-const emptyForm: FormState = { name: '', email: '', password: '', role: 'staff', canManageAttendance: false };
+const emptyForm: FormState = { name: '', email: '', password: '', role: 'staff', canManageAttendance: false, noPayrollAccess: false };
 
 const UserManagement: React.FC = () => {
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, canAccessPayroll } = useAuth();
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -66,7 +68,7 @@ const UserManagement: React.FC = () => {
 
   const openEdit = (u: ManagedUser) => {
     setEditingUser(u);
-    setForm({ name: u.name, email: u.email, password: '', role: u.role, canManageAttendance: !!u.can_manage_attendance });
+    setForm({ name: u.name, email: u.email, password: '', role: u.role, canManageAttendance: !!u.can_manage_attendance, noPayrollAccess: !!u.no_payroll_access });
     setFormError('');
     setModalOpen(true);
   };
@@ -92,12 +94,14 @@ const UserManagement: React.FC = () => {
       // Only staff carry the attendance flag; admins already have full access.
       const attendanceFlag = form.role === 'admin' ? false : form.canManageAttendance;
       if (editingUser) {
-        const payload: { name: string; email: string; role: UserRole; password?: string; can_manage_attendance: boolean } = {
+        const payload: { name: string; email: string; role: UserRole; password?: string; can_manage_attendance: boolean; no_payroll_access?: boolean } = {
           name: form.name,
           email: form.email,
           role: form.role,
           can_manage_attendance: attendanceFlag,
         };
+        // Only admins who can see payroll may change the restriction.
+        if (canAccessPayroll) payload.no_payroll_access = form.role === 'admin' && form.noPayrollAccess;
         if (form.password) payload.password = form.password;
         await updateUser(editingUser.id, payload);
         setMessage({ type: 'success', text: `Updated ${form.name}.` });
@@ -108,6 +112,7 @@ const UserManagement: React.FC = () => {
           password: form.password,
           role: form.role,
           can_manage_attendance: attendanceFlag,
+          ...(canAccessPayroll ? { no_payroll_access: form.role === 'admin' && form.noPayrollAccess } : {}),
         });
         setMessage({ type: 'success', text: `Created account for ${form.name}.` });
       }
@@ -251,6 +256,11 @@ const UserManagement: React.FC = () => {
                           {u.role === 'admin' && <ShieldCheck className="h-3 w-3 mr-1" />}
                           {u.role}
                         </span>
+                        {u.role === 'admin' && !!u.no_payroll_access && (
+                          <span className="inline-flex items-center text-xs font-medium px-2 py-1 rounded-full bg-gray-100 text-gray-600" title="Cannot see staff salaries or pay slips">
+                            No payroll
+                          </span>
+                        )}
                         {u.role !== 'admin' && !!u.can_manage_attendance && (
                           <span className="inline-flex items-center text-xs font-medium px-2 py-1 rounded-full bg-indigo-100 text-indigo-700">
                             <Fingerprint className="h-3 w-3 mr-1" />
@@ -395,6 +405,27 @@ const UserManagement: React.FC = () => {
                       <span className="block text-xs text-gray-500">
                         Let this staff member open the Attendance section (manage devices, enroll staff,
                         view records) without making them an admin.
+                      </span>
+                    </span>
+                  </label>
+                </div>
+              )}
+
+              {/* Payroll access — admins can be kept away from staff salaries. */}
+              {form.role === 'admin' && canAccessPayroll && (
+                <div className="rounded-lg border border-gray-200 p-3">
+                  <label className="flex items-start cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={!form.noPayrollAccess}
+                      onChange={(e) => setForm({ ...form, noPayrollAccess: !e.target.checked })}
+                      className="mt-0.5 h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                    />
+                    <span className="ml-2">
+                      <span className="block text-sm font-medium text-gray-800">Payroll access</span>
+                      <span className="block text-xs text-gray-500">
+                        Can see staff salaries and pay slips. Untick for admins who should see everything else
+                        (e.g. Sales, Operations).
                       </span>
                     </span>
                   </label>

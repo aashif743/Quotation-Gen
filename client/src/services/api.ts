@@ -71,6 +71,7 @@ export const createUser = async (data: {
   password: string;
   role: UserRole;
   can_manage_attendance?: boolean;
+  no_payroll_access?: boolean;
 }): Promise<ManagedUser> => {
   const response = await api.post('/users', data);
   return response.data;
@@ -78,7 +79,7 @@ export const createUser = async (data: {
 
 export const updateUser = async (
   id: number,
-  data: { name?: string; email?: string; role?: UserRole; password?: string; can_manage_attendance?: boolean }
+  data: { name?: string; email?: string; role?: UserRole; password?: string; can_manage_attendance?: boolean; no_payroll_access?: boolean }
 ): Promise<ManagedUser> => {
   const response = await api.put(`/users/${id}`, data);
   return response.data;

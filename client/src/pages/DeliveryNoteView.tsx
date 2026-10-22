@@ -377,6 +377,8 @@ const DeliveryNoteView: React.FC = () => {
               logo_url: dn.company_quote_logo || dn.company_logo,
               primary_color: dn.primary_color,
               secondary_color: dn.secondary_color,
+              template: dn.company_template,
+              letterhead: dn.company_letterhead,
             }}
           />
         </>
@@ -475,6 +477,8 @@ const DeliveryNoteView: React.FC = () => {
                   logo_url: dn.company_quote_logo || dn.company_logo,
                   primary_color: dn.primary_color,
                   secondary_color: dn.secondary_color,
+                  template: dn.company_template,
+                  letterhead: dn.company_letterhead,
                 }}
               />
             </div>

@@ -77,6 +77,7 @@ router.get('/:id', async (req, res) => {
              c.logo_url as company_logo,
              c.quote_logo_url as company_quote_logo,
              c.primary_color, c.secondary_color,
+             c.template as company_template, c.letterhead as company_letterhead,
              u.name as created_by_name,
              jc.job_card_number,
              IFNULL(p.paid, 0) AS amount_paid,
@@ -178,6 +179,8 @@ router.post('/', async (req, res) => {
     ]);
 
     const invoiceId = invoiceResult.insertId;
+    const invTitle = (req.body.title && String(req.body.title).trim()) || null;
+    if (invTitle) await connection.execute('UPDATE invoices SET title = ? WHERE id = ?', [invTitle, invoiceId]);
 
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
@@ -287,6 +290,7 @@ router.post('/from-quotation/:quotationId', async (req, res) => {
     ]);
 
     const invoiceId = invoiceResult.insertId;
+    if (quotation.title) await connection.execute('UPDATE invoices SET title = ? WHERE id = ?', [quotation.title, invoiceId]);
 
     // Copy quotation items to invoice items
     for (let i = 0; i < quotationItems.length; i++) {
@@ -427,6 +431,13 @@ router.post('/from-job-card/:jobCardId', async (req, res) => {
     ]);
 
     const invoiceId = invoiceResult.insertId;
+    // Carry the subject line from the job card's source quotation, if any.
+    if (jobCard.quotation_id) {
+      await connection.execute(
+        'UPDATE invoices SET title = (SELECT q.title FROM quotations q WHERE q.id = ?) WHERE id = ?',
+        [jobCard.quotation_id, invoiceId]
+      );
+    }
 
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
@@ -524,6 +535,8 @@ router.post('/:id/duplicate', async (req, res) => {
       source.notes ?? null, source.terms_conditions ?? null,
     ]);
     const newId = result.insertId;
+    // Keep the subject line ("TITLE") too.
+    if (source.title) await connection.execute('UPDATE invoices SET title = ? WHERE id = ?', [source.title, newId]);
 
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
@@ -604,6 +617,7 @@ router.put('/:id', async (req, res) => {
     if (grand_total != null)      { fields.push('grand_total = ?');      values.push(grand_total); }
     if (notes != null)            { fields.push('notes = ?');            values.push(notes); }
     if (terms_conditions != null) { fields.push('terms_conditions = ?'); values.push(terms_conditions); }
+    if (req.body.title !== undefined) { fields.push('title = ?'); values.push((req.body.title && String(req.body.title).trim()) || null); }
     values.push(id);
 
     const [updateResult] = await connection.execute(

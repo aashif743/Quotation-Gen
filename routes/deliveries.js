@@ -96,7 +96,7 @@ router.get('/:id', async (req, res) => {
              c.logo_url as company_logo,
              c.quote_logo_url as company_quote_logo,
              c.primary_color, c.secondary_color,
-             c.template as company_template,
+             c.template as company_template, c.letterhead as company_letterhead,
              u.name as created_by_name,
              su.name as signed_by_name,
              inv.invoice_number

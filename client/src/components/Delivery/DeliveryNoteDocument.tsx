@@ -1,4 +1,5 @@
 import React from 'react';
+import SupremeDocument from '../Letterhead/SupremeDocument';
 
 // Quantities are counts: show "60", not "60.00" (keep decimals only if used).
 const formatQty = (n: number) =>
@@ -12,6 +13,8 @@ export interface DeliveryDocData {
   client_phone?: string;
   date?: string;
   items?: { description: string; quantity: number }[];
+  /** Linked invoice number — shown as "REF" on the letterhead design. */
+  invoice_number?: string | null;
 }
 
 export interface DeliveryDocCompany {
@@ -21,6 +24,9 @@ export interface DeliveryDocCompany {
   logo_url?: string;
   primary_color?: string;
   secondary_color?: string;
+  /** Company design; 'supreme' switches to the client letterhead. */
+  template?: string | null;
+  letterhead?: string | null;
 }
 
 interface DeliveryNoteDocumentProps {
@@ -43,6 +49,20 @@ const DeliveryNoteDocument: React.FC<DeliveryNoteDocumentProps> = ({
   company,
   rootClassName = '',
 }) => {
+  if (company.template === 'supreme') {
+    return (
+      <SupremeDocument
+        kind="delivery"
+        rootClassName={rootClassName}
+        data={{ ...data, number: data.delivery_note_number, reference: data.invoice_number || null }}
+        company={{
+          name: company.name, tpin: company.tpin, logo_url: company.logo_url,
+          primary_color: company.primary_color, secondary_color: company.secondary_color, letterhead: company.letterhead,
+        }}
+      />
+    );
+  }
+
   const primary = company.primary_color || '#111827';
   const secondary = company.secondary_color || '#ffffff';
   const rgb = hexToRgb(primary);

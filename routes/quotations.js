@@ -61,7 +61,7 @@ router.get('/:id', async (req, res) => {
              c.logo_url as company_logo,
              c.quote_logo_url as company_quote_logo,
              c.primary_color, c.secondary_color,
-             c.template as company_template,
+             c.template as company_template, c.letterhead as company_letterhead,
              u.name as created_by_name
       FROM quotations q
       JOIN companies c ON q.company_id = c.id
@@ -132,11 +132,12 @@ router.post('/', async (req, res) => {
     const [quotationResult] = await connection.execute(`
       INSERT INTO quotations
       (company_id, created_by, client_id, quote_number, client_name, client_address, client_email, client_phone,
-       date, expiry_days, subtotal, vat_amount, ppda_amount, grand_total, notes, terms_conditions)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       date, expiry_days, subtotal, vat_amount, ppda_amount, grand_total, notes, terms_conditions, title)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       company_id, req.user.id, resolvedClientId, quote_number, client_name, client_address, client_email, client_phone,
-      date, expiry_days, subtotal, vat_amount, ppda_amount, grand_total, notes, terms_conditions
+      date, expiry_days, subtotal, vat_amount, ppda_amount, grand_total, notes, terms_conditions,
+      (req.body.title && String(req.body.title).trim()) || null
     ]);
 
     const quotationId = quotationResult.insertId;
@@ -239,6 +240,7 @@ router.put('/:id', async (req, res) => {
     if (grand_total != null)      { fields.push('grand_total = ?');      values.push(grand_total); }
     if (notes != null)            { fields.push('notes = ?');            values.push(notes); }
     if (terms_conditions != null) { fields.push('terms_conditions = ?'); values.push(terms_conditions); }
+    if (req.body.title !== undefined) { fields.push('title = ?'); values.push((req.body.title && String(req.body.title).trim()) || null); }
     values.push(id);
 
     const [updateResult] = await connection.execute(

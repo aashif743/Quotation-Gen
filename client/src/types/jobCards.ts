@@ -14,10 +14,17 @@ export interface JobCardItem {
   job_card_id?: number;
   description: string;
   quantity: number;
-  /** Internal price, used only when generating an invoice. Never printed. */
+  /** Internal price, used when generating an invoice. Printed only by the
+   *  'supreme' letterhead design (whose paper job card shows costs). */
   unit_price: number;
   sort_order?: number;
+  /** 'supreme' design extras (printing jobs). */
+  size?: string | null;
+  service?: string | null;
+  rate_per_sqm?: number | string | null;
 }
+
+export type JobCardType = 'job' | 'interiors';
 
 export interface JobCard {
   id?: number;
@@ -40,6 +47,12 @@ export interface JobCard {
   description?: string | null;
   notes?: string | null;
   items: JobCardItem[];
+  /** 'supreme' design extras: card type + sign-off names. */
+  card_type?: JobCardType | null;
+  prepared_by?: string | null;
+  checked_by?: string | null;
+  approved_by?: string | null;
+  link_person?: string | null;
   created_at?: string;
   updated_at?: string;
 
@@ -58,4 +71,7 @@ export interface JobCard {
   company_quote_logo?: string;
   primary_color?: string;
   secondary_color?: string;
+  company_template?: string | null;
+  company_letterhead?: string | null;
+  company_bank_details?: string | null;
 }

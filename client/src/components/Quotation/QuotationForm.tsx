@@ -105,6 +105,21 @@ const QuotationForm: React.FC<QuotationFormProps> = ({
             />
           </div>
 
+          {selectedCompany?.template === 'supreme' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Title
+              </label>
+              <input
+                type="text"
+                value={quotationData.title || ''}
+                onChange={(e) => onInputChange('title', e.target.value)}
+                placeholder="e.g. Supply of branded T-shirts"
+                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500`}
+              />
+            </div>
+          )}
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Valid For (Days)

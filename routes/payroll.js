@@ -1,6 +1,6 @@
 const express = require('express');
 const db = require('../config/database');
-const { isAuthenticated, isAdmin } = require('../middleware/auth');
+const { isAuthenticated, canAccessPayroll } = require('../middleware/auth');
 const { requireCompanyAccess, companyTableParamGuard } = require('../utils/tenancy');
 const {
   DEFAULT_PAYE_BANDS, normalizeBands, safeBands, normalizeLines, computePayslip,
@@ -13,7 +13,7 @@ const {
 const router = express.Router();
 
 router.use(isAuthenticated);
-router.use(isAdmin);
+router.use(canAccessPayroll);
 router.use(requireCompanyAccess);
 
 // Any :id is a pay slip; any :employeeId an attendance staff member — both must

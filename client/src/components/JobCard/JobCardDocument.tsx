@@ -1,4 +1,5 @@
 import React from 'react';
+import SupremeJobCard, { SupremeJobCardData } from '../Letterhead/SupremeJobCard';
 import { JobCardStatus, JOB_CARD_STATUS_LABELS } from '../../types/jobCards';
 
 // Quantities are counts: show "60", not "60.00" (keep decimals only if used).
@@ -21,8 +22,14 @@ export interface JobCardDocData {
   description?: string | null;
   notes?: string | null;
   quotation_number?: string | null;
-  // Prices are intentionally NOT part of the printed document.
-  items?: { description: string; quantity: number }[];
+  // Prices are NOT part of the standard printed document (only the 'supreme'
+  // letterhead design prints them, like the company's paper job card).
+  items?: { description: string; quantity: number; unit_price?: number; size?: string | null; service?: string | null; rate_per_sqm?: number | string | null }[];
+  card_type?: SupremeJobCardData['card_type'];
+  prepared_by?: string | null;
+  checked_by?: string | null;
+  approved_by?: string | null;
+  link_person?: string | null;
 }
 
 export interface JobCardDocCompany {
@@ -32,6 +39,9 @@ export interface JobCardDocCompany {
   logo_url?: string;
   primary_color?: string;
   secondary_color?: string;
+  /** Company design; 'supreme' switches to the client letterhead job card. */
+  template?: string | null;
+  letterhead?: string | null;
 }
 
 interface JobCardDocumentProps {
@@ -55,6 +65,10 @@ const hexToRgb = (hex: string) => {
  * can find it.
  */
 const JobCardDocument: React.FC<JobCardDocumentProps> = ({ data, company, rootClassName = '' }) => {
+  if (company.template === 'supreme') {
+    return <SupremeJobCard data={data} company={company} rootClassName={rootClassName} />;
+  }
+
   const primary = company.primary_color || '#111827';
   const secondary = company.secondary_color || '#ffffff';
   const rgb = hexToRgb(primary);

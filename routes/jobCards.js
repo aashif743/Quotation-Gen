@@ -29,10 +29,17 @@ const localToday = () => {
 const orNull = (v) => (v === undefined || v === null || String(v).trim() === '' ? null : v);
 
 // Accepts 'YYYY-MM-DD' or an ISO datetime string; returns 'YYYY-MM-DD' or null.
+// A full timestamp (what the API itself returns for a DATE column: local
+// midnight serialized as UTC) is converted back with LOCAL getters — taking the
+// UTC date part would shift the date a day back on servers east of UTC.
 const dateOrNull = (v) => {
   const s = orNull(v);
   if (s == null) return null;
-  return String(s).split('T')[0];
+  const str = String(s);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+  const d = new Date(str);
+  if (Number.isNaN(d.getTime())) return str.split('T')[0];
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
 async function nextJobCardNumber(conn, companyId, companyName) {
@@ -50,17 +57,40 @@ async function nextJobCardNumber(conn, companyId, companyName) {
 async function insertItems(conn, jobCardId, items) {
   for (let i = 0; i < (items || []).length; i++) {
     const item = items[i] || {};
+    const rate = orNull(item.rate_per_sqm);
     await conn.execute(`
-      INSERT INTO job_card_items (job_card_id, description, quantity, unit_price, sort_order)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO job_card_items (job_card_id, description, quantity, unit_price, sort_order, size, service, rate_per_sqm)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       jobCardId,
       String(item.description || ''),
       Number(item.quantity) || 0,
       Number(item.unit_price) || 0,
       i,
+      orNull(item.size),
+      orNull(item.service),
+      rate == null || Number.isNaN(Number(rate)) ? null : Number(rate),
     ]);
   }
+}
+
+// Optional letterhead-design fields (job card type + sign-off names). Only the
+// keys the client actually sends are written, so forms that don't use them
+// never clear them.
+const EXTRA_FIELDS = ['card_type', 'prepared_by', 'checked_by', 'approved_by', 'link_person'];
+async function saveExtras(conn, jobCardId, body) {
+  const fields = [];
+  const values = [];
+  for (const k of EXTRA_FIELDS) {
+    if (body[k] === undefined) continue;
+    let v = orNull(body[k]);
+    if (k === 'card_type' && v != null && !['job', 'interiors'].includes(v)) v = null;
+    fields.push(`${k} = ?`);
+    values.push(v == null ? null : String(v).trim().slice(0, 255));
+  }
+  if (!fields.length) return;
+  values.push(jobCardId);
+  await conn.execute(`UPDATE job_cards SET ${fields.join(', ')} WHERE id = ?`, values);
 }
 
 const fetchBasic = async (id) => {
@@ -158,6 +188,8 @@ router.get('/:id', async (req, res) => {
              c.logo_url as company_logo,
              c.quote_logo_url as company_quote_logo,
              c.primary_color, c.secondary_color,
+             c.template as company_template, c.letterhead as company_letterhead,
+             c.bank_details as company_bank_details,
              u.name as created_by_name,
              q.quote_number as quotation_number
         FROM job_cards jc
@@ -243,6 +275,7 @@ router.post('/', async (req, res) => {
     ]);
     const id = insertResult.insertId;
     await insertItems(connection, id, items);
+    await saveExtras(connection, id, req.body || {});
 
     await connection.commit();
     res.status(201).json(await fetchBasic(id));
@@ -388,6 +421,7 @@ router.put('/:id', async (req, res) => {
 
     await connection.execute('DELETE FROM job_card_items WHERE job_card_id = ?', [id]);
     await insertItems(connection, id, items);
+    await saveExtras(connection, id, req.body || {});
 
     await connection.commit();
     res.json(await fetchBasic(id));

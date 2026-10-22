@@ -1,7 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const db = require('../config/database');
-const { isAuthenticated, isAdmin } = require('../middleware/auth');
+const { isAuthenticated, isAdmin, hasPayrollAccess } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -14,7 +14,7 @@ const VALID_ROLES = ['staff', 'admin'];
 router.get('/', async (req, res) => {
   try {
     const [users] = await db.execute(`
-      SELECT u.id, u.name, u.email, u.role, u.can_manage_attendance, u.created_at,
+      SELECT u.id, u.name, u.email, u.role, u.can_manage_attendance, u.no_payroll_access, u.created_at,
              (SELECT COUNT(*) FROM quotations q WHERE q.created_by = u.id) AS quotation_count,
              (SELECT COUNT(*) FROM invoices i WHERE i.created_by = u.id) AS invoice_count
       FROM users u
@@ -32,6 +32,9 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const { name, email, password, role, can_manage_attendance } = req.body;
+    // Only an admin who can see payroll may restrict (or not) another admin's
+    // payroll access; others always create accounts with the default.
+    const noPayroll = hasPayrollAccess(req.user) && req.body.no_payroll_access ? 1 : 0;
 
     if (!name || !email || !password) {
       return res.status(400).json({ message: 'Name, email, and password are required.' });
@@ -49,12 +52,12 @@ router.post('/', async (req, res) => {
     const hashed = await bcrypt.hash(password, await bcrypt.genSalt(10));
     // New accounts join the creating admin's organization.
     const [result] = await db.execute(
-      'INSERT INTO users (organization_id, name, email, password, role, can_manage_attendance) VALUES (?, ?, ?, ?, ?, ?)',
-      [req.user.organization_id, name, email, hashed, userRole, can_manage_attendance ? 1 : 0]
+      'INSERT INTO users (organization_id, name, email, password, role, can_manage_attendance, no_payroll_access) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [req.user.organization_id, name, email, hashed, userRole, can_manage_attendance ? 1 : 0, noPayroll]
     );
 
     const [newUser] = await db.execute(
-      'SELECT id, name, email, role, can_manage_attendance, created_at FROM users WHERE id = ?',
+      'SELECT id, name, email, role, can_manage_attendance, no_payroll_access, created_at FROM users WHERE id = ?',
       [result.insertId]
     );
     res.status(201).json(newUser[0]);
@@ -106,6 +109,15 @@ router.put('/:id', async (req, res) => {
       fields.push('can_manage_attendance = ?');
       values.push(can_manage_attendance ? 1 : 0);
     }
+    // Payroll restriction can only be changed by an admin who has payroll
+    // access themselves (so a restricted admin can't lift their own block).
+    if (req.body.no_payroll_access !== undefined) {
+      if (!hasPayrollAccess(req.user)) {
+        return res.status(403).json({ message: 'Only an admin with payroll access can change payroll access.' });
+      }
+      fields.push('no_payroll_access = ?');
+      values.push(req.body.no_payroll_access ? 1 : 0);
+    }
     if (password) {
       if (password.length < 6) {
         return res.status(400).json({ message: 'Password must be at least 6 characters long.' });
@@ -123,7 +135,7 @@ router.put('/:id', async (req, res) => {
     await db.execute(`UPDATE users SET ${fields.join(', ')} WHERE id = ?`, values);
 
     const [updated] = await db.execute(
-      'SELECT id, name, email, role, can_manage_attendance, created_at FROM users WHERE id = ?',
+      'SELECT id, name, email, role, can_manage_attendance, no_payroll_access, created_at FROM users WHERE id = ?',
       [userId]
     );
     res.json(updated[0]);

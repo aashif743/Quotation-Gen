@@ -83,6 +83,8 @@ const QuotationPreview: React.FC<QuotationPreviewProps> = ({ quotationData, comp
                   secondary_color: company.secondary_color,
                   vat_rate: company.vat_rate,
                   ppda_rate: company.ppda_rate,
+                  letterhead: company.letterhead,
+                  currency: company.currency,
                 }}
               />
             </div>

@@ -49,6 +49,8 @@ export interface User {
   is_super_admin?: boolean;
   // Grants a non-admin staff member access to the Attendance section only.
   can_manage_attendance?: boolean;
+  // False for an admin restricted from staff salaries / pay slips.
+  can_access_payroll?: boolean;
   // Set when a super-admin has "entered" an organization to inspect it.
   acting_organization?: { id: number; name: string } | null;
 }
@@ -191,6 +193,7 @@ export interface ManagedUser {
   email: string;
   role: UserRole;
   can_manage_attendance?: number | boolean;
+  no_payroll_access?: number | boolean;
   created_at: string;
   quotation_count: number;
   invoice_count: number;
@@ -217,12 +220,16 @@ export interface Company {
   primary_color: string;
   secondary_color: string;
   template?: QuotationTemplate;
+  /** JSON letterhead details for the 'supreme' design (see utils/letterhead). */
+  letterhead?: string | null;
   default_terms_conditions?: string | null;
   created_at: string;
   updated_at: string;
 }
 
-export type QuotationTemplate = 'classic' | 'modern' | 'elegant' | 'bold';
+// 'supreme' is a client-specific letterhead design (Supreme Printers). It is
+// only offered in Settings to a company that already uses it.
+export type QuotationTemplate = 'classic' | 'modern' | 'elegant' | 'bold' | 'supreme';
 
 export interface QuotationItem {
   id?: number;
@@ -251,6 +258,8 @@ export interface Quotation {
   grand_total: number;
   notes?: string;
   terms_conditions?: string;
+  /** Optional subject line ("TITLE :" on the supreme letterhead). */
+  title?: string | null;
   vat_rate?: number;
   ppda_rate?: number;
   items: QuotationItem[];
@@ -268,6 +277,7 @@ export interface Quotation {
   primary_color?: string;
   secondary_color?: string;
   company_template?: QuotationTemplate;
+  company_letterhead?: string | null;
 }
 
 export interface InvoiceItem {
@@ -300,6 +310,8 @@ export interface Invoice {
   grand_total: number;
   notes?: string;
   terms_conditions?: string;
+  /** Optional subject line ("TITLE :" on the supreme letterhead). */
+  title?: string | null;
   items: InvoiceItem[];
   created_at?: string;
   updated_at?: string;
@@ -314,6 +326,8 @@ export interface Invoice {
   company_quote_logo?: string;
   primary_color?: string;
   secondary_color?: string;
+  company_template?: QuotationTemplate;
+  company_letterhead?: string | null;
 
   // Payment fields populated by the backend
   amount_paid?: number;
@@ -532,4 +546,5 @@ export interface DeliveryNote {
   primary_color?: string;
   secondary_color?: string;
   company_template?: QuotationTemplate;
+  company_letterhead?: string | null;
 }

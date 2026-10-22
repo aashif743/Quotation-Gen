@@ -2,6 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useCompany } from '../context/CompanyContext';
 import { Upload, Save, AlertCircle, Plus, Trash2, Edit, X, Image as ImageIcon } from 'lucide-react';
 import { Company } from '../types';
+import { LETTERHEAD_FIELDS, Letterhead, parseLetterhead } from '../utils/letterhead';
+
+// The client-specific 'supreme' letterhead design is offered only to a company
+// that already has it (set up by the platform admin), never to others.
+const hasSupremeDesign = (c: Company) => c.template === 'supreme' || !!c.letterhead;
 
 const Settings: React.FC = () => {
   const {
@@ -45,7 +50,10 @@ const Settings: React.FC = () => {
         primary_color: selectedCompany.primary_color || '#000000',
         secondary_color: selectedCompany.secondary_color || '#ffffff',
         template: selectedCompany.template || 'classic',
-        default_terms_conditions: selectedCompany.default_terms_conditions || ''
+        default_terms_conditions: selectedCompany.default_terms_conditions || '',
+        // Letterhead details travel with the form only for a company that has
+        // the client-specific 'supreme' design, so other companies never send it.
+        ...(hasSupremeDesign(selectedCompany) ? { letterhead: selectedCompany.letterhead || '{}' } : {}),
       });
       if (selectedCompany.logo_url) {
         setLogoPreview(selectedCompany.logo_url);
@@ -355,6 +363,13 @@ const Settings: React.FC = () => {
                   name: 'Bold',
                   desc: 'Split header with massive title, dark totals stack and accented item rows.',
                 },
+                ...(selectedCompany && hasSupremeDesign(selectedCompany)
+                  ? [{
+                      id: 'supreme',
+                      name: 'Supreme Letterhead',
+                      desc: 'Your custom letterhead: logo and contacts header, green table, totals boxes and slogan footer.',
+                    }]
+                  : []),
               ].map((tpl) => {
                 const selected = (formData.template || 'classic') === tpl.id;
                 return (
@@ -409,6 +424,21 @@ const Settings: React.FC = () => {
                           <div className="h-3 w-full mt-1.5 rounded-sm" style={{ backgroundColor: primaryColor }} />
                         </div>
                       )}
+                      {tpl.id === 'supreme' && (
+                        <div>
+                          <div className="h-1.5" style={{ backgroundColor: primaryColor }} />
+                          <div className="p-1.5 space-y-1">
+                            <div className="flex justify-between">
+                              <div className="h-2.5 w-9 rounded-sm" style={{ backgroundColor: primaryColor }} />
+                              <div className="h-2.5 w-6 rounded-sm bg-gray-200" />
+                            </div>
+                            <div className="h-2 w-full rounded-t-md" style={{ backgroundColor: secondaryColor }} />
+                            <div className="h-1 w-full bg-gray-200 rounded-sm" />
+                            <div className="h-1 w-full bg-white border border-gray-100 rounded-sm" />
+                          </div>
+                          <div className="h-1.5" style={{ backgroundColor: primaryColor }} />
+                        </div>
+                      )}
                       {tpl.id === 'bold' && (
                         <div>
                           <div className="flex h-7">
@@ -438,6 +468,38 @@ const Settings: React.FC = () => {
               })}
             </div>
           </div>
+
+          {formData.template === 'supreme' && (
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <h2 className="text-xl font-semibold mb-2">Letterhead Details</h2>
+              <p className="text-sm text-gray-500 mb-6">
+                Printed on quotations, invoices, delivery notes and job cards. Bank details and TPIN come from the
+                fields above; the logo is the company logo. Leave a field blank to hide it.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {LETTERHEAD_FIELDS.map((f) => {
+                  const lh = parseLetterhead(formData.letterhead);
+                  const value = String(lh[f.key] ?? '');
+                  const set = (v: string) => {
+                    const next: Letterhead = { ...parseLetterhead(formData.letterhead), [f.key]: v };
+                    setFormData((prev) => ({ ...prev, letterhead: JSON.stringify(next) }));
+                  };
+                  return (
+                    <div key={f.key} className={f.multiline ? 'md:col-span-1' : ''}>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">{f.label}</label>
+                      {f.multiline ? (
+                        <textarea value={value} onChange={(e) => set(e.target.value)} rows={3} placeholder={f.placeholder}
+                          className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
+                      ) : (
+                        <input value={value} onChange={(e) => set(e.target.value)} placeholder={f.placeholder}
+                          className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <h2 className="text-xl font-semibold mb-6">Brand Colors</h2>

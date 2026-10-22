@@ -281,6 +281,7 @@ const QuotationView: React.FC = () => {
             ?? (quotation.subtotal ? (quotation.vat_amount || 0) / quotation.subtotal : undefined),
           ppda_rate: quotation.ppda_rate
             ?? (quotation.subtotal ? (quotation.ppda_amount || 0) / quotation.subtotal : undefined),
+          letterhead: quotation.company_letterhead,
         }}
       />
     </div>
