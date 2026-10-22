@@ -80,15 +80,38 @@ router.get('/next-number', async (req, res) => {
   }
 });
 
-// GET /api/contracts/template?company_id=.. — the caller's saved default clauses.
+// The organization's built-in contract wording: 'billboard' (the two original
+// organizations) or 'general' (neutral wording — the default for new orgs).
+async function orgContractStyle(orgId) {
+  const [rows] = await db.execute('SELECT contract_style FROM organizations WHERE id = ?', [orgId]);
+  return rows.length && rows[0].contract_style === 'billboard' ? 'billboard' : 'general';
+}
+
+// GET /api/contracts/template?company_id=.. — the default clauses a new
+// contract starts from: the caller's own saved default; otherwise the most
+// recently saved default of anyone in the same company (so a new staff member
+// doesn't retype the company's wording); otherwise null, and the client uses
+// the built-in clauses for the organization's `style`.
 router.get('/template', async (req, res) => {
   try {
-    const [rows] = await db.execute(
+    const style = await orgContractStyle(req.user.organization_id);
+    const [mine] = await db.execute(
       'SELECT title, sections FROM contract_templates WHERE company_id = ? AND user_id = ?',
       [req.query.company_id, req.user.id]
     );
-    if (!rows.length) return res.json({ title: null, sections: null });
-    res.json({ title: rows[0].title, sections: parseSections(rows[0].sections) });
+    if (mine.length && parseSections(mine[0].sections).length) {
+      return res.json({ title: mine[0].title, sections: parseSections(mine[0].sections), style, source: 'mine' });
+    }
+    const [shared] = await db.execute(
+      `SELECT title, sections FROM contract_templates
+        WHERE company_id = ? AND sections IS NOT NULL AND sections <> '[]'
+        ORDER BY updated_at DESC, id DESC LIMIT 1`,
+      [req.query.company_id]
+    );
+    if (shared.length && parseSections(shared[0].sections).length) {
+      return res.json({ title: shared[0].title, sections: parseSections(shared[0].sections), style, source: 'company' });
+    }
+    res.json({ title: null, sections: null, style, source: null });
   } catch (e) {
     console.error('Error fetching contract template:', e);
     res.status(500).json({ error: 'Failed to fetch template' });
@@ -113,6 +136,10 @@ router.get('/', async (req, res) => {
     const conditions = [];
     const params = [];
     if (company_id) { conditions.push('ct.company_id = ?'); params.push(company_id); }
+    // Always stay inside the caller's organization — also when no company_id
+    // is given (otherwise the list would include other organizations' rows).
+    conditions.push('ct.company_id IN (SELECT id FROM companies WHERE organization_id = ?)');
+    params.push(req.user.organization_id);
     if (req.user.role !== 'admin') { conditions.push('ct.created_by = ?'); params.push(req.user.id); }
 
     let query = `
@@ -143,9 +170,10 @@ router.get('/:id', async (req, res) => {
              c.tpin AS company_tpin, c.bank_details AS company_bank_details,
              c.logo_url AS company_logo, c.quote_logo_url AS company_quote_logo,
              c.primary_color, c.secondary_color, c.currency AS company_currency,
-             u.name AS created_by_name
+             u.name AS created_by_name, o.contract_style
         FROM contracts ct
         JOIN companies c ON ct.company_id = c.id
+        LEFT JOIN organizations o ON c.organization_id = o.id
         LEFT JOIN users u ON ct.created_by = u.id
        WHERE ct.id = ?`, [req.params.id]);
 

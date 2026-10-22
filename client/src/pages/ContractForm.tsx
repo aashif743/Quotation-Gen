@@ -7,8 +7,10 @@ import {
   getContract, createContract, updateContract, getNextContractNumber, getClients,
   getContractTemplate, saveContractTemplate, uploadContractSignature, deleteContractSignature,
 } from '../services/api';
-import { Client, Contract, ContractSection } from '../types';
-import { buildDefaultSections, DEFAULT_CONTRACT_TITLE } from '../utils/contractTemplate';
+import { Client, Contract, ContractSection, ContractStyle } from '../types';
+import {
+  buildDefaultSections, contractTitleSuggestions, defaultContractTitle, resolveContractStyle,
+} from '../utils/contractTemplate';
 import ContractDocument from '../components/Contract/ContractDocument';
 import {
   FileSignature, ArrowLeft, Plus, Trash2, ChevronUp, ChevronDown, RotateCcw, Eye, EyeOff,
@@ -20,10 +22,6 @@ const FREQUENCIES = [
   { value: 'quarterly', label: 'Quarterly' },
   { value: 'annually', label: 'Annually' },
   { value: 'one-time', label: 'One-time' },
-];
-const TITLE_SUGGESTIONS = [
-  'Advertising Contract', 'Billboard Advertising Contract', 'Service Contract',
-  'Rental Agreement', 'Maintenance Contract', 'Supply Agreement',
 ];
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -53,7 +51,7 @@ interface FormState {
 }
 
 const blank = (): FormState => ({
-  contract_number: '', title: DEFAULT_CONTRACT_TITLE, client_id: null, client_name: '',
+  contract_number: '', title: '', client_id: null, client_name: '',
   client_address: '', client_email: '', client_phone: '', site: '', amount: '',
   payment_frequency: 'monthly', payment_amount: '', insurance: '', printing_charges: '',
   effective_date: today(), start_date: today(), end_date: '', contract_period: '',
@@ -74,6 +72,12 @@ const ContractForm: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [showPreview, setShowPreview] = useState(true);
+  // The organization's built-in wording: 'billboard' (original organizations)
+  // or 'general' (new organizations). Drives the starting clauses and labels.
+  const [style, setStyle] = useState<ContractStyle>('general');
+  const isBillboard = style === 'billboard';
+  // Where the starting clauses came from (new contracts only).
+  const [tplSource, setTplSource] = useState<'mine' | 'company' | null>(null);
 
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -86,6 +90,7 @@ const ContractForm: React.FC = () => {
         setClients(cs);
         if (isEdit) {
           const c = await getContract(Number(id));
+          setStyle(resolveContractStyle(c.contract_style));
           setForm({
             contract_number: c.contract_number, title: c.title || 'Service Contract',
             client_id: c.client_id ?? null, client_name: c.client_name || '',
@@ -105,17 +110,22 @@ const ContractForm: React.FC = () => {
             sections: c.sections && c.sections.length ? c.sections : [],
           });
         } else {
-          // New contract starts from THIS user's saved default template if they
-          // have one; otherwise the built-in default clauses.
+          // A new contract starts from THIS user's saved default; else the
+          // company's latest saved default (a colleague's); else the built-in
+          // clauses for the organization's style.
           const [{ contractNumber }, tpl] = await Promise.all([
             getNextContractNumber(selectedCompany.id),
-            getContractTemplate(selectedCompany.id).catch(() => ({ title: null, sections: null })),
+            getContractTemplate(selectedCompany.id).catch(() => ({ title: null, sections: null, style: undefined, source: null })),
           ]);
+          const orgStyle = resolveContractStyle(tpl.style);
+          const hasSaved = !!(tpl.sections && tpl.sections.length);
+          setStyle(orgStyle);
+          setTplSource(hasSaved ? (tpl.source || 'mine') : null);
           setForm((f) => ({
             ...f,
             contract_number: contractNumber,
-            title: tpl.title || f.title,
-            sections: tpl.sections && tpl.sections.length ? tpl.sections : buildDefaultSections(),
+            title: tpl.title || defaultContractTitle(orgStyle),
+            sections: hasSaved ? (tpl.sections as ContractSection[]) : buildDefaultSections(orgStyle),
           }));
         }
       } catch {
@@ -141,8 +151,8 @@ const ContractForm: React.FC = () => {
   // Reset the clauses to the built-in system default (ignores the user's saved
   // personal default).
   const resetToSystemDefault = () => {
-    if (form.sections.length && !window.confirm('Replace the current clauses with the built-in system default?')) return;
-    set('sections', buildDefaultSections());
+    if (form.sections.length && !window.confirm('Replace the current clauses with the standard built-in clauses?')) return;
+    set('sections', buildDefaultSections(style));
   };
 
   // Save the current clauses (and title) as THIS user's personal default for
@@ -196,7 +206,7 @@ const ContractForm: React.FC = () => {
 
   const preview: Contract = useMemo(() => ({
     id: 0, company_id: selectedCompany?.id || 0, contract_number: form.contract_number,
-    title: form.title, client_name: form.client_name || '[Client name]', client_address: form.client_address,
+    title: form.title || defaultContractTitle(style), client_name: form.client_name || '[Client name]', client_address: form.client_address,
     client_email: form.client_email, client_phone: form.client_phone, site: form.site,
     amount: Number(form.amount) || 0, currency: selectedCompany?.currency,
     payment_frequency: form.payment_frequency, payment_amount: Number(form.payment_amount) || 0,
@@ -207,7 +217,8 @@ const ContractForm: React.FC = () => {
     company_name: selectedCompany?.name, company_address: selectedCompany?.address,
     company_tpin: selectedCompany?.tpin, company_logo: selectedCompany?.logo_url,
     primary_color: selectedCompany?.primary_color, company_currency: selectedCompany?.currency,
-  }), [form, selectedCompany]);
+    contract_style: style,
+  }), [form, selectedCompany, style]);
 
   const save = async () => {
     setError('');
@@ -216,7 +227,7 @@ const ContractForm: React.FC = () => {
     setSaving(true);
     try {
       const payload = {
-        company_id: selectedCompany.id, contract_number: form.contract_number, title: form.title,
+        company_id: selectedCompany.id, contract_number: form.contract_number, title: form.title.trim() || defaultContractTitle(style),
         client_id: form.client_id, client_name: form.client_name, client_address: form.client_address,
         client_email: form.client_email, client_phone: form.client_phone, site: form.site,
         amount: Number(form.amount) || 0, currency: selectedCompany.currency,
@@ -273,8 +284,8 @@ const ContractForm: React.FC = () => {
           <Card title="Contract details">
             <div className="grid sm:grid-cols-2 gap-3">
               <L label="Contract title">
-                <input list="ct-titles" value={form.title} onChange={(e) => set('title', e.target.value)} className={inp} placeholder="e.g. Advertising Contract" />
-                <datalist id="ct-titles">{TITLE_SUGGESTIONS.map((t) => <option key={t} value={t} />)}</datalist>
+                <input list="ct-titles" value={form.title} onChange={(e) => set('title', e.target.value)} className={inp} placeholder={`e.g. ${defaultContractTitle(style)}`} />
+                <datalist id="ct-titles">{contractTitleSuggestions(style).map((t) => <option key={t} value={t} />)}</datalist>
               </L>
               <L label="Contract number"><input value={form.contract_number} onChange={(e) => set('contract_number', e.target.value)} className={inp} /></L>
               <L label="Effective date"><input type="date" value={form.effective_date} onChange={(e) => set('effective_date', e.target.value)} className={inp} /></L>
@@ -290,7 +301,7 @@ const ContractForm: React.FC = () => {
           <Card title="Client">
             <div className="grid sm:grid-cols-2 gap-3">
               <L label="Client name *">
-                <input list="ct-clients" value={form.client_name} onChange={(e) => onClientName(e.target.value)} className={inp} placeholder="Client / advertiser name" />
+                <input list="ct-clients" value={form.client_name} onChange={(e) => onClientName(e.target.value)} className={inp} placeholder={isBillboard ? 'Client / advertiser name' : 'Client name'} />
                 <datalist id="ct-clients">{clients.map((c) => <option key={c.id} value={c.name} />)}</datalist>
               </L>
               <L label="Email"><input value={form.client_email} onChange={(e) => set('client_email', e.target.value)} className={inp} /></L>
@@ -299,9 +310,9 @@ const ContractForm: React.FC = () => {
             </div>
           </Card>
 
-          <Card title="Site & payment">
+          <Card title={isBillboard ? 'Site & payment' : 'Location & payment'}>
             <div className="grid sm:grid-cols-2 gap-3">
-              <L label="Site / Location" full><textarea value={form.site} onChange={(e) => set('site', e.target.value)} rows={2} className={inp} placeholder="Billboard location / site address / intersection" /></L>
+              <L label={isBillboard ? 'Site / Location' : 'Location / Site (optional)'} full><textarea value={form.site} onChange={(e) => set('site', e.target.value)} rows={2} className={inp} placeholder={isBillboard ? 'Billboard location / site address / intersection' : 'Where the work or service is delivered (optional)'} /></L>
               <L label={`Contract amount (${selectedCompany.currency})`}><input type="number" min={0} value={form.amount} onChange={(e) => set('amount', e.target.value)} className={inp} placeholder="Total value (optional)" /></L>
               <L label="Payment frequency">
                 <select value={form.payment_frequency} onChange={(e) => set('payment_frequency', e.target.value)} className={inp}>
@@ -309,8 +320,14 @@ const ContractForm: React.FC = () => {
                 </select>
               </L>
               <L label={`Payment amount (${selectedCompany.currency})`}><input type="number" min={0} value={form.payment_amount} onChange={(e) => set('payment_amount', e.target.value)} className={inp} placeholder="Per payment" /></L>
-              <L label={`Insurance (${selectedCompany.currency})`}><input type="number" min={0} value={form.insurance} onChange={(e) => set('insurance', e.target.value)} className={inp} placeholder="Optional" /></L>
-              <L label={`Printing / production charges (${selectedCompany.currency})`}><input type="number" min={0} value={form.printing_charges} onChange={(e) => set('printing_charges', e.target.value)} className={inp} placeholder="Optional" /></L>
+              {/* Billboard-specific charges: always shown for billboard
+                  organizations; for others only if a value is already set. */}
+              {(isBillboard || Number(form.insurance) > 0) && (
+                <L label={`Insurance (${selectedCompany.currency})`}><input type="number" min={0} value={form.insurance} onChange={(e) => set('insurance', e.target.value)} className={inp} placeholder="Optional" /></L>
+              )}
+              {(isBillboard || Number(form.printing_charges) > 0) && (
+                <L label={`Printing / production charges (${selectedCompany.currency})`}><input type="number" min={0} value={form.printing_charges} onChange={(e) => set('printing_charges', e.target.value)} className={inp} placeholder="Optional" /></L>
+              )}
             </div>
           </Card>
 
@@ -320,7 +337,7 @@ const ContractForm: React.FC = () => {
               <L label="End date"><input type="date" value={form.end_date} onChange={(e) => set('end_date', e.target.value)} className={inp} /></L>
               <L label="Contract period"><input value={form.contract_period} onChange={(e) => set('contract_period', e.target.value)} className={inp} placeholder="e.g. 12 months" /></L>
               <div />
-              <L label="Termination rules" full><textarea value={form.termination_rules} onChange={(e) => set('termination_rules', e.target.value)} rows={3} className={inp} placeholder="e.g. 30 days notice; early removal fee of 2 months rent…" /></L>
+              <L label="Termination rules" full><textarea value={form.termination_rules} onChange={(e) => set('termination_rules', e.target.value)} rows={3} className={inp} placeholder={isBillboard ? 'e.g. 30 days notice; early removal fee of 2 months rent…' : 'e.g. Either party may terminate with 30 days written notice…'} /></L>
               <L label="Other comments" full><textarea value={form.comments} onChange={(e) => set('comments', e.target.value)} rows={2} className={inp} placeholder="Any additional terms (optional)" /></L>
             </div>
           </Card>
@@ -332,12 +349,19 @@ const ContractForm: React.FC = () => {
                   className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg text-white disabled:opacity-50" style={{ background: primary }}>
                   <Star size={14} /> {savingTpl ? 'Saving…' : 'Save as my default'}
                 </button>
-                <button onClick={resetToSystemDefault} title="Reset to the built-in default wording"
+                <button onClick={resetToSystemDefault} title="Reset to the standard built-in wording"
                   className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
                   <RotateCcw size={14} /> Reset
                 </button>
               </div>
             }>
+            {!isEdit && (
+              <div className="mb-3 px-3 py-2 rounded-lg text-xs bg-gray-50 dark:bg-gray-900/40 text-gray-600 dark:text-gray-300 border border-gray-100 dark:border-gray-700">
+                {tplSource === 'mine' && <>Started from <strong>your saved default</strong> clauses.</>}
+                {tplSource === 'company' && <>Started from your <strong>company's saved default</strong> clauses.</>}
+                {!tplSource && <>Started from the <strong>standard clauses</strong>. Adjust them once — when you create this contract they become your default, so you won't need to type them again.</>}
+              </div>
+            )}
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
               Edit any wording, reorder, add or remove clauses — the PDF uses exactly what's here. Your edits are saved as
               <strong> your own default</strong> when you save the contract (only for your account); use <strong>Save as my default</strong> to set them without saving a contract.

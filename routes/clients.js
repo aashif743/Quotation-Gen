@@ -30,6 +30,10 @@ router.get('/', async (req, res) => {
       where.push('c.company_id = ?');
       params.push(company_id);
     }
+    // Always stay inside the caller's organization — also when no company_id
+    // is given (otherwise the list would include other organizations' rows).
+    where.push('c.company_id IN (SELECT id FROM companies WHERE organization_id = ?)');
+    params.push(req.user.organization_id);
     if (q) {
       where.push('c.name LIKE ?');
       params.push(`%${q}%`);

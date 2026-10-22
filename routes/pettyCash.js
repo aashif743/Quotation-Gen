@@ -47,6 +47,10 @@ router.get('/', async (req, res) => {
     const conditions = [];
     const params = [];
     if (company_id) { conditions.push('pc.company_id = ?'); params.push(company_id); }
+    // Always stay inside the caller's organization — also when no company_id
+    // is given (otherwise the list would include other organizations' rows).
+    conditions.push('pc.company_id IN (SELECT id FROM companies WHERE organization_id = ?)');
+    params.push(req.user.organization_id);
     if (from)       { conditions.push('pc.date >= ?');      params.push(from); }
     if (to)         { conditions.push('pc.date <= ?');      params.push(to); }
     if (type === 'in' || type === 'out') { conditions.push('pc.type = ?'); params.push(type); }

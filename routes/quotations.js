@@ -29,6 +29,10 @@ router.get('/', async (req, res) => {
       conditions.push('q.company_id = ?');
       queryParams.push(company_id);
     }
+    // Always stay inside the caller's organization — also when no company_id
+    // is given (otherwise the list would include other organizations' rows).
+    conditions.push('q.company_id IN (SELECT id FROM companies WHERE organization_id = ?)');
+    queryParams.push(req.user.organization_id);
 
     if (req.user.role !== 'admin') {
       conditions.push('q.created_by = ?');

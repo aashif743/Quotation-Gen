@@ -1,6 +1,6 @@
 import React from 'react';
 import { Contract, ContractSection } from '../../types';
-import { formatContractMoney, formatLongDate } from '../../utils/contractTemplate';
+import { formatContractMoney, formatLongDate, terminationHeading } from '../../utils/contractTemplate';
 
 const freqText = (f?: string | null): string => {
   const map: Record<string, string> = {
@@ -36,7 +36,7 @@ const ContractDocument: React.FC<{ contract: Contract }> = ({ contract: c }) => 
   })();
 
   const detailRows: Array<[string, React.ReactNode]> = [];
-  if (c.site) detailRows.push(['Site / Location', c.site]);
+  if (c.site) detailRows.push([c.contract_style === 'billboard' ? 'Site / Location' : 'Location / Site', c.site]);
   if (Number(c.amount) > 0) detailRows.push(['Contract Amount', formatContractMoney(c.amount, currency)]);
   if (Number(c.payment_amount) > 0) {
     detailRows.push(['Payment', `${formatContractMoney(c.payment_amount, currency)}${c.payment_frequency ? `  ·  ${freqText(c.payment_frequency)}` : ''}`]);
@@ -50,7 +50,7 @@ const ContractDocument: React.FC<{ contract: Contract }> = ({ contract: c }) => 
   // Generic clauses + per-contract termination / comments as their own sections.
   const allSections: ContractSection[] = [...(c.sections || [])];
   if (c.termination_rules && String(c.termination_rules).trim()) {
-    allSections.push({ heading: 'Early Termination & Removal Fees', body: String(c.termination_rules).trim() });
+    allSections.push({ heading: terminationHeading(c.contract_style), body: String(c.termination_rules).trim() });
   }
   if (c.comments && String(c.comments).trim()) {
     allSections.push({ heading: 'Additional Terms', body: String(c.comments).trim() });

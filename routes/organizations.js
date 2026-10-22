@@ -13,7 +13,7 @@ router.use(isAuthenticated, isSuperAdmin);
 router.get('/', async (req, res) => {
   try {
     const [rows] = await db.execute(`
-      SELECT o.id, o.name, o.status, o.created_at,
+      SELECT o.id, o.name, o.status, o.contract_style, o.created_at,
              (SELECT COUNT(*) FROM users u     WHERE u.organization_id = o.id) AS user_count,
              (SELECT COUNT(*) FROM companies c WHERE c.organization_id = o.id) AS company_count
         FROM organizations o
@@ -32,6 +32,7 @@ router.post('/', async (req, res) => {
   try {
     await connection.beginTransaction();
     const { name, admin_name, admin_email, admin_password } = req.body;
+    const contractStyle = req.body.contract_style === 'billboard' ? 'billboard' : 'general';
     if (!name || !name.trim()) {
       await connection.rollback();
       return res.status(400).json({ error: 'Organization name is required.' });
@@ -52,7 +53,7 @@ router.post('/', async (req, res) => {
       return res.status(409).json({ error: 'An account with that admin email already exists.' });
     }
 
-    const [orgRes] = await connection.execute('INSERT INTO organizations (name) VALUES (?)', [name.trim()]);
+    const [orgRes] = await connection.execute('INSERT INTO organizations (name, contract_style) VALUES (?, ?)', [name.trim(), contractStyle]);
     const orgId = orgRes.insertId;
 
     const hashed = await bcrypt.hash(String(admin_password), await bcrypt.genSalt(10));
@@ -63,7 +64,7 @@ router.post('/', async (req, res) => {
 
     await connection.commit();
     const [created] = await db.execute(
-      `SELECT o.id, o.name, o.status, o.created_at,
+      `SELECT o.id, o.name, o.status, o.contract_style, o.created_at,
               (SELECT COUNT(*) FROM users u WHERE u.organization_id = o.id) AS user_count,
               (SELECT COUNT(*) FROM companies c WHERE c.organization_id = o.id) AS company_count
          FROM organizations o WHERE o.id = ?`,
@@ -79,19 +80,21 @@ router.post('/', async (req, res) => {
   }
 });
 
-// PUT /api/organizations/:id — rename or activate/suspend a tenant.
+// PUT /api/organizations/:id — rename, activate/suspend, or change the
+// built-in contract wording of a tenant.
 router.put('/:id', async (req, res) => {
   try {
-    const { name, status } = req.body;
+    const { name, status, contract_style } = req.body;
     const fields = [];
     const values = [];
     if (name != null && name.trim()) { fields.push('name = ?'); values.push(name.trim()); }
     if (status === 'active' || status === 'suspended') { fields.push('status = ?'); values.push(status); }
+    if (contract_style === 'billboard' || contract_style === 'general') { fields.push('contract_style = ?'); values.push(contract_style); }
     if (fields.length === 0) return res.status(400).json({ error: 'No changes provided.' });
     values.push(req.params.id);
     const [result] = await db.execute(`UPDATE organizations SET ${fields.join(', ')} WHERE id = ?`, values);
     if (result.affectedRows === 0) return res.status(404).json({ error: 'Organization not found' });
-    const [updated] = await db.execute('SELECT id, name, status, created_at FROM organizations WHERE id = ?', [req.params.id]);
+    const [updated] = await db.execute('SELECT id, name, status, contract_style, created_at FROM organizations WHERE id = ?', [req.params.id]);
     res.json(updated[0]);
   } catch (error) {
     console.error('Error updating organization:', error);

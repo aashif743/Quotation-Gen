@@ -167,13 +167,18 @@ export interface Contract {
   primary_color?: string;
   secondary_color?: string;
   company_currency?: string;
+  /** The organization's built-in contract wording (billboard or general). */
+  contract_style?: ContractStyle;
 }
 
 // A tenant. Managed by the platform owner (super-admin).
+export type ContractStyle = 'billboard' | 'general';
+
 export interface Organization {
   id: number;
   name: string;
   status: 'active' | 'suspended';
+  contract_style?: ContractStyle;
   created_at?: string;
   user_count?: number;
   company_count?: number;

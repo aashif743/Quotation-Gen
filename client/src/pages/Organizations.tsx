@@ -3,7 +3,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { brandColorFor } from '../utils/colors';
 import { getOrganizations, createOrganization, updateOrganization, deleteOrganization, enterOrganization } from '../services/api';
-import { Organization } from '../types';
+import { ContractStyle, Organization } from '../types';
 import { Building, Plus, X, AlertCircle, Users as UsersIcon, Briefcase, Power, Loader2, Edit2, Trash2, LogIn } from 'lucide-react';
 
 const Organizations: React.FC = () => {
@@ -18,11 +18,12 @@ const Organizations: React.FC = () => {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [form, setForm] = useState({ name: '', admin_name: '', admin_email: '', admin_password: '' });
+  const [form, setForm] = useState({ name: '', admin_name: '', admin_email: '', admin_password: '', contract_style: 'general' as ContractStyle });
 
   // Rename
   const [editing, setEditing] = useState<Organization | null>(null);
   const [editName, setEditName] = useState('');
+  const [editStyle, setEditStyle] = useState<ContractStyle>('general');
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState('');
 
@@ -44,7 +45,7 @@ const Organizations: React.FC = () => {
 
   useEffect(() => { load(); }, []);
 
-  const openCreate = () => { setForm({ name: '', admin_name: '', admin_email: '', admin_password: '' }); setError(''); setOpen(true); };
+  const openCreate = () => { setForm({ name: '', admin_name: '', admin_email: '', admin_password: '', contract_style: 'general' }); setError(''); setOpen(true); };
 
   const submit = async () => {
     if (!form.name.trim()) { setError('Organization name is required.'); return; }
@@ -76,15 +77,15 @@ const Organizations: React.FC = () => {
     }
   };
 
-  const openRename = (o: Organization) => { setEditing(o); setEditName(o.name); setEditError(''); };
+  const openRename = (o: Organization) => { setEditing(o); setEditName(o.name); setEditStyle(o.contract_style === 'billboard' ? 'billboard' : 'general'); setEditError(''); };
   const submitRename = async () => {
     if (!editing) return;
     if (!editName.trim()) { setEditError('Name is required.'); return; }
     setEditSaving(true);
     setEditError('');
     try {
-      await updateOrganization(editing.id, { name: editName.trim() });
-      setMessage({ type: 'success', text: 'Organization renamed.' });
+      await updateOrganization(editing.id, { name: editName.trim(), contract_style: editStyle });
+      setMessage({ type: 'success', text: 'Organization updated.' });
       setEditing(null);
       await load();
     } catch (e: any) {
@@ -157,7 +158,10 @@ const Organizations: React.FC = () => {
                 <tr key={o.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4">
                     <div className="text-sm font-semibold text-gray-900">{o.name}</div>
-                    <div className="text-xs text-gray-500">Created {o.created_at ? new Date(o.created_at).toLocaleDateString() : '—'}</div>
+                    <div className="text-xs text-gray-500">
+                      Created {o.created_at ? new Date(o.created_at).toLocaleDateString() : '—'}
+                      {' · '}{o.contract_style === 'billboard' ? 'Billboard contracts' : 'General contracts'}
+                    </div>
                   </td>
                   <td className="px-6 py-4 text-center text-sm text-gray-700">
                     <span className="inline-flex items-center"><UsersIcon className="h-3.5 w-3.5 mr-1 text-gray-400" />{o.user_count ?? 0}</span>
@@ -180,7 +184,7 @@ const Organizations: React.FC = () => {
                       >
                         <LogIn className="h-4 w-4 mr-1.5" /> Enter
                       </button>
-                      <button onClick={() => openRename(o)} className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg" title="Rename">
+                      <button onClick={() => openRename(o)} className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg" title="Edit">
                         <Edit2 className="h-4 w-4" />
                       </button>
                       <button onClick={() => toggleStatus(o)} className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg" title={o.status === 'active' ? 'Suspend' : 'Reactivate'}>
@@ -206,7 +210,7 @@ const Organizations: React.FC = () => {
         <div className="fixed inset-0 bg-gray-900/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
             <div className="flex justify-between items-center px-6 py-4 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">Rename Organization</h3>
+              <h3 className="text-lg font-semibold text-gray-900">Edit Organization</h3>
               <button onClick={() => setEditing(null)} className="text-gray-400 hover:text-gray-600"><X className="h-5 w-5" /></button>
             </div>
             <div className="p-6 space-y-3">
@@ -214,6 +218,7 @@ const Organizations: React.FC = () => {
               <Field label="Organization name">
                 <input className={inputCls} value={editName} onChange={(e) => setEditName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') submitRename(); }} autoFocus />
               </Field>
+              <ContractStyleField value={editStyle} onChange={setEditStyle} />
             </div>
             <div className="px-6 py-4 border-t border-gray-200 flex justify-end space-x-3">
               <button onClick={() => setEditing(null)} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">Cancel</button>
@@ -257,6 +262,7 @@ const Organizations: React.FC = () => {
             <div className="p-6 space-y-3">
               {error && <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">{error}</div>}
               <Field label="Organization name *"><input className={inputCls} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Beta Traders Ltd" /></Field>
+              <ContractStyleField value={form.contract_style} onChange={(v) => setForm({ ...form, contract_style: v })} />
               <div className="pt-2 mt-2 border-t border-gray-100">
                 <p className="text-sm font-medium text-gray-700 mb-2">First admin for this organization</p>
                 <div className="space-y-3">
@@ -283,6 +289,19 @@ const Organizations: React.FC = () => {
 const inputCls = 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500';
 const Field: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
   <div><label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>{children}</div>
+);
+
+// Which built-in wording new contracts start from in this organization. Only a
+// starting point — users' own saved clauses always take precedence, and
+// existing contracts are never changed.
+const ContractStyleField: React.FC<{ value: ContractStyle; onChange: (v: ContractStyle) => void }> = ({ value, onChange }) => (
+  <Field label="Contract template">
+    <select className={inputCls} value={value} onChange={(e) => onChange(e.target.value === 'billboard' ? 'billboard' : 'general')}>
+      <option value="general">General (any business)</option>
+      <option value="billboard">Billboard advertising</option>
+    </select>
+    <p className="text-xs text-gray-500 mt-1">Standard clauses new contracts start with. Saved clauses and existing contracts are not affected.</p>
+  </Field>
 );
 
 export default Organizations;

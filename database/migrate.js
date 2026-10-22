@@ -1028,6 +1028,28 @@ async function migrate() {
     }
   }
 
+  // 3u. Contract template style per organization (added 2026-10). Decides the
+  //     built-in clauses a NEW contract starts from when the user has no saved
+  //     default: 'billboard' (billboard advertising wording) or 'general'
+  //     (neutral wording for any business). New organizations default to
+  //     'general'; organizations that already exist when the column is first
+  //     added are marked 'billboard' so their contracts stay exactly as before.
+  //     Existing contracts and saved templates are never touched.
+  //     Adding the column with DEFAULT 'billboard' fills every existing row in
+  //     one atomic step; the default is then switched to 'general' for new rows
+  //     (re-checked on every run, so an interrupted run self-heals).
+  if (!(await columnExists('organizations', 'contract_style'))) {
+    console.log('  • Adding `contract_style` to organizations (existing orgs keep billboard)...');
+    await db.query("ALTER TABLE `organizations` ADD COLUMN `contract_style` VARCHAR(20) NOT NULL DEFAULT 'billboard'");
+  } else { console.log('  • organizations.contract_style already present, skipping.'); }
+  const [[styleCol]] = await db.query(
+    "SELECT COLUMN_DEFAULT AS d FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'organizations' AND COLUMN_NAME = 'contract_style'"
+  );
+  if (!/general/.test(String(styleCol.d || ''))) {
+    console.log("  • Setting organizations.contract_style default to 'general' for new organizations...");
+    await db.query("ALTER TABLE `organizations` ALTER COLUMN `contract_style` SET DEFAULT 'general'");
+  }
+
   // 4. Backfill created_by from each row's company owner so existing records
   //    are attributed to the user who originally owned the company.
   const [qBackfill] = await db.query(
