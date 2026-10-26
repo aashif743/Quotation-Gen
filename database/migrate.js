@@ -1079,6 +1079,105 @@ async function migrate() {
     } else { console.log(`  • ${table}.${col} already present, skipping.`); }
   }
 
+  // 3w. Audit log + donations (added 2026-10). ADDITIVE ONLY: two new tables
+  //     (+ donation items) and nullable/defaulted user columns.
+  //  - audit_logs: who logged in / out (and failed attempts) and every change
+  //    made through the API (create / update with field diff / delete …).
+  //    Rows are never updated; user/org deletions keep the rows (no FK) so the
+  //    trail survives. Viewable by super-admins and users with can_view_audit.
+  //  - users.can_view_audit (default 0), last_login_at, last_seen_at.
+  //  - donations / donation_items: donations the company GIVES to others
+  //    (cash, goods, services, sponsorship) with an approval flow and proof.
+  if (!(await tableExists('audit_logs'))) {
+    console.log('  • Creating `audit_logs` table...');
+    await db.query(`
+      CREATE TABLE \`audit_logs\` (
+        \`id\` BIGINT PRIMARY KEY AUTO_INCREMENT,
+        \`organization_id\` INT NULL,
+        \`user_id\` INT NULL,
+        \`user_name\` VARCHAR(255) NULL,
+        \`user_email\` VARCHAR(255) NULL,
+        \`acting_super_admin\` TINYINT(1) NOT NULL DEFAULT 0,
+        \`action\` VARCHAR(40) NOT NULL,
+        \`entity_type\` VARCHAR(40) NULL,
+        \`entity_id\` INT NULL,
+        \`entity_label\` VARCHAR(255) NULL,
+        \`company_id\` INT NULL,
+        \`summary\` VARCHAR(500) NULL,
+        \`details\` LONGTEXT NULL,
+        \`ip\` VARCHAR(64) NULL,
+        \`user_agent\` VARCHAR(255) NULL,
+        \`created_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        KEY \`idx_audit_org_time\` (\`organization_id\`, \`created_at\`),
+        KEY \`idx_audit_user_time\` (\`user_id\`, \`created_at\`),
+        KEY \`idx_audit_entity\` (\`entity_type\`, \`entity_id\`)
+      ) ENGINE=InnoDB
+    `);
+  } else { console.log('  • audit_logs already present, skipping.'); }
+
+  for (const [col, type] of [
+    ['can_view_audit', 'TINYINT(1) NOT NULL DEFAULT 0'],
+    ['last_login_at', 'DATETIME NULL'],
+    ['last_seen_at', 'DATETIME NULL'],
+  ]) {
+    if (!(await columnExists('users', col))) {
+      console.log(`  • Adding \`${col}\` to users...`);
+      await db.query(`ALTER TABLE \`users\` ADD COLUMN \`${col}\` ${type}`);
+    } else { console.log(`  • users.${col} already present, skipping.`); }
+  }
+
+  if (!(await tableExists('donations'))) {
+    console.log('  • Creating `donations` table...');
+    await db.query(`
+      CREATE TABLE \`donations\` (
+        \`id\` INT PRIMARY KEY AUTO_INCREMENT,
+        \`company_id\` INT NOT NULL,
+        \`created_by\` INT NULL,
+        \`donation_number\` VARCHAR(50) NOT NULL,
+        \`date\` DATE NOT NULL,
+        \`recipient_name\` VARCHAR(255) NOT NULL,
+        \`recipient_type\` VARCHAR(30) NULL,
+        \`recipient_contact\` VARCHAR(255) NULL,
+        \`recipient_address\` TEXT NULL,
+        \`category\` VARCHAR(30) NOT NULL DEFAULT 'cash',
+        \`purpose\` VARCHAR(255) NULL,
+        \`description\` TEXT NULL,
+        \`amount\` DECIMAL(15,2) NOT NULL DEFAULT 0,
+        \`payment_method\` VARCHAR(50) NULL,
+        \`reference\` VARCHAR(100) NULL,
+        \`status\` VARCHAR(20) NOT NULL DEFAULT 'planned',
+        \`approved_by\` INT NULL,
+        \`approved_at\` DATETIME NULL,
+        \`received_by\` VARCHAR(255) NULL,
+        \`notes\` TEXT NULL,
+        \`proof_url\` VARCHAR(255) NULL,
+        \`proof_name\` VARCHAR(255) NULL,
+        \`created_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        \`updated_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (\`company_id\`) REFERENCES \`companies\`(\`id\`) ON DELETE CASCADE,
+        FOREIGN KEY (\`created_by\`) REFERENCES \`users\`(\`id\`) ON DELETE SET NULL,
+        FOREIGN KEY (\`approved_by\`) REFERENCES \`users\`(\`id\`) ON DELETE SET NULL,
+        UNIQUE KEY \`unique_donation_per_company\` (\`company_id\`, \`donation_number\`),
+        KEY \`idx_donation_company_date\` (\`company_id\`, \`date\`)
+      ) ENGINE=InnoDB
+    `);
+  } else { console.log('  • donations already present, skipping.'); }
+
+  if (!(await tableExists('donation_items'))) {
+    console.log('  • Creating `donation_items` table...');
+    await db.query(`
+      CREATE TABLE \`donation_items\` (
+        \`id\` INT PRIMARY KEY AUTO_INCREMENT,
+        \`donation_id\` INT NOT NULL,
+        \`description\` TEXT NOT NULL,
+        \`quantity\` DECIMAL(15,2) NOT NULL DEFAULT 1,
+        \`unit_value\` DECIMAL(15,2) NOT NULL DEFAULT 0,
+        \`sort_order\` INT NOT NULL DEFAULT 0,
+        FOREIGN KEY (\`donation_id\`) REFERENCES \`donations\`(\`id\`) ON DELETE CASCADE
+      ) ENGINE=InnoDB
+    `);
+  } else { console.log('  • donation_items already present, skipping.'); }
+
   // 4. Backfill created_by from each row's company owner so existing records
   //    are attributed to the user who originally owned the company.
   const [qBackfill] = await db.query(

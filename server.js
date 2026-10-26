@@ -102,6 +102,11 @@ app.use('/uploads', express.static(UPLOADS_ROOT, {
   etag: true,
 }));
 
+// Audit trail: track activity and record every successful change made through
+// the API (see utils/audit.js). Runs after passport so req.user is known.
+const { auditMiddleware, touchLastSeen } = require('./utils/audit');
+app.use('/api', touchLastSeen, auditMiddleware);
+
 // Routes
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
@@ -122,6 +127,8 @@ const contractRoutes = require('./routes/contracts');
 const jobCardRoutes = require('./routes/jobCards');
 const purchaseOrderRoutes = require('./routes/purchaseOrders');
 const payrollRoutes = require('./routes/payroll');
+const auditLogRoutes = require('./routes/auditLogs');
+const donationRoutes = require('./routes/donations');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
@@ -142,6 +149,8 @@ app.use('/api/contracts', contractRoutes);
 app.use('/api/job-cards', jobCardRoutes);
 app.use('/api/purchase-orders', purchaseOrderRoutes);
 app.use('/api/payroll', payrollRoutes);
+app.use('/api/audit-logs', auditLogRoutes);
+app.use('/api/donations', donationRoutes);
 
 // Serve the React build in production. Express 5 tightened path syntax, so
 // the catch-all uses a regular expression that excludes API/uploads paths

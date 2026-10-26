@@ -534,7 +534,368 @@ const QuotationDocument: React.FC<QuotationDocumentProps> = ({
     </div>
   );
 
+  // Text colour that stays readable on the brand colour (some companies pick a
+  // secondary colour that doesn't contrast with their primary).
+  const brandLum = (0.2126 * rgb.r + 0.7152 * rgb.g + 0.0722 * rgb.b) / 255;
+  const onPrimary = brandLum > 0.62 ? '#111827' : '#ffffff';
+  const metaRows = [
+    { l: 'Quotation No.', v: quoteNumber },
+    { l: 'Date', v: quoteDate },
+    { l: 'Valid Until', v: expiryDate },
+    ...(company.tpin ? [{ l: 'TPIN', v: company.tpin }] : []),
+  ];
+  const ClientLines = (
+    <>
+      {data.client_address && <p>{data.client_address}</p>}
+      {data.client_email && <p>{data.client_email}</p>}
+      {data.client_phone && <p>{data.client_phone}</p>}
+    </>
+  );
+  const TotalsLines: React.FC<{ className?: string; labelClass?: string }> = ({ className = '', labelClass = 'text-gray-500' }) => (
+    <div className={`space-y-2 text-sm ${className}`}>
+      <div className="flex justify-between"><span className={labelClass}>Subtotal</span><span className="font-medium">{formatCurrency(data.subtotal || 0)}</span></div>
+      <div className="flex justify-between"><span className={labelClass}>{vatLabel}</span><span className="font-medium">{formatCurrency(data.vat_amount || 0)}</span></div>
+      {(data.ppda_amount || 0) > 0 && (
+        <div className="flex justify-between"><span className={labelClass}>{ppdaLabel}</span><span className="font-medium">{formatCurrency(data.ppda_amount || 0)}</span></div>
+      )}
+    </div>
+  );
+  const EmptyRow = (cols: number) => (
+    <tr><td colSpan={cols} className="py-8 text-center text-gray-400 text-sm">No items added yet</td></tr>
+  );
+
+  /* ------------------------------ MINIMAL ---------------------------- */
+  // Quiet, airy and typographic: hairlines instead of fills, one accent.
+  const Minimal = (
+    <div className={`bg-white text-gray-800 flex flex-col ${rootClassName}`} style={A4_STYLE}>
+      <div className="px-14 pt-12 pb-8 flex items-start justify-between">
+        <div>
+          <HeaderLogo maxHeight={64} />
+          <div className="mt-4 text-xs text-gray-500 space-y-0.5 max-w-xs">
+            {company.address && <p>{company.address}</p>}
+            {company.tpin && <p>TPIN {company.tpin}</p>}
+          </div>
+        </div>
+        <div className="text-right">
+          <p className="text-5xl font-light tracking-tight text-gray-900">Quotation</p>
+          <p className="mt-2 text-sm font-medium" style={{ color: primary }}>{quoteNumber}</p>
+        </div>
+      </div>
+
+      <div className="px-14 pb-12 flex-1 flex flex-col">
+        <div className="grid grid-cols-3 gap-8 py-6 border-y border-gray-200 mb-10 text-sm">
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.25em] text-gray-400 mb-2">Billed to</p>
+            <p className="font-semibold text-gray-900">{clientName}</p>
+            <div className="text-gray-500 mt-1 space-y-0.5">{ClientLines}</div>
+          </div>
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.25em] text-gray-400 mb-2">Issued</p>
+            <p className="text-gray-900">{quoteDate}</p>
+            <p className="text-[10px] uppercase tracking-[0.25em] text-gray-400 mt-4 mb-2">Valid until</p>
+            <p className="text-gray-900">{expiryDate}</p>
+          </div>
+          <div>
+            {company.bank_details && (
+              <>
+                <p className="text-[10px] uppercase tracking-[0.25em] text-gray-400 mb-2">Payment</p>
+                <p className="text-gray-600 whitespace-pre-wrap text-xs leading-relaxed">{company.bank_details}</p>
+              </>
+            )}
+          </div>
+        </div>
+
+        <table className="w-full mb-10">
+          <thead>
+            <tr className="text-[10px] uppercase tracking-[0.2em] text-gray-400">
+              <th className="pb-3 text-left font-medium">Description</th>
+              <th className="pb-3 text-center font-medium w-20">Qty</th>
+              <th className="pb-3 text-right font-medium w-36">Rate</th>
+              <th className="pb-3 text-right font-medium w-36">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {hasItems ? items.map((item, i) => (
+              <tr key={i} className="border-t border-gray-100">
+                <td className="py-4 text-sm text-gray-800 whitespace-pre-wrap">{item.description}</td>
+                <td className="py-4 text-sm text-center text-gray-500">{formatNumber(item.quantity)}</td>
+                <td className="py-4 text-sm text-right text-gray-500">{formatCurrency(item.unit_price)}</td>
+                <td className="py-4 text-sm text-right text-gray-900">{formatCurrency(itemTotal(item))}</td>
+              </tr>
+            )) : EmptyRow(4)}
+          </tbody>
+        </table>
+
+        <div className="flex justify-end" data-pdf-keep>
+          <div className="w-72">
+            <TotalsLines labelClass="text-gray-400" />
+            <div className="mt-4 pt-4 flex justify-between items-baseline" style={{ borderTop: `2px solid ${primary}` }}>
+              <span className="text-xs uppercase tracking-[0.25em] text-gray-500">Total</span>
+              <span className="text-2xl font-semibold text-gray-900">{formatCurrency(data.grand_total || 0)}</span>
+            </div>
+          </div>
+        </div>
+
+        {BottomBlock}
+      </div>
+    </div>
+  );
+
+  /* ----------------------------- CORPORATE --------------------------- */
+  // Structured and businesslike: brand side rail, info strip, boxed totals.
+  const Corporate = (
+    <div className={`bg-white text-gray-800 flex ${rootClassName}`} style={A4_STYLE}>
+      <div className="w-3 shrink-0" style={{ backgroundColor: primary }} />
+      <div className="flex-1 flex flex-col min-w-0">
+        <div className="px-10 pt-9 pb-6 flex items-start justify-between gap-6">
+          <div className="flex items-start gap-4">
+            <HeaderLogo maxHeight={72} />
+          </div>
+          <div className="text-right text-xs text-gray-500 max-w-[45%]">
+            <p className="text-sm font-bold text-gray-900">{company.name}</p>
+            {company.address && <p className="mt-0.5">{company.address}</p>}
+            {company.tpin && <p>TPIN: {company.tpin}</p>}
+          </div>
+        </div>
+
+        <div className="mx-10 flex items-center justify-between rounded-lg px-5 py-3" style={{ backgroundColor: tint(0.08) }}>
+          <h2 className="text-2xl font-extrabold tracking-wide" style={{ color: primary }}>QUOTATION</h2>
+          <div className="flex gap-6 text-xs">
+            {metaRows.map((m) => (
+              <div key={m.l} className="text-right">
+                <p className="uppercase tracking-wider text-gray-500">{m.l}</p>
+                <p className="font-semibold text-gray-900 text-sm">{m.v}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="px-10 py-7 flex-1 flex flex-col">
+          <div className="mb-7 pl-4" style={{ borderLeft: `3px solid ${primary}` }}>
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-500 mb-1">Prepared for</p>
+            <p className="text-lg font-bold text-gray-900">{clientName}</p>
+            <div className="text-sm text-gray-600 space-y-0.5">{ClientLines}</div>
+          </div>
+
+          <table className="w-full mb-6 border border-gray-200">
+            <thead>
+              <tr style={{ backgroundColor: primary, color: onPrimary }}>
+                <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider w-12">#</th>
+                <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider">Description</th>
+                <th className="px-4 py-2.5 text-center text-xs font-semibold uppercase tracking-wider w-20">Qty</th>
+                <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider w-32">Unit Price</th>
+                <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider w-36">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {hasItems ? items.map((item, i) => (
+                <tr key={i} className="border-t border-gray-200" style={{ backgroundColor: i % 2 ? tint(0.04) : '#fff' }}>
+                  <td className="px-4 py-3 text-sm text-gray-400">{i + 1}</td>
+                  <td className="px-4 py-3 text-sm whitespace-pre-wrap">{item.description}</td>
+                  <td className="px-4 py-3 text-sm text-center">{formatNumber(item.quantity)}</td>
+                  <td className="px-4 py-3 text-sm text-right">{formatCurrency(item.unit_price)}</td>
+                  <td className="px-4 py-3 text-sm text-right font-semibold">{formatCurrency(itemTotal(item))}</td>
+                </tr>
+              )) : EmptyRow(5)}
+            </tbody>
+          </table>
+
+          <div className="grid grid-cols-2 gap-8 items-start" data-pdf-keep>
+            <div className="text-sm">
+              {company.bank_details && (
+                <div className="rounded-lg border border-gray-200 p-4">
+                  <p className="text-[11px] font-semibold uppercase tracking-widest mb-1.5" style={{ color: primary }}>Bank details</p>
+                  <p className="text-gray-600 whitespace-pre-wrap text-xs leading-relaxed">{company.bank_details}</p>
+                </div>
+              )}
+            </div>
+            <div className="rounded-lg border border-gray-200 overflow-hidden">
+              <TotalsLines className="p-4" />
+              <div className="flex justify-between items-center px-4 py-3 font-bold" style={{ backgroundColor: primary, color: onPrimary }}>
+                <span className="uppercase tracking-wider text-sm">Grand Total</span>
+                <span className="text-xl">{formatCurrency(data.grand_total || 0)}</span>
+              </div>
+            </div>
+          </div>
+
+          {BottomBlock}
+        </div>
+      </div>
+    </div>
+  );
+
+  /* ----------------------------- EXECUTIVE --------------------------- */
+  // Premium: deep charcoal header with a brand accent line, serif headings,
+  // detail cards overlapping the header.
+  const ink = '#0f172a';
+  const Executive = (
+    <div className={`bg-white text-gray-800 flex flex-col ${rootClassName}`} style={A4_STYLE}>
+      <div className="px-12 pt-10 pb-20" style={{ backgroundColor: ink }}>
+        <div className="flex items-start justify-between gap-6">
+          <div className="rounded-xl bg-white px-4 py-3 shadow-sm">
+            <HeaderLogo maxHeight={60} />
+          </div>
+          <div className="text-right">
+            <p className="text-4xl text-white tracking-wide" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>Quotation</p>
+            <p className="mt-1 text-sm font-semibold tracking-[0.3em] uppercase" style={{ color: brandLum > 0.3 ? primary : '#cbd5e1' }}>{quoteNumber}</p>
+          </div>
+        </div>
+        <div className="mt-6 h-0.5 w-24" style={{ backgroundColor: primary }} />
+        <div className="mt-3 text-xs text-gray-300 space-y-0.5">
+          <p className="text-white font-semibold">{company.name}</p>
+          {company.address && <p>{company.address}</p>}
+          {company.tpin && <p>TPIN: {company.tpin}</p>}
+        </div>
+      </div>
+
+      <div className="px-12 -mt-12 flex-1 flex flex-col pb-10">
+        <div className="grid grid-cols-3 gap-4 mb-8" data-pdf-keep>
+          <div className="col-span-2 rounded-xl bg-white p-5 border border-gray-200 shadow-md">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-gray-400 mb-2">Prepared for</p>
+            <p className="text-xl text-gray-900" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>{clientName}</p>
+            <div className="text-sm text-gray-600 mt-1 space-y-0.5">{ClientLines}</div>
+          </div>
+          <div className="rounded-xl bg-white p-5 border border-gray-200 shadow-md text-sm space-y-3">
+            <div><p className="text-[10px] uppercase tracking-[0.25em] text-gray-400">Date</p><p className="font-semibold text-gray-900">{quoteDate}</p></div>
+            <div><p className="text-[10px] uppercase tracking-[0.25em] text-gray-400">Valid until</p><p className="font-semibold text-gray-900">{expiryDate}</p></div>
+          </div>
+        </div>
+
+        <table className="w-full mb-8">
+          <thead>
+            <tr className="text-[11px] uppercase tracking-[0.2em]" style={{ color: ink, borderBottom: `2px solid ${ink}` }}>
+              <th className="py-3 text-left font-bold">Description</th>
+              <th className="py-3 text-center font-bold w-20">Qty</th>
+              <th className="py-3 text-right font-bold w-36">Unit Price</th>
+              <th className="py-3 text-right font-bold w-36">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {hasItems ? items.map((item, i) => (
+              <tr key={i} className="border-b border-gray-100">
+                <td className="py-4 pr-3 text-sm text-gray-800 whitespace-pre-wrap">{item.description}</td>
+                <td className="py-4 text-sm text-center text-gray-600">{formatNumber(item.quantity)}</td>
+                <td className="py-4 text-sm text-right text-gray-600">{formatCurrency(item.unit_price)}</td>
+                <td className="py-4 text-sm text-right font-semibold text-gray-900">{formatCurrency(itemTotal(item))}</td>
+              </tr>
+            )) : EmptyRow(4)}
+          </tbody>
+        </table>
+
+        <div className="flex justify-between items-start gap-8" data-pdf-keep>
+          <div className="text-sm max-w-xs">
+            {company.bank_details && (
+              <>
+                <p className="text-[10px] uppercase tracking-[0.25em] text-gray-400 mb-1">Bank details</p>
+                <p className="text-gray-600 whitespace-pre-wrap text-xs leading-relaxed">{company.bank_details}</p>
+              </>
+            )}
+          </div>
+          <div className="w-80">
+            <TotalsLines className="px-1" />
+            <div className="mt-3 rounded-xl px-5 py-4 flex justify-between items-center" style={{ backgroundColor: ink }}>
+              <span className="text-xs uppercase tracking-[0.25em] text-gray-300">Grand Total</span>
+              <span className="text-2xl font-semibold text-white">{formatCurrency(data.grand_total || 0)}</span>
+            </div>
+            <div className="h-1 rounded-b-xl mx-3" style={{ backgroundColor: primary }} />
+          </div>
+        </div>
+
+        {BottomBlock}
+      </div>
+    </div>
+  );
+
+  /* ------------------------------ GRADIENT --------------------------- */
+  // Contemporary: brand gradient header with a soft curve, card-style rows
+  // and a gradient total pill.
+  const gradient = `linear-gradient(135deg, ${primary} 0%, ${tint(0.72)} 100%)`;
+  const Gradient = (
+    <div className={`bg-white text-gray-800 flex flex-col ${rootClassName}`} style={A4_STYLE}>
+      <div className="px-12 pt-10 pb-14" style={{ background: gradient, borderBottomLeftRadius: 48, borderBottomRightRadius: 48 }}>
+        <div className="flex items-start justify-between gap-6">
+          <div className="rounded-2xl bg-white/95 px-4 py-3 shadow-sm">
+            <HeaderLogo maxHeight={58} />
+          </div>
+          <div className="text-right" style={{ color: onPrimary }}>
+            <p className="text-xs uppercase tracking-[0.35em] opacity-80">Quotation</p>
+            <p className="text-3xl font-extrabold mt-1">{quoteNumber}</p>
+            <p className="text-sm opacity-90 mt-1">{quoteDate}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="px-12 -mt-8 flex-1 flex flex-col pb-10">
+        <div className="grid grid-cols-2 gap-4 mb-8" data-pdf-keep>
+          <div className="rounded-2xl bg-white p-5 shadow-md border border-gray-100">
+            <p className="text-[10px] font-bold uppercase tracking-[0.25em] mb-2" style={{ color: primary }}>Quote for</p>
+            <p className="text-lg font-bold text-gray-900">{clientName}</p>
+            <div className="text-sm text-gray-500 mt-1 space-y-0.5">{ClientLines}</div>
+          </div>
+          <div className="rounded-2xl bg-white p-5 shadow-md border border-gray-100 text-sm">
+            <p className="text-[10px] font-bold uppercase tracking-[0.25em] mb-2" style={{ color: primary }}>From</p>
+            <p className="font-bold text-gray-900">{company.name}</p>
+            <div className="text-gray-500 mt-1 space-y-0.5">
+              {company.address && <p>{company.address}</p>}
+              {company.tpin && <p>TPIN: {company.tpin}</p>}
+              <p>Valid until <span className="font-semibold text-gray-800">{expiryDate}</span></p>
+            </div>
+          </div>
+        </div>
+
+        <table className="w-full mb-8 border-separate" style={{ borderSpacing: '0 6px' }}>
+          <thead>
+            <tr className="text-[11px] font-bold uppercase tracking-widest text-gray-400">
+              <th className="px-4 pb-1 text-left">Item</th>
+              <th className="px-4 pb-1 text-center w-20">Qty</th>
+              <th className="px-4 pb-1 text-right w-36">Price</th>
+              <th className="px-4 pb-1 text-right w-36">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {hasItems ? items.map((item, i) => (
+              <tr key={i}>
+                <td className="px-4 py-3 text-sm whitespace-pre-wrap rounded-l-xl" style={{ backgroundColor: tint(0.06) }}>{item.description}</td>
+                <td className="px-4 py-3 text-sm text-center" style={{ backgroundColor: tint(0.06) }}>{formatNumber(item.quantity)}</td>
+                <td className="px-4 py-3 text-sm text-right" style={{ backgroundColor: tint(0.06) }}>{formatCurrency(item.unit_price)}</td>
+                <td className="px-4 py-3 text-sm text-right font-bold rounded-r-xl" style={{ backgroundColor: tint(0.06) }}>{formatCurrency(itemTotal(item))}</td>
+              </tr>
+            )) : EmptyRow(4)}
+          </tbody>
+        </table>
+
+        <div className="flex justify-between items-start gap-8" data-pdf-keep>
+          <div className="text-sm max-w-xs">
+            {company.bank_details && (
+              <div className="rounded-2xl p-4" style={{ backgroundColor: tint(0.06) }}>
+                <p className="text-[10px] font-bold uppercase tracking-[0.25em] mb-1" style={{ color: primary }}>Bank details</p>
+                <p className="text-gray-600 whitespace-pre-wrap text-xs leading-relaxed">{company.bank_details}</p>
+              </div>
+            )}
+          </div>
+          <div className="w-80">
+            <TotalsLines className="px-2" />
+            <div className="mt-3 rounded-full px-6 py-3.5 flex justify-between items-center shadow-md" style={{ background: gradient, color: onPrimary }}>
+              <span className="text-xs font-bold uppercase tracking-[0.2em]">Total</span>
+              <span className="text-2xl font-extrabold">{formatCurrency(data.grand_total || 0)}</span>
+            </div>
+          </div>
+        </div>
+
+        {BottomBlock}
+      </div>
+    </div>
+  );
+
   switch (template) {
+    case 'minimal':
+      return Minimal;
+    case 'corporate':
+      return Corporate;
+    case 'executive':
+      return Executive;
+    case 'gradient':
+      return Gradient;
     case 'modern':
       return Modern;
     case 'elegant':

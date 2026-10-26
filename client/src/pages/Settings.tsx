@@ -363,6 +363,26 @@ const Settings: React.FC = () => {
                   name: 'Bold',
                   desc: 'Split header with massive title, dark totals stack and accented item rows.',
                 },
+                {
+                  id: 'minimal',
+                  name: 'Minimal',
+                  desc: 'Airy and typographic: hairlines, large light title and a single accent.',
+                },
+                {
+                  id: 'corporate',
+                  name: 'Corporate',
+                  desc: 'Brand side rail, info strip, numbered table and boxed totals.',
+                },
+                {
+                  id: 'executive',
+                  name: 'Executive',
+                  desc: 'Premium charcoal header, serif headings and overlapping detail cards.',
+                },
+                {
+                  id: 'gradient',
+                  name: 'Gradient',
+                  desc: 'Curved brand-gradient header, card-style rows and a gradient total.',
+                },
                 ...(selectedCompany && hasSupremeDesign(selectedCompany)
                   ? [{
                       id: 'supreme',
@@ -422,6 +442,59 @@ const Settings: React.FC = () => {
                             <div className="h-1 w-full bg-gray-200 rounded-sm" />
                           </div>
                           <div className="h-3 w-full mt-1.5 rounded-sm" style={{ backgroundColor: primaryColor }} />
+                        </div>
+                      )}
+                      {tpl.id === 'minimal' && (
+                        <div className="p-2 space-y-1.5">
+                          <div className="flex justify-between items-center">
+                            <div className="h-2 w-6 rounded-sm bg-gray-300" />
+                            <div className="h-2.5 w-10 rounded-sm bg-gray-200" />
+                          </div>
+                          <div className="h-px w-full bg-gray-200" />
+                          <div className="h-1 w-full bg-gray-100 rounded-sm" />
+                          <div className="h-1 w-full bg-gray-100 rounded-sm" />
+                          <div className="h-0.5 w-1/2 ml-auto" style={{ backgroundColor: primaryColor }} />
+                        </div>
+                      )}
+                      {tpl.id === 'corporate' && (
+                        <div className="flex">
+                          <div className="w-1.5" style={{ backgroundColor: primaryColor }} />
+                          <div className="flex-1 p-1.5 space-y-1">
+                            <div className="h-2 w-8 rounded-sm bg-gray-300" />
+                            <div className="h-2.5 w-full rounded-sm" style={{ backgroundColor: `${primaryColor}22` }} />
+                            <div className="h-1.5 w-full rounded-sm" style={{ backgroundColor: primaryColor }} />
+                            <div className="h-1 w-full bg-gray-200 rounded-sm" />
+                            <div className="h-2 w-1/2 ml-auto rounded-sm" style={{ backgroundColor: primaryColor }} />
+                          </div>
+                        </div>
+                      )}
+                      {tpl.id === 'executive' && (
+                        <div>
+                          <div className="h-7 px-1.5 flex items-center justify-between" style={{ backgroundColor: '#0f172a' }}>
+                            <div className="h-3 w-6 rounded-sm bg-white" />
+                            <div className="h-1.5 w-8 rounded-sm bg-white/70" />
+                          </div>
+                          <div className="px-1.5 -mt-1.5 flex gap-1">
+                            <div className="h-3 flex-1 rounded-sm bg-white border border-gray-200 shadow-sm" />
+                            <div className="h-3 w-5 rounded-sm bg-white border border-gray-200 shadow-sm" />
+                          </div>
+                          <div className="p-1.5 space-y-1">
+                            <div className="h-1 w-full bg-gray-200 rounded-sm" />
+                            <div className="h-2 w-1/2 ml-auto rounded-sm" style={{ backgroundColor: '#0f172a', borderBottom: `2px solid ${primaryColor}` }} />
+                          </div>
+                        </div>
+                      )}
+                      {tpl.id === 'gradient' && (
+                        <div>
+                          <div className="h-7 rounded-b-xl px-1.5 flex items-center justify-between" style={{ background: `linear-gradient(135deg, ${primaryColor}, ${primaryColor}99)` }}>
+                            <div className="h-2.5 w-6 rounded bg-white/90" />
+                            <div className="h-2 w-7 rounded-sm bg-white/70" />
+                          </div>
+                          <div className="p-1.5 space-y-1">
+                            <div className="h-1.5 w-full rounded" style={{ backgroundColor: `${primaryColor}1a` }} />
+                            <div className="h-1.5 w-full rounded" style={{ backgroundColor: `${primaryColor}1a` }} />
+                            <div className="h-2.5 w-1/2 ml-auto rounded-full" style={{ background: `linear-gradient(135deg, ${primaryColor}, ${primaryColor}99)` }} />
+                          </div>
                         </div>
                       )}
                       {tpl.id === 'supreme' && (

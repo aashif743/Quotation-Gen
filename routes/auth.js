@@ -1,15 +1,48 @@
 const express = require('express');
 const passport = require('passport');
 const db = require('../config/database');
-const { hasPayrollAccess } = require('../middleware/auth');
+const { hasPayrollAccess, hasAuditAccess } = require('../middleware/auth');
+const { writeAudit } = require('../utils/audit');
 
 const router = express.Router();
 
 // Public self-signup is intentionally disabled. Staff and admin accounts are
 // created by an admin from the User Management page (see routes/users.js).
 
+// Audit every sign-in attempt once the response is sent: success, wrong
+// password / unknown email, or blocked (suspended organization).
+async function recordLogin(req, ok, blocked) {
+  if (ok && req.user) {
+    db.execute('UPDATE users SET last_login_at = NOW(), last_seen_at = NOW() WHERE id = ?', [req.user.id]).catch(() => {});
+    return writeAudit({ user: req.user, req, action: 'login', summary: 'Signed in' });
+  }
+  const email = String((req.body && req.body.email) || '').trim().slice(0, 255);
+  let known = null;
+  if (email) {
+    try {
+      const [rows] = await db.execute('SELECT id, name, email, organization_id FROM users WHERE email = ?', [email]);
+      known = rows[0] || null;
+    } catch { /* ignore */ }
+  }
+  return writeAudit({
+    user: known ? { id: known.id, name: known.name, email: known.email, organization_id: known.organization_id } : null,
+    userEmail: email || null,
+    req,
+    action: 'login_failed',
+    summary: blocked ? 'Sign-in blocked (organization suspended)' : known ? 'Failed sign-in (wrong password)' : 'Failed sign-in (unknown email)',
+  });
+}
+
+const auditLoginAttempt = (req, res, next) => {
+  res.on('finish', () => {
+    if (res.statusCode === 200) recordLogin(req, true);
+    else if (res.statusCode === 401 || res.statusCode === 403) recordLogin(req, false, res.statusCode === 403);
+  });
+  next();
+};
+
 // POST /api/auth/login
-router.post('/login', passport.authenticate('local'), async (req, res) => {
+router.post('/login', auditLoginAttempt, passport.authenticate('local'), async (req, res) => {
   // If this function gets called, authentication was successful.
   // Block login when the user's organization is suspended (super-admins exempt).
   if (!req.user.is_super_admin && req.user.organization_id) {
@@ -21,11 +54,12 @@ router.post('/login', passport.authenticate('local'), async (req, res) => {
     }
   }
   const { id, name, email, role, organization_id } = req.user;
-  res.json({ id, name, email, role, organization_id, is_super_admin: !!req.user.is_super_admin, can_manage_attendance: !!req.user.can_manage_attendance, can_access_payroll: hasPayrollAccess(req.user), acting_organization: req.user.acting_organization || null });
+  res.json({ id, name, email, role, organization_id, is_super_admin: !!req.user.is_super_admin, can_manage_attendance: !!req.user.can_manage_attendance, can_access_payroll: hasPayrollAccess(req.user), can_view_audit: hasAuditAccess(req.user), acting_organization: req.user.acting_organization || null });
 });
 
 // POST /api/auth/logout
 router.post('/logout', (req, res, next) => {
+  if (req.user) writeAudit({ user: { ...req.user }, req, action: 'logout', summary: 'Signed out' });
   req.logout((err) => {
     if (err) { return next(err); }
     req.session.destroy((err) => {
@@ -46,7 +80,7 @@ router.get('/status', (req, res) => {
       return res.json({ isAuthenticated: false, user: null });
     }
     const { id, name, email, role, organization_id } = req.user;
-    res.json({ isAuthenticated: true, user: { id, name, email, role, organization_id, is_super_admin: !!req.user.is_super_admin, can_manage_attendance: !!req.user.can_manage_attendance, can_access_payroll: hasPayrollAccess(req.user), acting_organization: req.user.acting_organization || null } });
+    res.json({ isAuthenticated: true, user: { id, name, email, role, organization_id, is_super_admin: !!req.user.is_super_admin, can_manage_attendance: !!req.user.can_manage_attendance, can_access_payroll: hasPayrollAccess(req.user), can_view_audit: hasAuditAccess(req.user), acting_organization: req.user.acting_organization || null } });
   } else {
     res.json({ isAuthenticated: false, user: null });
   }
@@ -76,6 +110,7 @@ router.get('/google/callback', (req, res, next) => {
   passport.authenticate('google', {
     failureRedirect: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/login`
   })(req, res, () => {
+    if (req.user) recordLogin(req, true);
     res.redirect(process.env.FRONTEND_URL || 'http://localhost:3000');
   });
 });

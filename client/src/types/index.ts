@@ -51,6 +51,8 @@ export interface User {
   can_manage_attendance?: boolean;
   // False for an admin restricted from staff salaries / pay slips.
   can_access_payroll?: boolean;
+  // Audit log access (super-admins always; others when granted).
+  can_view_audit?: boolean;
   // Set when a super-admin has "entered" an organization to inspect it.
   acting_organization?: { id: number; name: string } | null;
 }
@@ -194,6 +196,9 @@ export interface ManagedUser {
   role: UserRole;
   can_manage_attendance?: number | boolean;
   no_payroll_access?: number | boolean;
+  can_view_audit?: number | boolean;
+  last_login_at?: string | null;
+  last_seen_at?: string | null;
   created_at: string;
   quotation_count: number;
   invoice_count: number;
@@ -229,7 +234,10 @@ export interface Company {
 
 // 'supreme' is a client-specific letterhead design (Supreme Printers). It is
 // only offered in Settings to a company that already uses it.
-export type QuotationTemplate = 'classic' | 'modern' | 'elegant' | 'bold' | 'supreme';
+export type QuotationTemplate =
+  | 'classic' | 'modern' | 'elegant' | 'bold'
+  | 'minimal' | 'corporate' | 'executive' | 'gradient'
+  | 'supreme';
 
 export interface QuotationItem {
   id?: number;

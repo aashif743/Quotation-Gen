@@ -10,6 +10,8 @@ interface AuthContextType {
   canManageAttendance: boolean;
   /** Staff salaries & pay slips (admins not restricted from payroll). */
   canAccessPayroll: boolean;
+  /** Audit log (super-admins, and users granted it e.g. MD / Co-MD). */
+  canViewAudit: boolean;
   actingOrganization: { id: number; name: string } | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
@@ -76,6 +78,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         canManageAttendance: user?.role === 'admin' || !!user?.can_manage_attendance,
         // Older servers don't send the flag: fall back to "admins can".
         canAccessPayroll: user?.role === 'admin' && user?.can_access_payroll !== false,
+        canViewAudit: !!user?.is_super_admin || !!user?.can_view_audit,
         actingOrganization: user?.acting_organization || null,
         isLoading,
         login,

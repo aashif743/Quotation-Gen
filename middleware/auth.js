@@ -39,6 +39,17 @@ function canAccessPayroll(req, res, next) {
   res.status(403).json({ message: 'You do not have access to staff salaries and pay slips.' });
 }
 
+// Audit log: super-admins, plus users explicitly granted `can_view_audit`
+// (e.g. MD / Co-MD). Not implied by the admin role.
+const hasAuditAccess = (user) =>
+  !!user && (user.is_super_admin === 1 || user.is_super_admin === true ||
+             user.can_view_audit === 1 || user.can_view_audit === true);
+
+function canViewAudit(req, res, next) {
+  if (req.isAuthenticated() && hasAuditAccess(req.user)) return next();
+  res.status(403).json({ message: 'You do not have access to the audit log.' });
+}
+
 // Platform owner — manages organizations (tenants). Distinct from an org-admin.
 function isSuperAdmin(req, res, next) {
   if (req.isAuthenticated() && (req.user.is_super_admin === 1 || req.user.is_super_admin === true)) {
@@ -53,5 +64,7 @@ module.exports = {
   canManageAttendance,
   canAccessPayroll,
   hasPayrollAccess,
+  canViewAudit,
+  hasAuditAccess,
   isSuperAdmin,
 };

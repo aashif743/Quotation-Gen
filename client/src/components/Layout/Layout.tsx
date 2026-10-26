@@ -30,6 +30,8 @@ import {
   ClipboardList,
   PackageCheck,
   HandCoins,
+  ScrollText,
+  HeartHandshake,
   Sun,
   Moon,
 } from 'lucide-react';
@@ -78,7 +80,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { selectedCompany, companies, loading: companiesLoading, createCompany } = useCompany();
-  const { user, logout, isAdmin, isSuperAdmin, canManageAttendance, canAccessPayroll, actingOrganization } = useAuth();
+  const { user, logout, isAdmin, isSuperAdmin, canManageAttendance, canAccessPayroll, canViewAudit, actingOrganization } = useAuth();
   const { theme, toggle: toggleTheme } = useTheme();
   const isDark = theme === 'dark';
 
@@ -162,7 +164,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   // In platform mode the only destination is the Organizations page.
   useEffect(() => {
-    if (platformMode && location.pathname !== '/organizations') {
+    if (platformMode && location.pathname !== '/organizations' && location.pathname !== '/audit-log') {
       navigate('/organizations', { replace: true });
     }
   }, [platformMode, location.pathname, navigate]);
@@ -188,7 +190,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   // Grouped navigation — labelled sections make the growing menu easy to scan.
   const navSections: { label?: string; items: { to: string; icon: typeof Home; label: string }[] }[] = platformMode ? [
-    { label: 'Platform', items: [{ to: '/organizations', icon: Building2, label: 'Organizations' }] },
+    { label: 'Platform', items: [
+      { to: '/organizations', icon: Building2, label: 'Organizations' },
+      { to: '/audit-log', icon: ScrollText, label: 'Audit Log' },
+    ] },
   ] : [
     { items: [{ to: '/', icon: Home, label: 'Dashboard' }] },
     { label: 'Create', items: [
@@ -214,6 +219,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       { to: '/purchases', icon: ShoppingCart, label: 'Purchases' },
       { to: '/expenses', icon: Wallet, label: 'Expenses' },
       { to: '/petty-cash', icon: Banknote, label: 'Petty Cash' },
+      { to: '/donations', icon: HeartHandshake, label: 'Donations' },
     ]},
     // Attendance is visible to admins AND to any staff granted attendance access.
     ...(canManageAttendance && !isAdmin ? [{ label: 'Attendance', items: [
@@ -224,6 +230,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       ...(canAccessPayroll ? [{ to: '/payroll', icon: HandCoins, label: 'Payroll' }] : []),
       { to: '/users', icon: Users, label: 'User Management' },
       { to: '/settings', icon: Settings, label: 'Company Settings' },
+      ...(canViewAudit ? [{ to: '/audit-log', icon: ScrollText, label: 'Audit Log' }] : []),
+    ]}] : []),
+    // Audit access granted to a non-admin (rare) still gets a menu entry.
+    ...(canViewAudit && !isAdmin ? [{ label: 'Security', items: [
+      { to: '/audit-log', icon: ScrollText, label: 'Audit Log' },
     ]}] : []),
     ...(isSuperAdmin ? [{ label: 'Platform', items: [
       { to: '/organizations', icon: Building2, label: 'Organizations' },

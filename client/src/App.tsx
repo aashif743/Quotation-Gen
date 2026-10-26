@@ -38,6 +38,10 @@ import PurchaseOrders from './pages/PurchaseOrders';
 import PurchaseOrderForm from './pages/PurchaseOrderForm';
 import PurchaseOrderView from './pages/PurchaseOrderView';
 import Payroll from './pages/Payroll';
+import AuditLog from './pages/AuditLog';
+import Donations from './pages/Donations';
+import DonationForm from './pages/DonationForm';
+import DonationView from './pages/DonationView';
 import Organizations from './pages/Organizations';
 import UserManagement from './pages/UserManagement';
 import Login from './pages/Login';
@@ -119,6 +123,17 @@ const PayrollRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => 
   return <>{children}</>;
 };
 
+// Audit log route: super-admins and users granted audit access.
+const AuditRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { canViewAudit } = useAuth();
+
+  if (!canViewAudit) {
+    return <Navigate to="/" replace />;
+  }
+
+  return <>{children}</>;
+};
+
 // Super-admin (platform owner) route wrapper.
 const SuperAdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isSuperAdmin } = useAuth();
@@ -177,6 +192,18 @@ function AppRoutes() {
                   <Route path="/purchase/:id" element={<PurchaseView />} />
                   <Route path="/expenses" element={<Expenses />} />
                   <Route path="/petty-cash" element={<PettyCash />} />
+                  <Route path="/donations" element={<Donations />} />
+                  <Route path="/donations/new" element={<DonationForm />} />
+                  <Route path="/donations/:id" element={<DonationView />} />
+                  <Route path="/donations/:id/edit" element={<DonationForm />} />
+                  <Route
+                    path="/audit-log"
+                    element={
+                      <AuditRoute>
+                        <AuditLog />
+                      </AuditRoute>
+                    }
+                  />
                   <Route path="/contracts" element={<Contracts />} />
                   <Route path="/contracts/new" element={<ContractForm />} />
                   <Route path="/contracts/:id" element={<ContractView />} />
