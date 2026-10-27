@@ -336,10 +336,10 @@ const Settings: React.FC = () => {
           </div>
 
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h2 className="text-xl font-semibold mb-2">Quotation Design</h2>
+            <h2 className="text-xl font-semibold mb-2">Document Design</h2>
             <p className="text-sm text-gray-500 mb-6">
-              Choose the layout used for this company's quotations and PDFs. Your brand colors and logo
-              are applied to whichever design you pick.
+              Choose the layout used for this company's quotations, invoices, delivery notes and job cards
+              (on screen and in PDFs). Your brand colors and logo are applied to whichever design you pick.
             </p>
             <div className="-mt-3 mb-6 inline-flex items-center gap-2 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 text-sm text-emerald-800 dark:bg-emerald-900/30 dark:border-emerald-700/60 dark:text-emerald-200">
               <span className="inline-flex items-center rounded-full bg-emerald-600 text-white px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide">New</span>

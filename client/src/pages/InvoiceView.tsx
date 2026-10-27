@@ -15,12 +15,6 @@ import {
   Download,
   Edit2,
   ArrowLeft,
-  MapPin,
-  Phone,
-  Mail,
-  Calendar,
-  Clock,
-  Building2,
   Printer,
   CreditCard,
   Plus,
@@ -34,6 +28,8 @@ import {
 } from 'lucide-react';
 import DuplicateInvoiceModal from '../components/Invoice/DuplicateInvoiceModal';
 import SupremeDocument from '../components/Letterhead/SupremeDocument';
+import BrandDocument from '../components/Document/BrandDocument';
+import { PRICED_COLUMNS, pricedTotals } from '../components/Quotation/QuotationDocument';
 
 const InvoiceView: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -318,228 +314,42 @@ const InvoiceView: React.FC = () => {
           }}
         />
       ) : (
-        <div className="invoice-document bg-white shadow-lg rounded-lg">
-          <div
-            className="px-8 py-6"
-            style={{ backgroundColor: colors.bg }}
-          >
-            <div className="flex items-start justify-between">
-              <div className="flex items-center space-x-4">
-                {(() => {
-                  // Invoice header uses the same bundled brand logo as the
-                  // quotation (admin-uploaded thumbnail stays in the sidebar).
-                  const logoPath = invoice.company_quote_logo || invoice.company_logo;
-                  if (!logoPath) {
-                    return (
-                      <div
-                        className="h-16 w-16 rounded-lg flex items-center justify-center text-white font-bold text-xl"
-                        style={{ backgroundColor: colors.primary }}
-                      >
-                        {invoice.company_name?.charAt(0)}
-                      </div>
-                    );
-                  }
-                  // Same-origin in production; CRA proxies /uploads in dev.
-                  const src = logoPath;
-                  return (
-                    <img
-                      src={src}
-                      alt={`${invoice.company_name} logo`}
-                      className="object-contain"
-                      style={{ maxHeight: 70, width: 'auto' }}
-                    />
-                  );
-                })()}
-                <div>
-                  <div className="flex items-center text-sm text-gray-600 mt-1">
-                    <MapPin className="h-4 w-4 mr-1" />
-                    {invoice.company_address}
-                  </div>
-                </div>
-              </div>
-
-              <div className="text-right">
-                <h2
-                  className="text-3xl font-bold"
-                  style={{ color: colors.primary }}
-                >
-                  INVOICE
-                </h2>
-                <p className="text-lg font-semibold text-gray-900 mt-2">
-                  {invoice.invoice_number}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="px-8 py-6">
-            <div className="grid grid-cols-2 gap-8 mb-8">
-              <div>
-                <h3
-                  className="text-lg font-semibold mb-4"
-                  style={{ color: colors.primary }}
-                >
-                  Company Details
-                </h3>
-                <div className="space-y-2 text-sm">
-                  <div className="flex items-center">
-                    <Building2 className="h-4 w-4 mr-2 text-gray-400" />
-                    <span>TPIN: {invoice.company_tpin}</span>
-                  </div>
-                  <div className="text-gray-600">
-                    {invoice.company_bank_details}
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <h3
-                  className="text-lg font-semibold mb-4"
-                  style={{ color: colors.primary }}
-                >
-                  Bill To
-                </h3>
-                <div className="space-y-2 text-sm">
-                  <p className="font-semibold text-gray-900">
-                    {invoice.client_name}
-                  </p>
-                  {invoice.client_address && (
-                    <div className="flex items-start">
-                      <MapPin className="h-4 w-4 mr-2 text-gray-400 mt-0.5" />
-                      <span className="text-gray-600">{invoice.client_address}</span>
-                    </div>
-                  )}
-                  {invoice.client_email && (
-                    <div className="flex items-center">
-                      <Mail className="h-4 w-4 mr-2 text-gray-400" />
-                      <span className="text-gray-600">{invoice.client_email}</span>
-                    </div>
-                  )}
-                  {invoice.client_phone && (
-                    <div className="flex items-center">
-                      <Phone className="h-4 w-4 mr-2 text-gray-400" />
-                      <span className="text-gray-600">{invoice.client_phone}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-8 mb-8">
-              <div>
-                <div className="flex items-center text-sm text-gray-600">
-                  <Calendar className="h-4 w-4 mr-2" />
-                  <span>Invoice Date: {new Date(invoice.date).toLocaleDateString()}</span>
-                </div>
-              </div>
-              <div>
-                <div className="flex items-center text-sm text-gray-600">
-                  <Clock className="h-4 w-4 mr-2" />
-                  <span>Due Date: {getDueDate()}</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="mb-8">
-              <table className="w-full">
-                <thead>
-                  <tr
-                    className="text-white text-left"
-                    style={{ backgroundColor: colors.primary }}
-                  >
-                    <th className="px-4 py-3 font-semibold">Description</th>
-                    <th className="px-4 py-3 font-semibold text-center">Qty</th>
-                    <th className="px-4 py-3 font-semibold text-right">Unit Price</th>
-                    <th className="px-4 py-3 font-semibold text-right">Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {invoice.items.map((item, index) => (
-                    <tr key={index} className="border-b border-gray-200">
-                      <td className="px-4 py-3 text-sm">
-                        <div className="whitespace-pre-wrap">{item.description}</div>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-center">
-                        {formatNumber(item.quantity)}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-right">
-                        {formatCurrency(item.unit_price)}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-right font-medium">
-                        {formatCurrency(item.total)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="mb-8">
-              <div className="flex justify-end">
-                <div className="w-80">
-                  <div className="bg-gray-50 rounded-lg p-6">
-                    <div className="space-y-3">
-                      <div className="flex justify-between text-sm">
-                        <span>Subtotal:</span>
-                        <span className="font-medium">{formatCurrency(invoice.subtotal)}</span>
-                      </div>
-                      {(() => {
-                        // Back-calculate the rates from the stored amounts so
-                        // the saved invoice shows "VAT (X%)" / "PPDA (X%)"
-                        // like the live preview did.
-                        const vatPct =
-                          invoice.subtotal ? ((invoice.vat_amount || 0) / invoice.subtotal) * 100 : 0;
-                        const ppdaPct =
-                          invoice.subtotal ? ((invoice.ppda_amount || 0) / invoice.subtotal) * 100 : 0;
-                        return (
-                          <>
-                            <div className="flex justify-between text-sm">
-                              <span>VAT ({formatNumber(vatPct, 1)}%):</span>
-                              <span className="font-medium">{formatCurrency(invoice.vat_amount)}</span>
-                            </div>
-                            <div className="flex justify-between text-sm">
-                              <span>PPDA ({formatNumber(ppdaPct, 1)}%):</span>
-                              <span className="font-medium">{formatCurrency(invoice.ppda_amount)}</span>
-                            </div>
-                          </>
-                        );
-                      })()}
-                      <hr className="border-gray-300" />
-                      <div
-                        className="flex justify-between text-lg font-bold"
-                        style={{ color: colors.primary }}
-                      >
-                        <span>Grand Total:</span>
-                        <span>{formatCurrency(invoice.grand_total)}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {invoice.notes && (
-              <div>
-                <h4
-                  className="text-lg font-semibold mb-2"
-                  style={{ color: colors.primary }}
-                >
-                  Notes
-                </h4>
-                <div className="text-sm text-gray-600 whitespace-pre-wrap">
-                  {invoice.notes}
-                </div>
-              </div>
-            )}
-
-            <div
-              className="mt-8 pt-6 border-t-2 text-center text-sm text-gray-500"
-              style={{ borderColor: colors.primary }}
-            >
-              Thank you for your business!
-            </div>
-          </div>
-        </div>
+        <BrandDocument
+          template={invoice.company_template}
+          kind="invoice"
+          rootClassName="invoice-document shadow-lg rounded-lg"
+          company={{
+            name: invoice.company_name || '',
+            address: invoice.company_address,
+            tpin: invoice.company_tpin,
+            bank_details: invoice.company_bank_details,
+            // Same bundled brand logo as the quotation.
+            logo_url: invoice.company_quote_logo || invoice.company_logo,
+            primary_color: invoice.primary_color,
+            secondary_color: invoice.secondary_color,
+          }}
+          title="Invoice"
+          number={invoice.invoice_number}
+          meta={[
+            { l: 'Date', v: new Date(invoice.date).toLocaleDateString() },
+            { l: 'Due Date', v: getDueDate() },
+          ]}
+          party={{ label: 'Bill To', name: invoice.client_name, lines: [invoice.client_address, invoice.client_email, invoice.client_phone] }}
+          columns={PRICED_COLUMNS}
+          rows={invoice.items.map((item) => [
+            item.description, formatNumber(item.quantity), formatCurrency(item.unit_price), formatCurrency(item.total),
+          ])}
+          // Back-calculate the rates from the stored amounts so the saved
+          // invoice shows "VAT (X%)" / "PPDA (X%)" like the live preview did.
+          totals={pricedTotals(
+            invoice,
+            invoice.subtotal ? (invoice.vat_amount || 0) / invoice.subtotal : null,
+            invoice.subtotal ? (invoice.ppda_amount || 0) / invoice.subtotal : null,
+          )}
+          showBank
+          notes={invoice.notes}
+          terms={invoice.terms_conditions}
+        />
       )}
 
       {showDuplicate && invoice.id && (
