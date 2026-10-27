@@ -15,6 +15,7 @@ import {
   Receipt,
   LogOut,
   User,
+  UserCog,
   Users,
   ShieldCheck,
   PanelLeftClose,
@@ -374,9 +375,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             {/* User Info & Logout — pinned to bottom of the sidebar via mt-auto */}
             <div className="mt-auto pt-4 border-t border-gray-200 dark:border-[#2e2e2e]">
               {collapsed ? (
-                <div
+                <Link
+                  to="/profile"
                   className="mb-2 flex justify-center"
-                  title={`${user?.name} (${user?.role})`}
+                  title={`${user?.name} (${user?.role}) — My profile`}
                 >
                   <div
                     className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
@@ -384,9 +386,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   >
                     <User className="h-4 w-4" style={{ color: accentColor }} />
                   </div>
-                </div>
+                </Link>
               ) : (
-                <div className="mb-2 flex items-center space-x-3 px-3 py-2.5 rounded-lg bg-gray-50 dark:bg-white/5">
+                <Link
+                  to="/profile"
+                  title="My profile: change your name, email or password"
+                  className="mb-2 flex items-center space-x-3 px-3 py-2.5 rounded-lg bg-gray-50 dark:bg-white/5 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
+                >
                   <div
                     className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
                     style={{ backgroundColor: tintBg }}
@@ -413,8 +419,20 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                       {user?.email}
                     </p>
                   </div>
-                </div>
+                </Link>
               )}
+              <Link
+                to="/profile"
+                className={`flex items-center ${collapsed ? 'justify-center px-0' : 'space-x-3 px-3'} py-2.5 rounded-lg transition-colors w-full ${
+                  location.pathname === '/profile'
+                    ? 'bg-gray-100 text-gray-900 dark:bg-white/10 dark:text-white'
+                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5'
+                }`}
+                title={collapsed ? 'My Profile' : undefined}
+              >
+                <UserCog className="h-5 w-5 flex-shrink-0" />
+                {!collapsed && <span className="font-medium">My Profile</span>}
+              </Link>
               <button
                 onClick={handleLogout}
                 className={`flex items-center ${collapsed ? 'justify-center px-0' : 'space-x-3 px-3'} py-2.5 rounded-lg transition-colors text-gray-600 dark:text-gray-300 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/15 dark:hover:text-red-400 w-full`}

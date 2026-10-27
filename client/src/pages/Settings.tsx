@@ -341,6 +341,10 @@ const Settings: React.FC = () => {
               Choose the layout used for this company's quotations and PDFs. Your brand colors and logo
               are applied to whichever design you pick.
             </p>
+            <div className="-mt-3 mb-6 inline-flex items-center gap-2 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 text-sm text-emerald-800 dark:bg-emerald-900/30 dark:border-emerald-700/60 dark:text-emerald-200">
+              <span className="inline-flex items-center rounded-full bg-emerald-600 text-white px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide">New</span>
+              Four new designs added: Minimal, Corporate, Executive and Gradient.
+            </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               {[
                 {
@@ -365,26 +369,31 @@ const Settings: React.FC = () => {
                 },
                 {
                   id: 'minimal',
+                  isNew: true,
                   name: 'Minimal',
                   desc: 'Airy and typographic: hairlines, large light title and a single accent.',
                 },
                 {
                   id: 'corporate',
+                  isNew: true,
                   name: 'Corporate',
                   desc: 'Brand side rail, info strip, numbered table and boxed totals.',
                 },
                 {
                   id: 'executive',
+                  isNew: true,
                   name: 'Executive',
                   desc: 'Premium charcoal header, serif headings and overlapping detail cards.',
                 },
                 {
                   id: 'gradient',
+                  isNew: true,
                   name: 'Gradient',
                   desc: 'Curved brand-gradient header, card-style rows and a gradient total.',
                 },
                 ...(selectedCompany && hasSupremeDesign(selectedCompany)
                   ? [{
+                      isNew: false,
                       id: 'supreme',
                       name: 'Supreme Letterhead',
                       desc: 'Your custom letterhead: logo and contacts header, green table, totals boxes and slogan footer.',
@@ -531,8 +540,15 @@ const Settings: React.FC = () => {
                         </div>
                       )}
                     </div>
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-gray-900">{tpl.name}</span>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-semibold text-gray-900 flex items-center gap-1.5">
+                        {tpl.name}
+                        {tpl.isNew && (
+                          <span className="inline-flex items-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide">
+                            New
+                          </span>
+                        )}
+                      </span>
                       {selected && <span className="text-xs font-semibold" style={{ color: primaryColor }}>Selected</span>}
                     </div>
                     <p className="text-xs text-gray-500 mt-1">{tpl.desc}</p>

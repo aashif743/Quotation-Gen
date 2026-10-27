@@ -55,6 +55,8 @@ export interface User {
   can_view_audit?: boolean;
   // Set when a super-admin has "entered" an organization to inspect it.
   acting_organization?: { id: number; name: string } | null;
+  // False for an account that has never set a password (e.g. Google-only).
+  has_password?: boolean;
 }
 
 // ---------------------------------------------------------------------------

@@ -40,6 +40,7 @@ import PurchaseOrderView from './pages/PurchaseOrderView';
 import Payroll from './pages/Payroll';
 import AuditLog from './pages/AuditLog';
 import Donations from './pages/Donations';
+import Profile from './pages/Profile';
 import DonationForm from './pages/DonationForm';
 import DonationView from './pages/DonationView';
 import Organizations from './pages/Organizations';
@@ -192,6 +193,7 @@ function AppRoutes() {
                   <Route path="/purchase/:id" element={<PurchaseView />} />
                   <Route path="/expenses" element={<Expenses />} />
                   <Route path="/petty-cash" element={<PettyCash />} />
+                  <Route path="/profile" element={<Profile />} />
                   <Route path="/donations" element={<Donations />} />
                   <Route path="/donations/new" element={<DonationForm />} />
                   <Route path="/donations/:id" element={<DonationView />} />

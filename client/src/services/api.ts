@@ -55,6 +55,19 @@ export const login = async (email: string, password: string): Promise<User> => {
   return response.data;
 };
 
+export interface ProfileUpdate {
+  name?: string;
+  email?: string;
+  current_password?: string;
+  new_password?: string;
+}
+
+// Update the signed-in user's own name / login email / password.
+export const updateMyProfile = async (data: ProfileUpdate): Promise<User> => {
+  const response = await api.put('/auth/me', data);
+  return response.data;
+};
+
 export const logout = async (): Promise<void> => {
   await api.post('/auth/logout');
 };

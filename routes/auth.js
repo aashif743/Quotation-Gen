@@ -1,7 +1,8 @@
 const express = require('express');
 const passport = require('passport');
+const bcrypt = require('bcryptjs');
 const db = require('../config/database');
-const { hasPayrollAccess, hasAuditAccess } = require('../middleware/auth');
+const { isAuthenticated, hasPayrollAccess, hasAuditAccess } = require('../middleware/auth');
 const { writeAudit } = require('../utils/audit');
 
 const router = express.Router();
@@ -54,7 +55,7 @@ router.post('/login', auditLoginAttempt, passport.authenticate('local'), async (
     }
   }
   const { id, name, email, role, organization_id } = req.user;
-  res.json({ id, name, email, role, organization_id, is_super_admin: !!req.user.is_super_admin, can_manage_attendance: !!req.user.can_manage_attendance, can_access_payroll: hasPayrollAccess(req.user), can_view_audit: hasAuditAccess(req.user), acting_organization: req.user.acting_organization || null });
+  res.json({ id, name, email, role, organization_id, is_super_admin: !!req.user.is_super_admin, can_manage_attendance: !!req.user.can_manage_attendance, can_access_payroll: hasPayrollAccess(req.user), can_view_audit: hasAuditAccess(req.user), acting_organization: req.user.acting_organization || null, has_password: !!req.user.password });
 });
 
 // POST /api/auth/logout
@@ -80,9 +81,88 @@ router.get('/status', (req, res) => {
       return res.json({ isAuthenticated: false, user: null });
     }
     const { id, name, email, role, organization_id } = req.user;
-    res.json({ isAuthenticated: true, user: { id, name, email, role, organization_id, is_super_admin: !!req.user.is_super_admin, can_manage_attendance: !!req.user.can_manage_attendance, can_access_payroll: hasPayrollAccess(req.user), can_view_audit: hasAuditAccess(req.user), acting_organization: req.user.acting_organization || null } });
+    res.json({ isAuthenticated: true, user: { id, name, email, role, organization_id, is_super_admin: !!req.user.is_super_admin, can_manage_attendance: !!req.user.can_manage_attendance, can_access_payroll: hasPayrollAccess(req.user), can_view_audit: hasAuditAccess(req.user), acting_organization: req.user.acting_organization || null, has_password: !!req.user.password } });
   } else {
     res.json({ isAuthenticated: false, user: null });
+  }
+});
+
+// PUT /api/auth/me - any signed-in user updates their own name, login email
+// and/or password. Changing the email or password requires the current
+// password (unless the account has none yet, e.g. Google-only sign-in).
+// A password change signs the account out everywhere else.
+router.put('/me', isAuthenticated, async (req, res) => {
+  try {
+    const [[me]] = await db.execute('SELECT id, name, email, password FROM users WHERE id = ?', [req.user.id]);
+    if (!me) return res.status(404).json({ message: 'Account not found.' });
+
+    const body = req.body || {};
+    const name = body.name != null ? String(body.name).trim() : me.name;
+    const email = body.email != null ? String(body.email).trim() : me.email;
+    const newPassword = body.new_password ? String(body.new_password) : '';
+    const currentPassword = body.current_password ? String(body.current_password) : '';
+
+    if (!name) return res.status(400).json({ message: 'Name is required.' });
+    if (name.length > 255) return res.status(400).json({ message: 'Name is too long.' });
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 255) {
+      return res.status(400).json({ message: 'Enter a valid email address.' });
+    }
+
+    const emailChanged = email.toLowerCase() !== String(me.email || '').toLowerCase();
+    // The platform owner's email is fixed in the server config (ADMIN_EMAIL);
+    // changing it here would make the next migration recreate that account.
+    if (emailChanged && req.user.is_super_admin) {
+      return res.status(400).json({ message: 'The platform owner email is set in the server configuration and cannot be changed here.' });
+    }
+    if (newPassword && newPassword.length < 6) {
+      return res.status(400).json({ message: 'The new password must be at least 6 characters.' });
+    }
+    if ((emailChanged || newPassword) && me.password) {
+      if (!currentPassword || !(await bcrypt.compare(currentPassword, me.password))) {
+        return res.status(400).json({ message: 'Your current password is incorrect.' });
+      }
+    }
+    if (emailChanged) {
+      const [dupe] = await db.execute('SELECT id FROM users WHERE email = ? AND id <> ?', [email, me.id]);
+      if (dupe.length) return res.status(400).json({ message: 'Another account already uses this email.' });
+    }
+
+    const fields = ['name = ?', 'email = ?'];
+    const params = [name, email];
+    if (newPassword) {
+      fields.push('password = ?');
+      params.push(await bcrypt.hash(newPassword, await bcrypt.genSalt(10)));
+    }
+    params.push(me.id);
+    await db.execute(`UPDATE users SET ${fields.join(', ')} WHERE id = ?`, params);
+
+    if (newPassword) {
+      await db.execute(
+        "DELETE FROM sessions WHERE session_id <> ? AND JSON_EXTRACT(data, '$.passport.user') = ?",
+        [req.sessionID, me.id]
+      ).catch((e) => console.error('Could not clear other sessions:', e.message));
+    }
+
+    const changes = {};
+    if (name !== me.name) changes.name = [me.name, name];
+    if (email !== me.email) changes.email = [me.email, email];
+    const what = [...Object.keys(changes), ...(newPassword ? ['password'] : [])];
+    if (what.length) {
+      writeAudit({
+        user: { ...req.user, name, email }, req, action: 'update',
+        entityType: 'user', entityId: me.id, entityLabel: name,
+        summary: `Updated own ${what.join(', ')}`,
+        details: Object.keys(changes).length ? { changes } : null,
+      });
+    }
+
+    req.user.name = name;
+    req.user.email = email;
+    const { id, role, organization_id } = req.user;
+    res.json({ id, name, email, role, organization_id, is_super_admin: !!req.user.is_super_admin, can_manage_attendance: !!req.user.can_manage_attendance, can_access_payroll: hasPayrollAccess(req.user), can_view_audit: hasAuditAccess(req.user), acting_organization: req.user.acting_organization || null, has_password: !!(newPassword || me.password) });
+  } catch (err) {
+    console.error('Profile update error:', err);
+    res.status(500).json({ message: 'Could not update your profile.' });
   }
 });
 
