@@ -433,6 +433,19 @@ router.get('/:id/statement', async (req, res) => {
       [clientId, from, to, ...ownerParams]
     );
 
+    // The client's own company: its logo, address, bank details and colours
+    // brand the printed statement.
+    let company = null;
+    if (clients[0]) {
+      const [cos] = await db.execute(
+        `SELECT id, name, logo_url, quote_logo_url, address, tpin, bank_details,
+                primary_color, secondary_color, currency, template, letterhead
+           FROM companies WHERE id = ?`,
+        [clients[0].company_id]
+      );
+      company = cos[0] || null;
+    }
+
     const totalInvoicedInPeriod = periodInvoices.reduce(
       (s, r) => s + Number(r.grand_total || 0),
       0
@@ -446,6 +459,7 @@ router.get('/:id/statement', async (req, res) => {
 
     res.json({
       client: clients[0] || null,
+      company,
       period: { from, to },
       opening_balance: openingBalance,
       total_invoiced: totalInvoicedInPeriod,

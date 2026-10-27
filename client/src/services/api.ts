@@ -336,6 +336,20 @@ export interface ClientStatement {
     address?: string | null;
     tax_id?: string | null;
   } | null;
+  company: {
+    id: number;
+    name: string;
+    logo_url?: string | null;
+    quote_logo_url?: string | null;
+    address?: string | null;
+    tpin?: string | null;
+    bank_details?: string | null;
+    primary_color?: string | null;
+    secondary_color?: string | null;
+    currency?: string | null;
+    template?: string | null;
+    letterhead?: string | null;
+  } | null;
   period: { from: string; to: string };
   opening_balance: number;
   total_invoiced: number;

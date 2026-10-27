@@ -1,17 +1,9 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ClientStatement as StatementData, getClientStatement } from '../services/api';
-import { formatCurrency } from '../utils/calculations';
-import {
-  ArrowLeft,
-  Printer,
-  Calendar,
-  FileText,
-  CreditCard,
-  CheckCircle2,
-  AlertCircle,
-  XCircle,
-} from 'lucide-react';
+import { generateDocumentPDF, pdfFileSegment } from '../utils/pdfGenerator';
+import StatementDocument from '../components/Statement/StatementDocument';
+import { ArrowLeft, Printer, Download, Loader2 } from 'lucide-react';
 
 type Preset =
   | '1d'
@@ -32,7 +24,10 @@ const PRESETS: { id: Preset; label: string; days?: number; months?: number; year
   { id: 'custom', label: 'Custom range' },
 ];
 
-const toIso = (d: Date) => d.toISOString().split('T')[0];
+// Local calendar date (toISOString would shift to UTC and can land on the
+// previous day shortly after midnight).
+const toIso = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 const computeRange = (preset: Preset, customFrom: string, customTo: string) => {
   const today = new Date();
@@ -90,7 +85,19 @@ const ClientStatementPage: React.FC = () => {
 
   const handlePrint = () => window.print();
 
-  const { from, to } = computeRange(preset, customFrom, customTo);
+  const [downloading, setDownloading] = useState(false);
+  const handleDownload = async () => {
+    if (!statement) return;
+    setDownloading(true);
+    try {
+      const { from: f, to: t } = statement.period;
+      await generateDocumentPDF('.statement-document', `Statement_${pdfFileSegment(statement.client?.name || 'client')}_${f}_to_${t}.pdf`);
+    } catch {
+      setError('Could not create the PDF. Please try again.');
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
@@ -102,14 +109,24 @@ const ClientStatementPage: React.FC = () => {
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back
         </button>
-        <button
-          onClick={handlePrint}
-          disabled={!statement || loading}
-          className="inline-flex items-center px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-        >
-          <Printer className="h-4 w-4 mr-2" />
-          Print / Save as PDF
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handlePrint}
+            disabled={!statement || loading}
+            className="inline-flex items-center px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+          >
+            <Printer className="h-4 w-4 mr-2" />
+            Print
+          </button>
+          <button
+            onClick={handleDownload}
+            disabled={!statement || loading || downloading}
+            className="inline-flex items-center px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
+          >
+            {downloading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
+            Download PDF
+          </button>
+        </div>
       </div>
 
       {/* Range picker */}
@@ -176,175 +193,11 @@ const ClientStatementPage: React.FC = () => {
 
       {/* Statement document */}
       {statement && !loading && !error && (
-        <div className="statement-document bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-          <div className="px-8 py-6 border-b border-gray-200 bg-gray-50">
-            <h1 className="text-2xl font-bold text-gray-900">Client Statement</h1>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
-              <div>
-                <p className="text-xs uppercase tracking-wide text-gray-500">Client</p>
-                <p className="text-base font-semibold text-gray-900">
-                  {statement.client?.name || '—'}
-                </p>
-                {statement.client?.email && (
-                  <p className="text-sm text-gray-600">{statement.client.email}</p>
-                )}
-                {statement.client?.phone && (
-                  <p className="text-sm text-gray-600">{statement.client.phone}</p>
-                )}
-              </div>
-              <div className="sm:text-right">
-                <p className="text-xs uppercase tracking-wide text-gray-500">Period</p>
-                <p className="text-base font-semibold text-gray-900 inline-flex items-center sm:justify-end">
-                  <Calendar className="h-4 w-4 mr-1.5 text-gray-400" />
-                  {new Date(from).toLocaleDateString()} → {new Date(to).toLocaleDateString()}
-                </p>
-                <p className="text-xs text-gray-500 mt-1">
-                  Generated {new Date().toLocaleString()}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Summary tiles */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 divide-y lg:divide-y-0 lg:divide-x divide-gray-200 border-b border-gray-200">
-            <SummaryTile label="Opening balance" value={statement.opening_balance} />
-            <SummaryTile label="Invoiced in period" value={statement.total_invoiced} color="text-blue-700" />
-            <SummaryTile label="Paid in period" value={statement.total_paid} color="text-green-700" />
-            <SummaryTile
-              label="Closing balance"
-              value={statement.closing_balance}
-              color={statement.closing_balance > 0 ? 'text-red-700' : 'text-gray-900'}
-              bold
-            />
-          </div>
-
-          {/* Invoices section */}
-          <div className="px-8 py-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center">
-              <FileText className="h-4 w-4 mr-2 text-gray-500" />
-              Invoices in this period ({statement.invoices.length})
-            </h2>
-            {statement.invoices.length === 0 ? (
-              <p className="text-sm text-gray-500">No invoices issued in this period.</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-2 text-left text-[11px] uppercase tracking-wider text-gray-500">#</th>
-                      <th className="px-4 py-2 text-left text-[11px] uppercase tracking-wider text-gray-500">Date</th>
-                      <th className="px-4 py-2 text-right text-[11px] uppercase tracking-wider text-gray-500">Total</th>
-                      <th className="px-4 py-2 text-right text-[11px] uppercase tracking-wider text-gray-500">Paid</th>
-                      <th className="px-4 py-2 text-right text-[11px] uppercase tracking-wider text-gray-500">Balance</th>
-                      <th className="px-4 py-2 text-left text-[11px] uppercase tracking-wider text-gray-500">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {statement.invoices.map((inv) => (
-                      <tr key={inv.id}>
-                        <td className="px-4 py-2 text-sm font-medium text-gray-900">{inv.invoice_number}</td>
-                        <td className="px-4 py-2 text-sm text-gray-600 whitespace-nowrap">
-                          {new Date(inv.date).toLocaleDateString()}
-                        </td>
-                        <td className="px-4 py-2 text-sm text-right tabular-nums text-gray-900">
-                          {formatCurrency(Number(inv.grand_total))}
-                        </td>
-                        <td className="px-4 py-2 text-sm text-right tabular-nums text-green-700">
-                          {formatCurrency(Number(inv.amount_paid))}
-                        </td>
-                        <td className="px-4 py-2 text-sm text-right tabular-nums">
-                          {Number(inv.balance_due) > 0 ? (
-                            <span className="text-red-700 font-medium">{formatCurrency(Number(inv.balance_due))}</span>
-                          ) : (
-                            <span className="text-gray-400">—</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-2"><StatusPill s={inv.payment_status} /></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-
-          {/* Payments section */}
-          <div className="px-8 py-6 border-t border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center">
-              <CreditCard className="h-4 w-4 mr-2 text-gray-500" />
-              Payments received in this period ({statement.payments.length})
-            </h2>
-            {statement.payments.length === 0 ? (
-              <p className="text-sm text-gray-500">No payments received in this period.</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-2 text-left text-[11px] uppercase tracking-wider text-gray-500">Date</th>
-                      <th className="px-4 py-2 text-left text-[11px] uppercase tracking-wider text-gray-500">Invoice</th>
-                      <th className="px-4 py-2 text-left text-[11px] uppercase tracking-wider text-gray-500">Method</th>
-                      <th className="px-4 py-2 text-left text-[11px] uppercase tracking-wider text-gray-500">Reference</th>
-                      <th className="px-4 py-2 text-right text-[11px] uppercase tracking-wider text-gray-500">Amount</th>
-                      <th className="px-4 py-2 text-left text-[11px] uppercase tracking-wider text-gray-500">Recorded by</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {statement.payments.map((p) => (
-                      <tr key={p.id}>
-                        <td className="px-4 py-2 text-sm text-gray-700 whitespace-nowrap">
-                          {new Date(p.payment_date).toLocaleDateString()}
-                        </td>
-                        <td className="px-4 py-2 text-sm font-medium text-gray-900">{p.invoice_number}</td>
-                        <td className="px-4 py-2 text-sm text-gray-600">{p.method || '—'}</td>
-                        <td className="px-4 py-2 text-sm text-gray-600">{p.reference || '—'}</td>
-                        <td className="px-4 py-2 text-sm text-right tabular-nums font-semibold text-green-700">
-                          {formatCurrency(Number(p.amount))}
-                        </td>
-                        <td className="px-4 py-2 text-sm text-gray-600">{p.recorded_by_name || '—'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+        <div className="shadow-lg rounded-lg overflow-hidden bg-white">
+          <StatementDocument statement={statement} rootClassName="statement-document" />
         </div>
       )}
     </div>
-  );
-};
-
-const SummaryTile: React.FC<{ label: string; value: number; color?: string; bold?: boolean }> = ({
-  label,
-  value,
-  color = 'text-gray-900',
-  bold,
-}) => (
-  <div className="px-5 py-4">
-    <p className="text-[11px] uppercase tracking-wide text-gray-500">{label}</p>
-    <p className={`mt-0.5 text-base ${bold ? 'font-bold' : 'font-semibold'} ${color} truncate tabular-nums`}
-       title={formatCurrency(value)}>
-      {formatCurrency(value)}
-    </p>
-  </div>
-);
-
-const StatusPill: React.FC<{ s: 'pending' | 'partial' | 'paid' }> = ({ s }) => {
-  const styles =
-    s === 'paid'
-      ? { bg: 'bg-green-100', text: 'text-green-700', Icon: CheckCircle2 }
-      : s === 'partial'
-        ? { bg: 'bg-amber-100', text: 'text-amber-700', Icon: AlertCircle }
-        : { bg: 'bg-red-100', text: 'text-red-700', Icon: XCircle };
-  const Icon = styles.Icon;
-  return (
-    <span
-      className={`inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded-full ${styles.bg} ${styles.text}`}
-    >
-      <Icon className="h-3.5 w-3.5 mr-1" />
-      {s[0].toUpperCase() + s.slice(1)}
-    </span>
   );
 };
 

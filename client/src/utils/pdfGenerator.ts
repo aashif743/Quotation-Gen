@@ -102,7 +102,7 @@ async function saveElementAsPdf(
     // browser inside html2canvas's iframe ignores `aspect-ratio`.
     onclone: (clonedDoc) => {
       const root = clonedDoc.querySelector<HTMLElement>(
-        '.quotation-document, .invoice-document, .delivery-note-document, .contract-document, .job-card-document, .lpo-document, .payslip-document, .donation-document'
+        '.quotation-document, .invoice-document, .delivery-note-document, .contract-document, .job-card-document, .lpo-document, .payslip-document, .donation-document, .statement-document'
       );
       if (!root) return;
       root.style.width = `${captureWidth}px`;
