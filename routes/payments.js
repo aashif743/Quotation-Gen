@@ -1,6 +1,6 @@
 const express = require('express');
 const db = require('../config/database');
-const { isAuthenticated, isAdmin } = require('../middleware/auth');
+const { isAuthenticated, isAdmin, canHandlePayments } = require('../middleware/auth');
 const { requireCompanyAccess } = require("../utils/tenancy");
 const {
   makeProofUpload, acceptProofFile, publicProofUrl, discardUploaded, deleteStoredProof, originalName,
@@ -17,6 +17,7 @@ const PAYMENT_SELECT = `
 
 const router = express.Router();
 router.use(isAuthenticated);
+router.use(canHandlePayments);
 router.use(requireCompanyAccess);
 
 // Helper — return the invoice row if the current user is allowed to act on

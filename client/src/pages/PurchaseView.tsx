@@ -22,7 +22,7 @@ const statusPill = (s?: string) => {
 const PurchaseView: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, canHandlePayments } = useAuth();
   const { selectedCompany } = useCompany();
   const { theme } = useTheme();
 
@@ -180,7 +180,7 @@ const PurchaseView: React.FC = () => {
               </span>
             </p>
           </div>
-          {canEdit && balance > 0 && (
+          {canEdit && canHandlePayments && balance > 0 && (
             <button onClick={() => setPayOpen(true)} className="inline-flex items-center px-3 py-1.5 text-sm rounded-lg text-white hover:opacity-90" style={{ backgroundColor: primary }}>
               <Plus className="h-4 w-4 mr-1.5" /> Record payment
             </button>
@@ -206,12 +206,12 @@ const PurchaseView: React.FC = () => {
                   url={p.proof_file_url}
                   fileName={p.proof_file_name}
                   uploadedBy={p.proof_uploaded_by_name}
-                  canUpload={!!canEdit}
-                  isAdmin={isAdmin}
+                  canUpload={!!canEdit && canHandlePayments}
+                  isAdmin={isAdmin && canHandlePayments}
                   onUpload={async (file) => { if (purchase.id) { await uploadVendorPaymentProof(purchase.id, p.id, file); await load(); } }}
                   onRemove={async () => { if (purchase.id) { await deleteVendorPaymentProof(purchase.id, p.id); await load(); } }}
                 />
-                {canEdit && (
+                {canEdit && canHandlePayments && (
                   <button
                     onClick={async () => { if (purchase.id) { await deleteVendorPayment(purchase.id, p.id); load(); } }}
                     className="p-1.5 text-red-500 hover:bg-red-50 rounded"

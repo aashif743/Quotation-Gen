@@ -14,7 +14,7 @@ import { Download, Edit2, ArrowLeft, Printer, FileText, Truck, ClipboardList } f
 const QuotationView: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, canUseDeliveryNotes } = useAuth();
   const { theme } = useTheme();
   const [quotation, setQuotation] = useState<Quotation | null>(null);
   const [loading, setLoading] = useState(true);
@@ -215,23 +215,25 @@ const QuotationView: React.FC = () => {
             )}
           </button>
 
-          <button
-            onClick={handleGenerateDeliveryNote}
-            disabled={generatingDeliveryNote}
-            className="inline-flex items-center px-3 py-1.5 text-sm font-medium border border-amber-500 text-amber-700 rounded-lg bg-white hover:bg-amber-50 transition-colors disabled:opacity-50"
-          >
-            {generatingDeliveryNote ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-amber-600 mr-1.5" />
-                Creating...
-              </>
-            ) : (
-              <>
-                <Truck className="h-4 w-4 mr-1.5" />
-                Delivery Note
-              </>
-            )}
-          </button>
+          {canUseDeliveryNotes && (
+            <button
+              onClick={handleGenerateDeliveryNote}
+              disabled={generatingDeliveryNote}
+              className="inline-flex items-center px-3 py-1.5 text-sm font-medium border border-amber-500 text-amber-700 rounded-lg bg-white hover:bg-amber-50 transition-colors disabled:opacity-50"
+            >
+              {generatingDeliveryNote ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-amber-600 mr-1.5" />
+                  Creating...
+                </>
+              ) : (
+                <>
+                  <Truck className="h-4 w-4 mr-1.5" />
+                  Delivery Note
+                </>
+              )}
+            </button>
+          )}
 
           <button
             onClick={handleDownloadPDF}

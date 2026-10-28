@@ -39,7 +39,7 @@ type Tab = 'quotations' | 'invoices' | 'delivery-notes';
 const ClientDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { isAdmin, user } = useAuth();
+  const { isAdmin, user, canHandlePayments, canUseDeliveryNotes } = useAuth();
 
   const [client, setClient] = useState<Client | null>(null);
   const [loading, setLoading] = useState(true);
@@ -343,13 +343,15 @@ const ClientDetail: React.FC = () => {
             label="Invoices"
             count={client.invoice_count ?? 0}
           />
-          <TabButton
-            active={tab === 'delivery-notes'}
-            onClick={() => setTab('delivery-notes')}
-            icon={Truck}
-            label="Delivery Notes"
-            count={client.delivery_note_count ?? 0}
-          />
+          {canUseDeliveryNotes && (
+            <TabButton
+              active={tab === 'delivery-notes'}
+              onClick={() => setTab('delivery-notes')}
+              icon={Truck}
+              label="Delivery Notes"
+              count={client.delivery_note_count ?? 0}
+            />
+          )}
         </div>
 
         {payingInvoice && (
@@ -402,7 +404,7 @@ const ClientDetail: React.FC = () => {
               detailPathPrefix="/invoice"
               showTotal
               showPayment
-              onRecordPayment={handlePaymentPillClick}
+              onRecordPayment={canHandlePayments ? handlePaymentPillClick : undefined}
               canRecord={(doc) => isAdmin || (!!user && doc.created_by === user.id)}
               loadingPaymentForDocId={loadingPaymentForDocId}
             />

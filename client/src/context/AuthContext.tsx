@@ -19,6 +19,10 @@ interface AuthContextType {
   loginDemo: () => Promise<void>;
   /** Signed in to the public demo (read-only). */
   isDemo: boolean;
+  /** Record / edit / delete invoice and vendor payments. */
+  canHandlePayments: boolean;
+  /** Delivery notes. */
+  canUseDeliveryNotes: boolean;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
   /** Replace the cached user after the user edits their own profile. */
@@ -96,6 +100,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         login,
         loginDemo,
         isDemo: !!user?.is_demo,
+        canHandlePayments: user?.can_handle_payments !== false,
+        canUseDeliveryNotes: user?.can_use_delivery_notes !== false,
         logout,
         checkAuth,
         setCurrentUser: setUser,

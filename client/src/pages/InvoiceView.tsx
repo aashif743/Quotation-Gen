@@ -34,7 +34,7 @@ import { PRICED_COLUMNS, pricedTotals } from '../components/Quotation/QuotationD
 const InvoiceView: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, canHandlePayments, canUseDeliveryNotes } = useAuth();
   const { theme } = useTheme();
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [loading, setLoading] = useState(true);
@@ -53,7 +53,7 @@ const InvoiceView: React.FC = () => {
   const loadAll = async (invoiceId: number) => {
     const [inv, pays] = await Promise.all([
       getInvoice(invoiceId),
-      getPaymentsForInvoice(invoiceId).catch(() => [] as Payment[]),
+      canHandlePayments ? getPaymentsForInvoice(invoiceId).catch(() => [] as Payment[]) : Promise.resolve([] as Payment[]),
     ]);
     setInvoice(inv);
     setPayments(pays);
@@ -225,23 +225,25 @@ const InvoiceView: React.FC = () => {
             Print
           </button>
 
-          <button
-            onClick={handleGenerateDeliveryNote}
-            disabled={generatingDeliveryNote}
-            className="inline-flex items-center px-3 py-1.5 text-sm font-medium border border-amber-500 text-amber-700 rounded-lg bg-white hover:bg-amber-50 transition-colors disabled:opacity-50"
-          >
-            {generatingDeliveryNote ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-amber-600 mr-1.5" />
-                Creating...
-              </>
-            ) : (
-              <>
-                <Truck className="h-4 w-4 mr-1.5" />
-                Delivery Note
-              </>
-            )}
-          </button>
+          {canUseDeliveryNotes && (
+            <button
+              onClick={handleGenerateDeliveryNote}
+              disabled={generatingDeliveryNote}
+              className="inline-flex items-center px-3 py-1.5 text-sm font-medium border border-amber-500 text-amber-700 rounded-lg bg-white hover:bg-amber-50 transition-colors disabled:opacity-50"
+            >
+              {generatingDeliveryNote ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-amber-600 mr-1.5" />
+                  Creating...
+                </>
+              ) : (
+                <>
+                  <Truck className="h-4 w-4 mr-1.5" />
+                  Delivery Note
+                </>
+              )}
+            </button>
+          )}
 
           <button
             onClick={handleDownloadPDF}
@@ -275,6 +277,7 @@ const InvoiceView: React.FC = () => {
 
       {/* Payment tracking section — outside the .invoice-document so it
           doesn't appear in the PDF or print. */}
+      {canHandlePayments && (
       <div className="mb-6 no-print">
         <PaymentPanel
           invoice={invoice}
@@ -296,6 +299,7 @@ const InvoiceView: React.FC = () => {
           }}
         />
       </div>
+      )}
 
       {invoice.company_template === 'supreme' ? (
         // Client-specific letterhead design (same look as the quotation).

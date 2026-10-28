@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
 const db = require('../config/database');
-const { isAuthenticated, isAdmin } = require('../middleware/auth');
+const { isAuthenticated, isAdmin, canUseDeliveryNotes } = require('../middleware/auth');
 const { requireCompanyAccess, companyTableParamGuard } = require("../utils/tenancy");
 const { getCompanyPrefix } = require('../utils/quotePrefix');
 const { resolveClientId } = require('../utils/clientResolver');
@@ -12,6 +12,7 @@ const { UPLOADS_ROOT, resolveUploadDiskPath } = require('../config/paths');
 const router = express.Router();
 
 router.use(isAuthenticated);
+router.use(canUseDeliveryNotes);
 router.use(requireCompanyAccess);
 router.param("id", companyTableParamGuard("delivery_notes"));
 router.param("quotationId", companyTableParamGuard("quotations"));

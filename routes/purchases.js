@@ -1,6 +1,6 @@
 const express = require('express');
 const db = require('../config/database');
-const { isAuthenticated, isAdmin } = require('../middleware/auth');
+const { isAuthenticated, isAdmin, canHandlePayments } = require('../middleware/auth');
 const { requireCompanyAccess, companyTableParamGuard } = require("../utils/tenancy");
 const { getCompanyPrefix } = require('../utils/quotePrefix');
 const { resolveVendorId } = require('../utils/vendorResolver');
@@ -314,7 +314,7 @@ router.delete('/:id', isAdmin, async (req, res) => {
 
 // POST /api/purchases/:id/payments — record a payment made OUT to the vendor.
 // Admin or the purchase's creator may record.
-router.post('/:id/payments', async (req, res) => {
+router.post('/:id/payments', canHandlePayments, async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
     const [rows] = await db.execute('SELECT created_by, grand_total FROM purchases WHERE id = ?', [id]);
@@ -356,7 +356,7 @@ router.post('/:id/payments', async (req, res) => {
 });
 
 // DELETE /api/purchases/:id/payments/:paymentId — admin or purchase creator.
-router.delete('/:id/payments/:paymentId', async (req, res) => {
+router.delete('/:id/payments/:paymentId', canHandlePayments, async (req, res) => {
   try {
     const [rows] = await db.execute(
       `SELECT pu.created_by
@@ -401,7 +401,7 @@ async function loadVendorPaymentForProof(req) {
 
 // POST /api/purchases/:id/payments/:paymentId/proof — upload (field "file").
 // Replacing an existing proof is admin-only.
-router.post('/:id/payments/:paymentId/proof', proofUpload, async (req, res) => {
+router.post('/:id/payments/:paymentId/proof', canHandlePayments, proofUpload, async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
     const payment = await loadVendorPaymentForProof(req);
@@ -437,7 +437,7 @@ router.post('/:id/payments/:paymentId/proof', proofUpload, async (req, res) => {
 });
 
 // DELETE /api/purchases/:id/payments/:paymentId/proof — admin only.
-router.delete('/:id/payments/:paymentId/proof', isAdmin, async (req, res) => {
+router.delete('/:id/payments/:paymentId/proof', isAdmin, canHandlePayments, async (req, res) => {
   try {
     const payment = await loadVendorPaymentForProof(req);
     if (!payment) return res.status(404).json({ error: 'Payment not found' });

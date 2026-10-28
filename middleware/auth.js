@@ -50,6 +50,23 @@ function canViewAudit(req, res, next) {
   res.status(403).json({ message: 'You do not have access to the audit log.' });
 }
 
+// Payments (recording / editing / deleting invoice and vendor payments, and
+// their proofs) and delivery notes: allowed unless an admin has switched the
+// person off (e.g. a Sales department that doesn't handle either).
+const flagOn = (v) => v === 1 || v === true;
+const hasPaymentAccess = (user) => !!user && !flagOn(user.no_payment_access);
+const hasDeliveryAccess = (user) => !!user && !flagOn(user.no_delivery_access);
+
+function canHandlePayments(req, res, next) {
+  if (req.isAuthenticated() && hasPaymentAccess(req.user)) return next();
+  res.status(403).json({ message: 'You do not have access to payments.' });
+}
+
+function canUseDeliveryNotes(req, res, next) {
+  if (req.isAuthenticated() && hasDeliveryAccess(req.user)) return next();
+  res.status(403).json({ message: 'You do not have access to delivery notes.' });
+}
+
 // Platform owner — manages organizations (tenants). Distinct from an org-admin.
 function isSuperAdmin(req, res, next) {
   if (req.isAuthenticated() && (req.user.is_super_admin === 1 || req.user.is_super_admin === true)) {
@@ -66,5 +83,9 @@ module.exports = {
   hasPayrollAccess,
   canViewAudit,
   hasAuditAccess,
+  canHandlePayments,
+  hasPaymentAccess,
+  canUseDeliveryNotes,
+  hasDeliveryAccess,
   isSuperAdmin,
 };

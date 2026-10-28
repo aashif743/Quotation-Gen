@@ -1186,6 +1186,16 @@ async function migrate() {
     await db.query('ALTER TABLE `organizations` ADD COLUMN `is_demo` TINYINT(1) NOT NULL DEFAULT 0');
   } else { console.log('  • organizations.is_demo already present, skipping.'); }
 
+  // 3y. Per-user restrictions an admin can switch on in User Management
+  //     (default 0 = allowed, so nobody loses access): recording / editing
+  //     payments, and delivery notes.
+  for (const col of ['no_payment_access', 'no_delivery_access']) {
+    if (!(await columnExists('users', col))) {
+      console.log(`  • Adding \`${col}\` to users...`);
+      await db.query(`ALTER TABLE \`users\` ADD COLUMN \`${col}\` TINYINT(1) NOT NULL DEFAULT 0`);
+    } else { console.log(`  • users.${col} already present, skipping.`); }
+  }
+
   // 4. Backfill created_by from each row's company owner so existing records
   //    are attributed to the user who originally owned the company.
   const [qBackfill] = await db.query(

@@ -59,6 +59,9 @@ export interface User {
   has_password?: boolean;
   // Signed in to the public, read-only demo organization.
   is_demo?: boolean;
+  // False when an admin has switched the person off payments / delivery notes.
+  can_handle_payments?: boolean;
+  can_use_delivery_notes?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -200,6 +203,9 @@ export interface ManagedUser {
   role: UserRole;
   can_manage_attendance?: number | boolean;
   no_payroll_access?: number | boolean;
+  // Switched off by an admin: payments / delivery notes.
+  no_payment_access?: number | boolean;
+  no_delivery_access?: number | boolean;
   can_view_audit?: number | boolean;
   last_login_at?: string | null;
   last_seen_at?: string | null;

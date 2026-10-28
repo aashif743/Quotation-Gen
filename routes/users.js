@@ -1,7 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const db = require('../config/database');
-const { isAuthenticated, isAdmin, hasPayrollAccess, hasAuditAccess } = require('../middleware/auth');
+const { isAuthenticated, isAdmin, hasPayrollAccess, hasAuditAccess, hasPaymentAccess, hasDeliveryAccess } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -14,7 +14,7 @@ const VALID_ROLES = ['staff', 'admin'];
 router.get('/', async (req, res) => {
   try {
     const [users] = await db.execute(`
-      SELECT u.id, u.name, u.email, u.role, u.can_manage_attendance, u.no_payroll_access, u.can_view_audit,
+      SELECT u.id, u.name, u.email, u.role, u.can_manage_attendance, u.no_payroll_access, u.no_payment_access, u.no_delivery_access, u.can_view_audit,
              u.last_login_at, u.last_seen_at, u.created_at,
              (SELECT COUNT(*) FROM quotations q WHERE q.created_by = u.id) AS quotation_count,
              (SELECT COUNT(*) FROM invoices i WHERE i.created_by = u.id) AS invoice_count
@@ -38,6 +38,9 @@ router.post('/', async (req, res) => {
     const noPayroll = hasPayrollAccess(req.user) && req.body.no_payroll_access ? 1 : 0;
     // Audit-log access can only be handed out by someone who has it.
     const auditFlag = hasAuditAccess(req.user) && req.body.can_view_audit ? 1 : 0;
+    // Payment / delivery-note restrictions: set by an admin who has that access.
+    const noPayments = hasPaymentAccess(req.user) && req.body.no_payment_access ? 1 : 0;
+    const noDelivery = hasDeliveryAccess(req.user) && req.body.no_delivery_access ? 1 : 0;
 
     if (!name || !email || !password) {
       return res.status(400).json({ message: 'Name, email, and password are required.' });
@@ -55,12 +58,12 @@ router.post('/', async (req, res) => {
     const hashed = await bcrypt.hash(password, await bcrypt.genSalt(10));
     // New accounts join the creating admin's organization.
     const [result] = await db.execute(
-      'INSERT INTO users (organization_id, name, email, password, role, can_manage_attendance, no_payroll_access, can_view_audit) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [req.user.organization_id, name, email, hashed, userRole, can_manage_attendance ? 1 : 0, noPayroll, auditFlag]
+      'INSERT INTO users (organization_id, name, email, password, role, can_manage_attendance, no_payroll_access, can_view_audit, no_payment_access, no_delivery_access) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [req.user.organization_id, name, email, hashed, userRole, can_manage_attendance ? 1 : 0, noPayroll, auditFlag, noPayments, noDelivery]
     );
 
     const [newUser] = await db.execute(
-      'SELECT id, name, email, role, can_manage_attendance, no_payroll_access, can_view_audit, created_at FROM users WHERE id = ?',
+      'SELECT id, name, email, role, can_manage_attendance, no_payroll_access, no_payment_access, no_delivery_access, can_view_audit, created_at FROM users WHERE id = ?',
       [result.insertId]
     );
     res.status(201).json(newUser[0]);
@@ -128,6 +131,18 @@ router.put('/:id', async (req, res) => {
       fields.push('can_view_audit = ?');
       values.push(req.body.can_view_audit ? 1 : 0);
     }
+    // A restricted admin can't lift their own (or anyone's) restriction.
+    for (const [key, allowed, what] of [
+      ['no_payment_access', hasPaymentAccess(req.user), 'payments'],
+      ['no_delivery_access', hasDeliveryAccess(req.user), 'delivery notes'],
+    ]) {
+      if (req.body[key] === undefined) continue;
+      if (!allowed) {
+        return res.status(403).json({ message: `Only an admin with access to ${what} can change access to ${what}.` });
+      }
+      fields.push(`${key} = ?`);
+      values.push(req.body[key] ? 1 : 0);
+    }
     if (password) {
       if (password.length < 6) {
         return res.status(400).json({ message: 'Password must be at least 6 characters long.' });
@@ -145,7 +160,7 @@ router.put('/:id', async (req, res) => {
     await db.execute(`UPDATE users SET ${fields.join(', ')} WHERE id = ?`, values);
 
     const [updated] = await db.execute(
-      'SELECT id, name, email, role, can_manage_attendance, no_payroll_access, can_view_audit, created_at FROM users WHERE id = ?',
+      'SELECT id, name, email, role, can_manage_attendance, no_payroll_access, no_payment_access, no_delivery_access, can_view_audit, created_at FROM users WHERE id = ?',
       [userId]
     );
     res.json(updated[0]);

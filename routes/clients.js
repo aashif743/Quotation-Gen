@@ -1,6 +1,6 @@
 const express = require('express');
 const db = require('../config/database');
-const { isAuthenticated, isAdmin } = require('../middleware/auth');
+const { isAuthenticated, isAdmin, canUseDeliveryNotes } = require('../middleware/auth');
 const { requireCompanyAccess, companyTableParamGuard } = require("../utils/tenancy");
 
 const router = express.Router();
@@ -241,7 +241,7 @@ router.get('/:id/invoices', async (req, res) => {
   }
 });
 // Delivery notes don't have grand_total; use a custom query.
-router.get('/:id/delivery-notes', async (req, res) => {
+router.get('/:id/delivery-notes', canUseDeliveryNotes, async (req, res) => {
   try {
     const conditions = ['d.client_id = ?'];
     const params = [req.params.id];

@@ -136,6 +136,17 @@ const AuditRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return <>{children}</>;
 };
 
+// Delivery notes: everyone except people an admin has switched off.
+const DeliveryRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { canUseDeliveryNotes } = useAuth();
+
+  if (!canUseDeliveryNotes) {
+    return <Navigate to="/" replace />;
+  }
+
+  return <>{children}</>;
+};
+
 // Super-admin (platform owner) route wrapper.
 const SuperAdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isSuperAdmin } = useAuth();
@@ -182,10 +193,10 @@ function AppRoutes() {
                   <Route path="/invoice/:id" element={<InvoiceView />} />
                   <Route path="/edit-quotation/:id" element={<EditQuotation />} />
                   <Route path="/edit-invoice/:id" element={<EditInvoice />} />
-                  <Route path="/delivery-note/:id" element={<DeliveryNoteView />} />
-                  <Route path="/delivery-history" element={<DeliveryNoteHistory />} />
-                  <Route path="/edit-delivery-note/:id" element={<EditDeliveryNote />} />
-                  <Route path="/new-delivery-note" element={<EditDeliveryNote />} />
+                  <Route path="/delivery-note/:id" element={<DeliveryRoute><DeliveryNoteView /></DeliveryRoute>} />
+                  <Route path="/delivery-history" element={<DeliveryRoute><DeliveryNoteHistory /></DeliveryRoute>} />
+                  <Route path="/edit-delivery-note/:id" element={<DeliveryRoute><EditDeliveryNote /></DeliveryRoute>} />
+                  <Route path="/new-delivery-note" element={<DeliveryRoute><EditDeliveryNote /></DeliveryRoute>} />
                   <Route path="/clients" element={<Clients />} />
                   <Route path="/clients/:id" element={<ClientDetail />} />
                   <Route path="/clients/:id/statement" element={<ClientStatementPage />} />

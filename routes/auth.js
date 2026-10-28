@@ -2,7 +2,7 @@ const express = require('express');
 const passport = require('passport');
 const bcrypt = require('bcryptjs');
 const db = require('../config/database');
-const { isAuthenticated, hasPayrollAccess, hasAuditAccess } = require('../middleware/auth');
+const { isAuthenticated, hasPayrollAccess, hasAuditAccess, hasPaymentAccess, hasDeliveryAccess } = require('../middleware/auth');
 const { writeAudit, clientIp } = require('../utils/audit');
 const { findDemoUser, demoRateLimited } = require('../utils/demo');
 
@@ -56,7 +56,7 @@ router.post('/login', auditLoginAttempt, passport.authenticate('local'), async (
     }
   }
   const { id, name, email, role, organization_id } = req.user;
-  res.json({ id, name, email, role, organization_id, is_super_admin: !!req.user.is_super_admin, can_manage_attendance: !!req.user.can_manage_attendance, can_access_payroll: hasPayrollAccess(req.user), can_view_audit: hasAuditAccess(req.user), acting_organization: req.user.acting_organization || null, has_password: !!req.user.password, is_demo: !!req.user.org_is_demo && !req.user.is_super_admin });
+  res.json({ id, name, email, role, organization_id, is_super_admin: !!req.user.is_super_admin, can_manage_attendance: !!req.user.can_manage_attendance, can_access_payroll: hasPayrollAccess(req.user), can_view_audit: hasAuditAccess(req.user), can_handle_payments: hasPaymentAccess(req.user), can_use_delivery_notes: hasDeliveryAccess(req.user), acting_organization: req.user.acting_organization || null, has_password: !!req.user.password, is_demo: !!req.user.org_is_demo && !req.user.is_super_admin });
 });
 
 // POST /api/auth/logout
@@ -82,7 +82,7 @@ router.get('/status', (req, res) => {
       return res.json({ isAuthenticated: false, user: null });
     }
     const { id, name, email, role, organization_id } = req.user;
-    res.json({ isAuthenticated: true, user: { id, name, email, role, organization_id, is_super_admin: !!req.user.is_super_admin, can_manage_attendance: !!req.user.can_manage_attendance, can_access_payroll: hasPayrollAccess(req.user), can_view_audit: hasAuditAccess(req.user), acting_organization: req.user.acting_organization || null, has_password: !!req.user.password, is_demo: !!req.user.org_is_demo && !req.user.is_super_admin } });
+    res.json({ isAuthenticated: true, user: { id, name, email, role, organization_id, is_super_admin: !!req.user.is_super_admin, can_manage_attendance: !!req.user.can_manage_attendance, can_access_payroll: hasPayrollAccess(req.user), can_view_audit: hasAuditAccess(req.user), can_handle_payments: hasPaymentAccess(req.user), can_use_delivery_notes: hasDeliveryAccess(req.user), acting_organization: req.user.acting_organization || null, has_password: !!req.user.password, is_demo: !!req.user.org_is_demo && !req.user.is_super_admin } });
   } else {
     res.json({ isAuthenticated: false, user: null });
   }
@@ -160,7 +160,7 @@ router.put('/me', isAuthenticated, async (req, res) => {
     req.user.name = name;
     req.user.email = email;
     const { id, role, organization_id } = req.user;
-    res.json({ id, name, email, role, organization_id, is_super_admin: !!req.user.is_super_admin, can_manage_attendance: !!req.user.can_manage_attendance, can_access_payroll: hasPayrollAccess(req.user), can_view_audit: hasAuditAccess(req.user), acting_organization: req.user.acting_organization || null, has_password: !!(newPassword || me.password) });
+    res.json({ id, name, email, role, organization_id, is_super_admin: !!req.user.is_super_admin, can_manage_attendance: !!req.user.can_manage_attendance, can_access_payroll: hasPayrollAccess(req.user), can_view_audit: hasAuditAccess(req.user), can_handle_payments: hasPaymentAccess(req.user), can_use_delivery_notes: hasDeliveryAccess(req.user), acting_organization: req.user.acting_organization || null, has_password: !!(newPassword || me.password) });
   } catch (err) {
     console.error('Profile update error:', err);
     res.status(500).json({ message: 'Could not update your profile.' });
@@ -196,7 +196,7 @@ router.post('/demo', async (req, res, next) => {
         res.json({
           id: user.id, name: user.name, email: user.email, role: user.role, organization_id: user.organization_id,
           is_super_admin: false, can_manage_attendance: !!user.can_manage_attendance,
-          can_access_payroll: hasPayrollAccess(user), can_view_audit: hasAuditAccess(user),
+          can_access_payroll: hasPayrollAccess(user), can_view_audit: hasAuditAccess(user), can_handle_payments: hasPaymentAccess(user), can_use_delivery_notes: hasDeliveryAccess(user),
           acting_organization: null, has_password: true, is_demo: true,
         });
       });

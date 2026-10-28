@@ -83,7 +83,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { selectedCompany, companies, loading: companiesLoading, createCompany } = useCompany();
-  const { user, logout, isAdmin, isSuperAdmin, canManageAttendance, canAccessPayroll, canViewAudit, actingOrganization, isDemo } = useAuth();
+  const { user, logout, isAdmin, isSuperAdmin, canManageAttendance, canAccessPayroll, canViewAudit, actingOrganization, isDemo, canUseDeliveryNotes } = useAuth();
   const { theme, toggle: toggleTheme } = useTheme();
   const isDark = theme === 'dark';
 
@@ -203,14 +203,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       { to: '/new-quotation', icon: FileText, label: 'New Quotation' },
       { to: '/job-cards/new', icon: ClipboardList, label: 'New Job Card' },
       { to: '/new-invoice', icon: Receipt, label: 'New Invoice' },
-      { to: '/new-delivery-note', icon: Truck, label: 'New Delivery Note' },
+      ...(canUseDeliveryNotes ? [{ to: '/new-delivery-note', icon: Truck, label: 'New Delivery Note' }] : []),
       { to: '/lpos/new', icon: PackageCheck, label: 'New LPO' },
     ]},
     { label: 'Records', items: [
       { to: '/history', icon: History, label: 'Quotation History' },
       { to: '/job-cards', icon: ClipboardList, label: 'Job Cards' },
       { to: '/invoice-history', icon: Receipt, label: 'Invoice History' },
-      { to: '/delivery-history', icon: Truck, label: 'Delivery Notes' },
+      ...(canUseDeliveryNotes ? [{ to: '/delivery-history', icon: Truck, label: 'Delivery Notes' }] : []),
       { to: '/contracts', icon: FileSignature, label: 'Contracts' },
     ]},
     { label: 'Contacts', items: [
