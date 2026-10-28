@@ -41,6 +41,7 @@ import Payroll from './pages/Payroll';
 import AuditLog from './pages/AuditLog';
 import Donations from './pages/Donations';
 import Profile from './pages/Profile';
+import DemoEntry from './pages/DemoEntry';
 import DonationForm from './pages/DonationForm';
 import DonationView from './pages/DonationView';
 import Organizations from './pages/Organizations';
@@ -158,6 +159,8 @@ function AppRoutes() {
           </PublicRoute>
         }
       />
+      {/* Shareable link to the public read-only demo. */}
+      <Route path="/demo" element={<DemoEntry />} />
       {/* Self sign-up is disabled; admins create accounts. */}
       <Route path="/signup" element={<Navigate to="/login" replace />} />
 

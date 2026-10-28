@@ -82,7 +82,7 @@ passport.serializeUser((user, done) => {
 passport.deserializeUser(async (id, done) => {
   try {
     const [users] = await db.execute(
-      `SELECT u.*, o.status AS org_status
+      `SELECT u.*, o.status AS org_status, o.is_demo AS org_is_demo
          FROM users u
          LEFT JOIN organizations o ON u.organization_id = o.id
         WHERE u.id = ?`,

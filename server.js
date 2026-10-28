@@ -105,7 +105,8 @@ app.use('/uploads', express.static(UPLOADS_ROOT, {
 // Audit trail: track activity and record every successful change made through
 // the API (see utils/audit.js). Runs after passport so req.user is known.
 const { auditMiddleware, touchLastSeen } = require('./utils/audit');
-app.use('/api', touchLastSeen, auditMiddleware);
+const { demoReadOnly } = require('./utils/demo');
+app.use('/api', demoReadOnly, touchLastSeen, auditMiddleware);
 
 // Routes
 const authRoutes = require('./routes/auth');

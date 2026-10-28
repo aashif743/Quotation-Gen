@@ -3,7 +3,8 @@ const passport = require('passport');
 const bcrypt = require('bcryptjs');
 const db = require('../config/database');
 const { isAuthenticated, hasPayrollAccess, hasAuditAccess } = require('../middleware/auth');
-const { writeAudit } = require('../utils/audit');
+const { writeAudit, clientIp } = require('../utils/audit');
+const { findDemoUser, demoRateLimited } = require('../utils/demo');
 
 const router = express.Router();
 
@@ -55,7 +56,7 @@ router.post('/login', auditLoginAttempt, passport.authenticate('local'), async (
     }
   }
   const { id, name, email, role, organization_id } = req.user;
-  res.json({ id, name, email, role, organization_id, is_super_admin: !!req.user.is_super_admin, can_manage_attendance: !!req.user.can_manage_attendance, can_access_payroll: hasPayrollAccess(req.user), can_view_audit: hasAuditAccess(req.user), acting_organization: req.user.acting_organization || null, has_password: !!req.user.password });
+  res.json({ id, name, email, role, organization_id, is_super_admin: !!req.user.is_super_admin, can_manage_attendance: !!req.user.can_manage_attendance, can_access_payroll: hasPayrollAccess(req.user), can_view_audit: hasAuditAccess(req.user), acting_organization: req.user.acting_organization || null, has_password: !!req.user.password, is_demo: !!req.user.org_is_demo && !req.user.is_super_admin });
 });
 
 // POST /api/auth/logout
@@ -81,7 +82,7 @@ router.get('/status', (req, res) => {
       return res.json({ isAuthenticated: false, user: null });
     }
     const { id, name, email, role, organization_id } = req.user;
-    res.json({ isAuthenticated: true, user: { id, name, email, role, organization_id, is_super_admin: !!req.user.is_super_admin, can_manage_attendance: !!req.user.can_manage_attendance, can_access_payroll: hasPayrollAccess(req.user), can_view_audit: hasAuditAccess(req.user), acting_organization: req.user.acting_organization || null, has_password: !!req.user.password } });
+    res.json({ isAuthenticated: true, user: { id, name, email, role, organization_id, is_super_admin: !!req.user.is_super_admin, can_manage_attendance: !!req.user.can_manage_attendance, can_access_payroll: hasPayrollAccess(req.user), can_view_audit: hasAuditAccess(req.user), acting_organization: req.user.acting_organization || null, has_password: !!req.user.password, is_demo: !!req.user.org_is_demo && !req.user.is_super_admin } });
   } else {
     res.json({ isAuthenticated: false, user: null });
   }
@@ -166,12 +167,43 @@ router.put('/me', isAuthenticated, async (req, res) => {
   }
 });
 
-// GET /api/auth/providers - Check available auth providers
-router.get('/providers', (req, res) => {
+// GET /api/auth/providers - Check available auth providers (and whether the
+// public demo is set up, which shows "Try the live demo" on the login page).
+router.get('/providers', async (req, res) => {
+  let demo = false;
+  try { demo = !!(await findDemoUser()); } catch { /* column missing / db down: no demo */ }
   res.json({
     local: true,
-    google: !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET)
+    google: !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
+    demo,
   });
+});
+
+// POST /api/auth/demo - sign in to the public, read-only demo organization
+// without a password (the shareable /demo link and the login-page button).
+router.post('/demo', async (req, res, next) => {
+  try {
+    if (demoRateLimited(clientIp(req) || 'unknown')) {
+      return res.status(429).json({ message: 'Too many demo sign-ins from this network. Please try again later.' });
+    }
+    const user = await findDemoUser();
+    if (!user) return res.status(404).json({ message: 'The demo is not available right now.' });
+    // Fresh session so a previous sign-in (or acting-organization state) never carries over.
+    req.session.regenerate((err) => {
+      if (err) return next(err);
+      req.login(user, (err2) => {
+        if (err2) return next(err2);
+        res.json({
+          id: user.id, name: user.name, email: user.email, role: user.role, organization_id: user.organization_id,
+          is_super_admin: false, can_manage_attendance: !!user.can_manage_attendance,
+          can_access_payroll: hasPayrollAccess(user), can_view_audit: hasAuditAccess(user),
+          acting_organization: null, has_password: true, is_demo: true,
+        });
+      });
+    });
+  } catch (err) {
+    next(err);
+  }
 });
 
 // GET /api/auth/google - The route to start the Google authentication flow

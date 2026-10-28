@@ -57,6 +57,8 @@ export interface User {
   acting_organization?: { id: number; name: string } | null;
   // False for an account that has never set a password (e.g. Google-only).
   has_password?: boolean;
+  // Signed in to the public, read-only demo organization.
+  is_demo?: boolean;
 }
 
 // ---------------------------------------------------------------------------

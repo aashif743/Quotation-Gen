@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getGoogleAuthUrl, getAuthProviders } from '../services/api';
-import { Mail, Lock, LogIn, FileText, ShieldCheck, Users, Eye, EyeOff } from 'lucide-react';
+import { Mail, Lock, LogIn, FileText, ShieldCheck, Users, Eye, EyeOff, PlayCircle, Download } from 'lucide-react';
 import { QuoteFlowLogo, QuoteFlowMark } from '../components/common/QuoteFlowLogo';
 
 const Login: React.FC = () => {
@@ -14,6 +14,7 @@ const Login: React.FC = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [googleEnabled, setGoogleEnabled] = useState(false);
+  const [demoEnabled, setDemoEnabled] = useState(false);
   // Set when the API interceptor redirected here due to a 401.
   const [sessionExpired, setSessionExpired] = useState(false);
 
@@ -33,6 +34,7 @@ const Login: React.FC = () => {
       try {
         const providers = await getAuthProviders();
         setGoogleEnabled(providers.google);
+        setDemoEnabled(!!providers.demo);
       } catch (err) {
         console.error('Failed to check auth providers');
       }
@@ -212,7 +214,34 @@ const Login: React.FC = () => {
             </>
           )}
 
-          <p className="mt-8 text-center text-sm text-gray-500">
+          {/* New to QuoteFlow? Live demo + brochure, open to anyone. */}
+          <div className="mt-8 rounded-xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-cyan-50 p-5 dark:border-indigo-500/30 dark:from-indigo-500/10 dark:to-cyan-500/10">
+            <p className="text-sm font-semibold text-gray-900 dark:!text-white">New to QuoteFlow?</p>
+            <p className="text-sm text-gray-600 dark:!text-gray-300 mt-0.5">Explore the full system with sample data, no account needed.</p>
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {demoEnabled && (
+                <button
+                  type="button"
+                  onClick={() => navigate('/demo')}
+                  className="inline-flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium text-white bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-700 hover:to-cyan-700"
+                >
+                  <PlayCircle className="h-4 w-4" /> Try the live demo
+                </button>
+              )}
+              <a
+                href="/QuoteFlow-Brochure.pdf"
+                download="QuoteFlow-Brochure.pdf"
+                className={`inline-flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border border-indigo-200 bg-white text-indigo-700 hover:bg-indigo-50 dark:!bg-transparent dark:!text-indigo-200 dark:border-indigo-400/40 dark:hover:!bg-white/5 ${demoEnabled ? '' : 'sm:col-span-2'}`}
+              >
+                <Download className="h-4 w-4" /> Download brochure
+              </a>
+            </div>
+            <p className="mt-3 text-xs text-gray-500 dark:!text-gray-400">
+              To get QuoteFlow for your business: 0997 235 271 · info@orbitalitsolutions.com
+            </p>
+          </div>
+
+          <p className="mt-6 text-center text-sm text-gray-500">
             Need an account? Contact your administrator to have one created for you.
           </p>
         </div>

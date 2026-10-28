@@ -15,6 +15,10 @@ interface AuthContextType {
   actingOrganization: { id: number; name: string } | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  /** Sign in to the public read-only demo. */
+  loginDemo: () => Promise<void>;
+  /** Signed in to the public demo (read-only). */
+  isDemo: boolean;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
   /** Replace the cached user after the user edits their own profile. */
@@ -59,6 +63,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setIsAuthenticated(true);
   };
 
+  const loginDemo = async () => {
+    const userData = await api.demoLogin();
+    setUser(userData);
+    setIsAuthenticated(true);
+  };
+
   const logout = async () => {
     await api.logout();
     setUser(null);
@@ -84,6 +94,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         actingOrganization: user?.acting_organization || null,
         isLoading,
         login,
+        loginDemo,
+        isDemo: !!user?.is_demo,
         logout,
         checkAuth,
         setCurrentUser: setUser,

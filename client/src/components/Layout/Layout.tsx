@@ -7,6 +7,7 @@ import { brandColorFor, hexToRgba, relativeLuminance } from '../../utils/colors'
 import { exitOrganization } from '../../services/api';
 import CompanySelector, { CompanyThumb } from './CompanySelector';
 import { QuoteFlowLogo, QuoteFlowMark } from '../common/QuoteFlowLogo';
+import DemoBanner from './DemoBanner';
 import {
   Home,
   FileText,
@@ -82,7 +83,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { selectedCompany, companies, loading: companiesLoading, createCompany } = useCompany();
-  const { user, logout, isAdmin, isSuperAdmin, canManageAttendance, canAccessPayroll, canViewAudit, actingOrganization } = useAuth();
+  const { user, logout, isAdmin, isSuperAdmin, canManageAttendance, canAccessPayroll, canViewAudit, actingOrganization, isDemo } = useAuth();
   const { theme, toggle: toggleTheme } = useTheme();
   const isDark = theme === 'dark';
 
@@ -442,6 +443,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         </div>
 
         <div className="flex-1 min-w-0">
+          {isDemo && <DemoBanner onExit={handleLogout} />}
           {actingOrganization && (
             <div className="no-print bg-amber-500 text-white px-6 py-2 flex items-center justify-between gap-3 text-sm">
               <span className="flex items-center min-w-0">

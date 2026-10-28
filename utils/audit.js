@@ -112,6 +112,9 @@ function diffRows(before, after) {
 async function writeAudit(e) {
   try {
     const u = e.user || {};
+    // Public demo visitors aren't audited: the demo's log would otherwise
+    // show one visitor's IP address and device to the next.
+    if (u.org_is_demo && !u.is_super_admin) return;
     await db.execute(
       `INSERT INTO audit_logs
          (organization_id, user_id, user_name, user_email, acting_super_admin, action,

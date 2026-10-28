@@ -1178,6 +1178,14 @@ async function migrate() {
     `);
   } else { console.log('  • donation_items already present, skipping.'); }
 
+  // 3x. Public demo. organizations.is_demo (default 0) marks the one
+  //     organization that the "Try the live demo" link signs visitors into.
+  //     Demo users are read-only (see utils/demo.js).
+  if (!(await columnExists('organizations', 'is_demo'))) {
+    console.log('  • Adding `is_demo` to organizations...');
+    await db.query('ALTER TABLE `organizations` ADD COLUMN `is_demo` TINYINT(1) NOT NULL DEFAULT 0');
+  } else { console.log('  • organizations.is_demo already present, skipping.'); }
+
   // 4. Backfill created_by from each row's company owner so existing records
   //    are attributed to the user who originally owned the company.
   const [qBackfill] = await db.query(

@@ -27,6 +27,12 @@ api.interceptors.response.use(
     const isAuthEndpoint = url.includes('/auth/');
     const alreadyOnLogin = window.location.pathname.startsWith('/login');
 
+    // Public demo: the server refuses every change. Let the app show one
+    // friendly explanation instead of each page's generic error.
+    if (status === 403 && error?.response?.data?.demo) {
+      window.dispatchEvent(new CustomEvent('quoteflow:demo-blocked'));
+    }
+
     if (status === 401 && !isAuthEndpoint && !alreadyOnLogin) {
       // Tell the login page why we're sending them there.
       try {
@@ -107,7 +113,13 @@ export const getGoogleAuthUrl = (): string => {
   return `${API_BASE_URL}/auth/google`;
 };
 
-export const getAuthProviders = async (): Promise<{ local: boolean; google: boolean }> => {
+// Sign in to the public read-only demo (no password).
+export const demoLogin = async (): Promise<User> => {
+  const response = await api.post('/auth/demo');
+  return response.data;
+};
+
+export const getAuthProviders = async (): Promise<{ local: boolean; google: boolean; demo?: boolean }> => {
   const response = await api.get('/auth/providers');
   return response.data;
 };
