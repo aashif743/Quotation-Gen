@@ -2,7 +2,7 @@
   "name": "attendance-agent",
   "version": "1.0.0",
   "private": true,
-  "description": "Local PC agent that reads punches from a ZKTeco fingerprint reader and forwards them to the Quotation/Attendance system.",
+  "description": "Local PC agent that reads punches from a ZKTeco fingerprint reader and forwards them to QuoteFlow (attendance).",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",

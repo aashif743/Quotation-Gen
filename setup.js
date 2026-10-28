@@ -1,7 +1,7 @@
 const { initializeDatabase } = require('./database/init');
 
 async function setup() {
-  console.log('🚀 Setting up Quotation System...\n');
+  console.log('🚀 Setting up QuoteFlow...\n');
   
   try {
     console.log('📦 Initializing database...');

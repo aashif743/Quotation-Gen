@@ -1,5 +1,5 @@
 
-# Multi-Company Quotation System
+# QuoteFlow — by Orbital IT Solutions
 
 A modern, professional quotation management system built for **Arkay Pak** and **Electronics Hub** with support for multiple companies, dynamic branding, and automated calculations.
 

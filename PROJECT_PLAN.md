@@ -1,4 +1,4 @@
-Project Blueprint: Multi-Company Quotation System
+Project Blueprint: QuoteFlow (formerly Multi-Company Quotation System)
 1. Technology Stack
 * Frontend: React.js + Tailwind CSS (for modern, responsive UI).
 * Backend: Node.js (Express.js).

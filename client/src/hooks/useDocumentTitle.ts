@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 
-const APP_NAME = 'Quotation System';
+const APP_NAME = 'QuoteFlow';
 
 /**
  * Set the browser tab title (and, as a side effect, the title the browser

@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getGoogleAuthUrl, getAuthProviders } from '../services/api';
-import { Mail, Lock, LogIn, Building2, FileText, ShieldCheck, Users, Eye, EyeOff } from 'lucide-react';
+import { Mail, Lock, LogIn, FileText, ShieldCheck, Users, Eye, EyeOff } from 'lucide-react';
+import { QuoteFlowLogo, QuoteFlowMark } from '../components/common/QuoteFlowLogo';
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
@@ -61,32 +62,27 @@ const Login: React.FC = () => {
   return (
     <div className="min-h-screen flex bg-gray-50">
       {/* Brand panel */}
-      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-gradient-to-br from-green-600 via-green-700 to-emerald-800">
+      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-gradient-to-br from-indigo-700 via-blue-800 to-cyan-800">
         <div className="absolute inset-0 opacity-10">
           <div className="absolute -top-24 -left-24 w-96 h-96 rounded-full bg-white"></div>
           <div className="absolute bottom-0 right-0 w-80 h-80 rounded-full bg-white"></div>
         </div>
         <div className="relative z-10 flex flex-col justify-between p-12 text-white">
-          <div className="flex items-center space-x-3">
-            <div className="h-12 w-12 rounded-xl bg-white/15 backdrop-blur flex items-center justify-center">
-              <Building2 className="h-7 w-7" />
-            </div>
-            <span className="text-xl font-bold">Quotation System</span>
-          </div>
+          <QuoteFlowLogo size={46} tone="light" textClassName="text-2xl" />
 
           <div className="space-y-8 max-w-md">
             <div>
               <h2 className="text-4xl font-bold leading-tight">
-                Create professional quotations in minutes.
+                From quote to payment, in one smooth flow.
               </h2>
-              <p className="mt-4 text-green-100 text-lg">
+              <p className="mt-4 text-indigo-100 text-lg">
                 One platform for your whole team — admins oversee everything, staff manage their own work.
               </p>
             </div>
 
             <div className="space-y-4">
               {[
-                { icon: FileText, text: 'Generate branded quotations and invoices' },
+                { icon: FileText, text: 'Branded quotations, invoices, job cards and delivery notes' },
                 { icon: Users, text: 'Individual staff accounts, kept private' },
                 { icon: ShieldCheck, text: 'Full admin oversight and user management' },
               ].map(({ icon: Icon, text }) => (
@@ -94,13 +90,13 @@ const Login: React.FC = () => {
                   <div className="h-9 w-9 rounded-lg bg-white/15 flex items-center justify-center flex-shrink-0">
                     <Icon className="h-5 w-5" />
                   </div>
-                  <span className="text-green-50">{text}</span>
+                  <span className="text-indigo-50">{text}</span>
                 </div>
               ))}
             </div>
           </div>
 
-          <p className="text-sm text-green-200">© {new Date().getFullYear()} Quotation System</p>
+          <p className="text-sm text-indigo-200">© {new Date().getFullYear()} QuoteFlow · by Orbital IT Solutions</p>
         </div>
       </div>
 
@@ -108,9 +104,7 @@ const Login: React.FC = () => {
       <div className="flex-1 flex items-center justify-center p-6 sm:p-12">
         <div className="w-full max-w-md">
           <div className="lg:hidden text-center mb-8">
-            <div className="inline-flex items-center justify-center w-14 h-14 bg-gradient-to-r from-green-500 to-green-600 rounded-2xl mb-3">
-              <Building2 className="h-7 w-7 text-white" />
-            </div>
+            <div className="inline-flex justify-center mb-3"><QuoteFlowMark size={56} /></div>
           </div>
 
           <div className="mb-8">
@@ -143,7 +137,7 @@ const Login: React.FC = () => {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                   placeholder="you@example.com"
                   required
                   autoComplete="email"
@@ -162,7 +156,7 @@ const Login: React.FC = () => {
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-11 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  className="w-full pl-10 pr-11 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                   placeholder="Enter your password"
                   required
                   autoComplete="current-password"
@@ -182,7 +176,7 @@ const Login: React.FC = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-gradient-to-r from-green-500 to-green-600 text-white py-3 rounded-lg font-medium hover:from-green-600 hover:to-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center"
+              className="w-full bg-gradient-to-r from-indigo-600 to-cyan-600 text-white py-3 rounded-lg font-medium hover:from-indigo-700 hover:to-cyan-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center"
             >
               {loading ? (
                 <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>

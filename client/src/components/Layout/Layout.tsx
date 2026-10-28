@@ -6,6 +6,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { brandColorFor, hexToRgba, relativeLuminance } from '../../utils/colors';
 import { exitOrganization } from '../../services/api';
 import CompanySelector, { CompanyThumb } from './CompanySelector';
+import { QuoteFlowLogo, QuoteFlowMark } from '../common/QuoteFlowLogo';
 import {
   Home,
   FileText,
@@ -248,12 +249,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-[#121212] flex flex-col transition-colors">
         <header className="flex items-center justify-between px-6 py-4">
-          <div className="flex items-center space-x-2.5">
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: tintBg }}>
-              <Building2 className="h-5 w-5" style={{ color: accentColor }} />
-            </div>
-            <span className="font-bold text-gray-900 dark:text-white">Quotation System</span>
-          </div>
+          <QuoteFlowLogo size={36} textClassName="text-lg" />
           <div className="flex items-center gap-3">
             <button onClick={toggleTheme} className="inline-flex items-center justify-center h-10 w-10 rounded-full border border-gray-200 dark:border-[#2e2e2e] bg-white dark:bg-[#1e1e1e] text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors" aria-label="Toggle theme">
               {isDark ? <Sun className="h-5 w-5 text-amber-400" /> : <Moon className="h-5 w-5 text-slate-700" />}
@@ -320,12 +316,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             <div className={`flex items-center mb-6 ${collapsed ? 'justify-center' : 'justify-between px-1'}`}>
               {!collapsed && (
                 <div className="flex items-center space-x-2.5 min-w-0">
-                  <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: tintBg }}>
-                    <Building2 className="h-5 w-5" style={{ color: accentColor }} />
-                  </div>
+                  <QuoteFlowMark size={36} />
                   <div className="min-w-0">
-                    <h1 className="text-[15px] font-bold text-gray-900 dark:text-white truncate leading-tight">Quotation System</h1>
-                    <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate">Multi-Company Platform</p>
+                    <h1 className="text-[16px] font-bold tracking-tight text-gray-900 dark:text-white truncate leading-tight">
+                      Quote<span className="bg-gradient-to-r from-indigo-600 to-cyan-500 bg-clip-text text-transparent dark:from-indigo-400 dark:to-cyan-300">Flow</span>
+                    </h1>
+                    <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate">by Orbital IT Solutions</p>
                   </div>
                 </div>
               )}
