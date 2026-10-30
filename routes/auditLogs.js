@@ -12,9 +12,20 @@ router.use(isAuthenticated, canViewAudit);
 const AUTH_ACTIONS = ['login', 'logout', 'login_failed'];
 const ONLINE_MINUTES = 5;
 
+// The platform owner's own activity (signing in, entering an organization,
+// anything they change while inside one) is never shown to an organization:
+// only other super-admins can see it. This also keeps the public demo's log
+// down to its sample entries.
+const OWNER_HIDDEN = `a.acting_super_admin = 0
+  AND (a.user_id IS NULL OR a.user_id NOT IN (SELECT su.id FROM users su WHERE su.is_super_admin = 1))`;
+
 function scope(req) {
   const orgId = req.user.organization_id;
-  if (orgId) return { sql: 'a.organization_id = ?', params: [orgId] };
+  if (orgId) {
+    return req.user.is_super_admin
+      ? { sql: 'a.organization_id = ?', params: [orgId] }
+      : { sql: `a.organization_id = ? AND ${OWNER_HIDDEN}`, params: [orgId] };
+  }
   if (req.user.is_super_admin) {
     const f = Number(req.query.organization_id);
     return f ? { sql: 'a.organization_id = ?', params: [f] } : { sql: '1 = 1', params: [] };
