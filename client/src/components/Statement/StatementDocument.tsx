@@ -81,7 +81,9 @@ const StatementDocument: React.FC<Props> = ({ statement: st, rootClassName = '' 
     ...st.payments.map((p) => ({
       date: p.payment_date,
       ref: p.invoice_number,
-      desc: ['Payment received', p.method, p.reference ? `Ref ${p.reference}` : ''].filter(Boolean).join(' · '),
+      desc: p.is_discount
+        ? ['Discount allowed', p.reference ? `Ref ${p.reference}` : ''].filter(Boolean).join(' · ')
+        : ['Payment received', p.method, p.reference ? `Ref ${p.reference}` : ''].filter(Boolean).join(' · '),
       debit: 0,
       credit: Number(p.amount) || 0,
     })),
@@ -172,7 +174,7 @@ const StatementDocument: React.FC<Props> = ({ statement: st, rootClassName = '' 
         {[
           ['Opening balance', st.opening_balance, '#111827'],
           ['Invoiced', st.total_invoiced, '#111827'],
-          ['Payments received', st.total_paid, '#047857'],
+          [st.payments.some((p) => p.is_discount) ? 'Payments & discounts' : 'Payments received', st.total_paid, '#047857'],
           ['Closing balance', closing, closing > 0.004 ? '#b91c1c' : '#111827'],
         ].map(([label, val, color], i) => (
           <div key={label as string} style={{ padding: '10px 14px', borderLeft: i ? '1px solid #e5e7eb' : 'none', background: i === 3 ? '#f9fafb' : '#fff' }}>

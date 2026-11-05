@@ -1,6 +1,8 @@
 const express = require('express');
 const db = require('../config/database');
 const { isAuthenticated, isAdmin } = require('../middleware/auth');
+const { rememberServices } = require('./services');
+const { moveToRecycleBin } = require('../utils/recycleBin');
 const { requireCompanyAccess, companyTableParamGuard } = require('../utils/tenancy');
 const { getCompanyPrefix } = require('../utils/quotePrefix');
 const { resolveClientId } = require('../utils/clientResolver');
@@ -278,6 +280,7 @@ router.post('/', async (req, res) => {
     await saveExtras(connection, id, req.body || {});
 
     await connection.commit();
+    await rememberServices(company_id, items, req.user.id);
     res.status(201).json(await fetchBasic(id));
   } catch (error) {
     await connection.rollback();
@@ -424,6 +427,8 @@ router.put('/:id', async (req, res) => {
     await saveExtras(connection, id, req.body || {});
 
     await connection.commit();
+    const [[jc]] = await db.execute('SELECT company_id FROM job_cards WHERE id = ?', [id]);
+    if (jc) await rememberServices(jc.company_id, items, req.user.id);
     res.json(await fetchBasic(id));
   } catch (error) {
     await connection.rollback();
@@ -469,7 +474,7 @@ router.patch('/:id/status', async (req, res) => {
 // Delete job card (admin only). Linked invoices keep existing (FK SET NULL).
 router.delete('/:id', isAdmin, async (req, res) => {
   try {
-    const [result] = await db.execute('DELETE FROM job_cards WHERE id = ?', [req.params.id]);
+    const result = await moveToRecycleBin('job_card', req.params.id, req);
     if (result.affectedRows === 0) {
       return res.status(404).json({ error: 'Job card not found' });
     }

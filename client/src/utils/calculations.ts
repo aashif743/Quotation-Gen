@@ -20,6 +20,37 @@ export const calculateGrandTotal = (
   return subtotal + vatAmount + ppdaAmount;
 };
 
+/** Discount in currency for a subtotal; never negative or more than the subtotal. */
+export const calculateDiscount = (
+  subtotal: number,
+  type?: 'amount' | 'percent' | null,
+  value?: number | null
+): number => {
+  const v = Number(value) || 0;
+  if (!type || v <= 0 || subtotal <= 0) return 0;
+  const d = type === 'percent' ? (subtotal * Math.min(v, 100)) / 100 : v;
+  return Math.round(Math.min(Math.max(d, 0), subtotal) * 100) / 100;
+};
+
+/**
+ * All document totals in one place. The discount comes off the subtotal
+ * before VAT and PPDA are worked out.
+ */
+export const computeTotals = (
+  items: QuotationItem[],
+  vatRate: number,
+  ppdaRate: number,
+  discountType?: 'amount' | 'percent' | null,
+  discountValue?: number | null
+) => {
+  const subtotal = calculateSubtotal(items);
+  const discount_amount = calculateDiscount(subtotal, discountType, discountValue);
+  const taxable = subtotal - discount_amount;
+  const vat_amount = calculateVAT(taxable, vatRate || 0);
+  const ppda_amount = calculatePPDA(taxable, ppdaRate || 0);
+  return { subtotal, discount_amount, vat_amount, ppda_amount, grand_total: taxable + vat_amount + ppda_amount };
+};
+
 // Active display currency (ISO 4217). It's set from the selected company (see
 // CompanyContext) so every formatCurrency() call across the app reflects that
 // company's currency — without threading a currency argument through the ~110

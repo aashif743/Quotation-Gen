@@ -2,17 +2,15 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useCompany } from '../context/CompanyContext';
 import { useAuth } from '../context/AuthContext';
-import { Invoice, InvoiceItem, Client } from '../types';
+import { Invoice, InvoiceItem, Client, DiscountType } from '../types';
+import DiscountInput from '../components/common/DiscountInput';
 import {
   createInvoice,
   getNextInvoiceNumber,
   getClient,
 } from '../services/api';
 import {
-  calculateSubtotal,
-  calculateVAT,
-  calculatePPDA,
-  calculateGrandTotal,
+  computeTotals,
   formatCurrency,
 } from '../utils/calculations';
 import ClientPicker from '../components/Quotation/ClientPicker';
@@ -178,18 +176,19 @@ const NewInvoice: React.FC = () => {
 
   const recomputeTotals = (
     items: InvoiceItem[],
-    v: number = vatRate,
-    p: number = ppdaRate
-  ) => {
-    const subtotal = calculateSubtotal(items);
-    const vat = calculateVAT(subtotal, v);
-    const ppda = calculatePPDA(subtotal, p);
-    return {
-      subtotal,
-      vat_amount: vat,
-      ppda_amount: ppda,
-      grand_total: calculateGrandTotal(subtotal, vat, ppda),
-    };
+    v: number,
+    p: number,
+    discountType?: DiscountType | null,
+    discountValue?: number
+  ) => computeTotals(items, v, p, discountType, discountValue);
+
+  const handleDiscountChange = (t: DiscountType, value: number) => {
+    setInvoiceData((prev) => ({
+      ...prev,
+      discount_type: t,
+      discount_value: value,
+      ...recomputeTotals(prev.items || [], vatRate, ppdaRate, t, value),
+    }));
   };
 
   const handleItemsChange = (items: InvoiceItem[]) => {
@@ -197,7 +196,7 @@ const NewInvoice: React.FC = () => {
       ...it,
       total: (Number(it.quantity) || 0) * (Number(it.unit_price) || 0),
     }));
-    setInvoiceData((prev) => ({ ...prev, items: updated, ...recomputeTotals(updated) }));
+    setInvoiceData((prev) => ({ ...prev, items: updated, ...recomputeTotals(updated, vatRate, ppdaRate, prev.discount_type, prev.discount_value) }));
   };
 
   const updateItem = (index: number, field: keyof InvoiceItem, value: any) => {
@@ -228,7 +227,7 @@ const NewInvoice: React.FC = () => {
     setVatRate(v);
     setInvoiceData((prev) => ({
       ...prev,
-      ...recomputeTotals(prev.items || [], v, ppdaRate),
+      ...recomputeTotals(prev.items || [], v, ppdaRate, prev.discount_type, prev.discount_value),
     }));
   };
 
@@ -237,7 +236,7 @@ const NewInvoice: React.FC = () => {
     setPpdaRate(p);
     setInvoiceData((prev) => ({
       ...prev,
-      ...recomputeTotals(prev.items || [], vatRate, p),
+      ...recomputeTotals(prev.items || [], vatRate, p, prev.discount_type, prev.discount_value),
     }));
   };
 
@@ -459,6 +458,8 @@ const NewInvoice: React.FC = () => {
                 placeholder="1.0"
               />
             </div>
+
+            <DiscountInput className="md:col-span-2" type={invoiceData.discount_type} value={invoiceData.discount_value} onChange={handleDiscountChange} />
           </div>
         </div>
 
@@ -632,6 +633,12 @@ const NewInvoice: React.FC = () => {
                         {formatCurrency(invoiceData.subtotal || 0)}
                       </span>
                     </div>
+                    {Number(invoiceData.discount_amount) > 0 && (
+                      <div className="flex justify-between text-sm text-amber-700">
+                        <span>Discount{invoiceData.discount_type === 'percent' ? ` (${Number(invoiceData.discount_value)}%)` : ''}</span>
+                        <span className="font-medium tabular-nums">− {formatCurrency(Number(invoiceData.discount_amount))}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600">
                         VAT ({(vatRate * 100).toFixed(1)}%)

@@ -1,10 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { recordPayment, updatePayment, uploadPaymentProof } from '../../services/api';
 import { ProofFilePicker } from './PaymentProof';
-import { formatCurrency } from '../../utils/calculations';
+import { formatCurrency, getActiveCurrency } from '../../utils/calculations';
 import CurrencyInput from '../common/CurrencyInput';
 import { Payment } from '../../types';
-import { X, CreditCard, CheckCircle2 } from 'lucide-react';
+import { X, CreditCard, CheckCircle2, BadgePercent } from 'lucide-react';
 
 const METHODS = [
   'Cash',
@@ -45,6 +45,8 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
   existingPayment,
 }) => {
   const isEdit = !!existingPayment;
+  // Editing a discount row: only the amount, date and notes make sense.
+  const isDiscountRow = isEdit && !!existingPayment!.is_discount;
   const total = Number(invoice.grand_total || 0);
   const paid = Number(invoice.amount_paid || 0);
   const balance = Number(invoice.balance_due ?? total - paid);
@@ -79,6 +81,10 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
   // payment that has no proof yet (replacing an existing proof is done from
   // the payments list, admin-only).
   const [proofFile, setProofFile] = useState<File | null>(null);
+  // Settlement discount (new payments only): settles part of the balance
+  // without money being received.
+  const [discount, setDiscount] = useState<number>(0);
+  const [showDiscount, setShowDiscount] = useState(false);
   const canAttachProof = !isEdit || !existingPayment!.proof_file_url;
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string>('');
@@ -99,12 +105,18 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  const validAmount = amount > 0;
-  const overpaying = validAmount && amount > balanceForCheck + 0.01;
+  const validAmount = amount > 0 || (!isEdit && discount > 0);
+  const settling = amount + (isEdit ? 0 : discount);
+  const overpaying = validAmount && settling > balanceForCheck + 0.01;
+  const balanceAfter = Math.max(0, balanceForCheck - settling);
 
   const handleSubmit = async () => {
     if (!validAmount) {
       setError('Enter a payment amount greater than 0.');
+      return;
+    }
+    if (!isEdit && discount > 0 && amount + discount > balanceForCheck + 0.01) {
+      setError('The discount cannot be more than the balance left after this payment.');
       return;
     }
     if (!paymentDate) {
@@ -133,6 +145,7 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
           method: method || undefined,
           reference: reference || undefined,
           notes: notes || undefined,
+          discount: discount > 0 ? discount : undefined,
         });
         paymentId = created.id;
       }
@@ -199,7 +212,7 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
             </div>
             <div className="min-w-0">
               <h2 className="text-base font-bold leading-tight">
-                {isEdit ? 'Edit Payment' : 'Record Payment'}
+                {isDiscountRow ? 'Edit Discount' : isEdit ? 'Edit Payment' : 'Record Payment'}
               </h2>
               <p className="text-xs text-white/85 mt-0.5 truncate">
                 Invoice {invoice.invoice_number}
@@ -234,8 +247,8 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
           {/* Amount — hero field */}
           <div>
             <div className="flex items-baseline justify-between mb-1">
-              <label className="block text-xs font-semibold text-gray-900">Amount</label>
-              {balanceForCheck > 0 && (
+              <label className="block text-xs font-semibold text-gray-900">{isDiscountRow ? 'Discount amount' : 'Amount received'}</label>
+              {balanceForCheck > 0 && !isDiscountRow && (
                 <button
                   type="button"
                   onClick={() => setAmount(balanceForCheck)}
@@ -253,7 +266,7 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
               }`}
             >
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-gray-400 pointer-events-none">
-                MWK
+                {getActiveCurrency()}
               </span>
               <CurrencyInput
                 ref={amountRef}
@@ -270,8 +283,59 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
             )}
           </div>
 
+          {/* Settlement discount (new payments only) */}
+          {!isEdit && (
+            showDiscount ? (
+              <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-2.5 dark:border-amber-500/30 dark:!bg-amber-500/10">
+                <div className="flex items-baseline justify-between mb-1">
+                  <label className="block text-xs font-semibold text-gray-900 dark:!text-gray-100">Discount given</label>
+                  {balanceForCheck - amount > 0.009 && (
+                    <button
+                      type="button"
+                      onClick={() => setDiscount(Math.round((balanceForCheck - amount) * 100) / 100)}
+                      className="text-xs font-semibold text-amber-700 hover:text-amber-800"
+                    >
+                      Discount the rest ({formatCurrency(Math.max(0, balanceForCheck - amount))})
+                    </button>
+                  )}
+                </div>
+                <div className="relative rounded-lg border-2 border-amber-200 bg-white focus-within:border-amber-500">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-gray-400 pointer-events-none">
+                    {getActiveCurrency()}
+                  </span>
+                  <CurrencyInput
+                    value={discount}
+                    onChange={setDiscount}
+                    placeholder="0.00"
+                    className="w-full bg-transparent pl-14 pr-3 py-2 text-base font-bold text-right tabular-nums focus:outline-none"
+                  />
+                </div>
+                <p className="mt-1 text-[11px] text-gray-600 dark:!text-gray-300">
+                  Reduces the balance without money being received. It is shown as "Discount allowed" on the invoice and the client statement.
+                </p>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowDiscount(true)}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-700 hover:text-amber-800"
+              >
+                <BadgePercent className="h-3.5 w-3.5" /> Add a discount
+              </button>
+            )
+          )}
+
+          {!isDiscountRow && (
+            <div className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-1.5 text-xs">
+              <span className="text-gray-500">Balance after this</span>
+              <span className={`font-bold tabular-nums ${balanceAfter > 0 ? 'text-red-600' : 'text-emerald-700'}`}>
+                {balanceAfter > 0 ? formatCurrency(balanceAfter) : 'Fully paid'}
+              </span>
+            </div>
+          )}
+
           {/* Date + Method on the same line */}
-          <div className="grid grid-cols-2 gap-2.5">
+          <div className={`grid ${isDiscountRow ? 'grid-cols-1' : 'grid-cols-2'} gap-2.5`}>
             <div>
               <label className="block text-xs font-semibold text-gray-900 mb-1">Date</label>
               <input
@@ -281,6 +345,7 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
                 className="w-full px-2.5 py-2 text-sm rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
               />
             </div>
+            {!isDiscountRow && (
             <div>
               <label className="block text-xs font-semibold text-gray-900 mb-1">Method</label>
               <select
@@ -293,6 +358,7 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
                 ))}
               </select>
             </div>
+            )}
           </div>
 
           {/* Reference */}
@@ -351,7 +417,7 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
             ) : (
               <>
                 <CheckCircle2 className="h-4 w-4 mr-1.5" />
-                {isEdit ? 'Save Changes' : 'Record Payment'}
+                {isEdit ? 'Save Changes' : amount > 0 ? 'Record Payment' : 'Record Discount'}
               </>
             )}
           </button>

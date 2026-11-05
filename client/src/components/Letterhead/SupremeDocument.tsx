@@ -30,6 +30,7 @@ export interface SupremeDocData {
   reference?: string | null;
   items?: { description: string; quantity: number; unit_price?: number; total?: number }[];
   subtotal?: number;
+  discount_amount?: number | string | null;
   vat_amount?: number;
   ppda_amount?: number;
   grand_total?: number;
@@ -115,7 +116,9 @@ const SupremeDocument: React.FC<Props> = ({ kind, data, company, rootClassName =
   const sub = Number(data.subtotal || 0);
   const vat = Number(data.vat_amount || 0);
   const ppda = Number(data.ppda_amount || 0);
-  const vatPct = vat > 0 && sub > 0 ? (vat / sub) * 100 : Number(company.vat_rate || 0) * 100;
+  const disc = Number(data.discount_amount || 0);
+  const taxable = sub - disc;
+  const vatPct = vat > 0 && taxable > 0 ? (vat / taxable) * 100 : Number(company.vat_rate || 0) * 100;
   const vatLabel = vatPct > 0 ? `${formatNumber(vatPct, vatPct % 1 ? 1 : 0)}% VAT` : 'VAT';
 
   const contactBlue: React.CSSProperties = { color: blue, fontFamily: sans, fontSize: 14, lineHeight: 1.3, margin: 0 };
@@ -285,12 +288,13 @@ const SupremeDocument: React.FC<Props> = ({ kind, data, company, rootClassName =
             <div style={{ width: 330, flexShrink: 0 }}>
               {[
                 ['TOTAL', formatNumber(sub)],
+                ...(disc > 0 ? [['DISCOUNT', `- ${formatNumber(disc)}`]] : []),
                 [vatLabel, vat > 0 ? formatNumber(vat) : 'Incl.'],
                 ...(ppda > 0 ? [['PPDA', formatNumber(ppda)]] : []),
                 ['GRAND TOTAL', formatCurrency(Number(data.grand_total || 0), company.currency || undefined)],
               ].map(([label, value], i, arr) => (
                 <div key={label} style={{ display: 'flex', alignItems: 'stretch' }}>
-                  <div style={{ flex: 1, textAlign: 'right', whiteSpace: 'nowrap', padding: '10px 18px 6px 0', fontFamily: sans, fontWeight: 700, fontSize: i === arr.length - 1 || i === 1 ? 17 : 16, color: '#111' }}>
+                  <div style={{ flex: 1, textAlign: 'right', whiteSpace: 'nowrap', padding: '10px 18px 6px 0', fontFamily: sans, fontWeight: 700, fontSize: i === arr.length - 1 || label === vatLabel ? 17 : 16, color: '#111' }}>
                     {label}
                   </div>
                   <div style={{

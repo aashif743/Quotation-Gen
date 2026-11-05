@@ -259,6 +259,9 @@ export interface QuotationItem {
   sort_order?: number;
 }
 
+/** Discount on a quotation / invoice: a fixed amount or a percentage of the subtotal. */
+export type DiscountType = 'amount' | 'percent';
+
 export interface Quotation {
   id?: number;
   company_id: number;
@@ -274,6 +277,10 @@ export interface Quotation {
   vat_amount: number;
   ppda_amount: number;
   grand_total: number;
+  // Optional document discount, applied before VAT / PPDA.
+  discount_type?: DiscountType | null;
+  discount_value?: number;
+  discount_amount?: number;
   notes?: string;
   terms_conditions?: string;
   /** Optional subject line ("TITLE :" on the supreme letterhead). */
@@ -326,6 +333,10 @@ export interface Invoice {
   vat_amount: number;
   ppda_amount: number;
   grand_total: number;
+  // Optional document discount, applied before VAT / PPDA.
+  discount_type?: DiscountType | null;
+  discount_value?: number;
+  discount_amount?: number;
   notes?: string;
   terms_conditions?: string;
   /** Optional subject line ("TITLE :" on the supreme letterhead). */
@@ -372,6 +383,8 @@ export interface Payment {
   proof_uploaded_at?: string | null;
   proof_uploaded_by?: number | null;
   proof_uploaded_by_name?: string | null;
+  // A settlement discount (reduces the balance; no money received).
+  is_discount?: number | boolean;
 }
 
 // ---------------------------------------------------------------------------

@@ -1,13 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useCompany } from '../context/CompanyContext';
-import { InvoiceItem, Invoice } from '../types';
+import { InvoiceItem, Invoice, DiscountType } from '../types';
+import DiscountInput from '../components/common/DiscountInput';
 import { getInvoice, updateInvoice } from '../services/api';
 import {
-  calculateSubtotal,
-  calculateVAT,
-  calculatePPDA,
-  calculateGrandTotal,
+  computeTotals,
   formatCurrency,
   formatNumber
 } from '../utils/calculations';
@@ -59,18 +57,20 @@ const EditInvoice: React.FC = () => {
 
     if (!selectedCompany) return;
 
-    const subtotal = calculateSubtotal(updatedItems);
-    const vatAmount = calculateVAT(subtotal, selectedCompany.vat_rate);
-    const ppdaAmount = calculatePPDA(subtotal, selectedCompany.ppda_rate);
-    const grandTotal = calculateGrandTotal(subtotal, vatAmount, ppdaAmount);
-
     setInvoiceData(prev => ({
       ...prev,
       items: updatedItems,
-      subtotal,
-      vat_amount: vatAmount,
-      ppda_amount: ppdaAmount,
-      grand_total: grandTotal
+      ...computeTotals(updatedItems, selectedCompany.vat_rate, selectedCompany.ppda_rate, prev.discount_type, prev.discount_value),
+    }));
+  };
+
+  const handleDiscountChange = (t: DiscountType, value: number) => {
+    if (!selectedCompany) return;
+    setInvoiceData(prev => ({
+      ...prev,
+      discount_type: t,
+      discount_value: value,
+      ...computeTotals(prev.items || [], selectedCompany.vat_rate, selectedCompany.ppda_rate, t, value),
     }));
   };
 
@@ -247,6 +247,8 @@ const EditInvoice: React.FC = () => {
               />
             </div>
 
+            <DiscountInput className="md:col-span-2" type={invoiceData.discount_type} value={invoiceData.discount_value} onChange={handleDiscountChange} />
+
             {selectedCompany?.template === 'supreme' && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -422,6 +424,12 @@ const EditInvoice: React.FC = () => {
                   <span>Subtotal:</span>
                   <span className="font-medium">{formatCurrency(invoiceData.subtotal || 0)}</span>
                 </div>
+                {Number(invoiceData.discount_amount) > 0 && (
+                  <div className="flex justify-between text-sm text-amber-700">
+                    <span>Discount{invoiceData.discount_type === 'percent' ? ` (${formatNumber(Number(invoiceData.discount_value) || 0, 1)}%)` : ''}:</span>
+                    <span className="font-medium">− {formatCurrency(Number(invoiceData.discount_amount))}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-sm">
                   <span>VAT ({formatNumber((selectedCompany?.vat_rate || 0) * 100, 1)}%):</span>
                   <span className="font-medium">{formatCurrency(invoiceData.vat_amount || 0)}</span>

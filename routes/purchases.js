@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('../config/database');
 const { isAuthenticated, isAdmin, canHandlePayments } = require('../middleware/auth');
+const { moveToRecycleBin } = require('../utils/recycleBin');
 const { requireCompanyAccess, companyTableParamGuard } = require("../utils/tenancy");
 const { getCompanyPrefix } = require('../utils/quotePrefix');
 const { resolveVendorId } = require('../utils/vendorResolver');
@@ -301,7 +302,7 @@ router.put('/:id', async (req, res) => {
 // DELETE /api/purchases/:id — admin only.
 router.delete('/:id', isAdmin, async (req, res) => {
   try {
-    const [result] = await db.execute('DELETE FROM purchases WHERE id = ?', [req.params.id]);
+    const result = await moveToRecycleBin('purchase', req.params.id, req);
     if (result.affectedRows === 0) {
       return res.status(404).json({ error: 'Purchase not found' });
     }
@@ -372,7 +373,7 @@ router.delete('/:id/payments/:paymentId', canHandlePayments, async (req, res) =>
     }
     // Any proof file is intentionally left on disk: uploaded documents are
     // never deleted as a side effect of removing a payment.
-    await db.execute('DELETE FROM vendor_payments WHERE id = ?', [req.params.paymentId]);
+    await moveToRecycleBin('vendor_payment', req.params.paymentId, req);
     res.json({ message: 'Payment removed.' });
   } catch (error) {
     console.error('Error deleting vendor payment:', error);

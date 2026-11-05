@@ -4,6 +4,7 @@ const path = require('path');
 const multer = require('multer');
 const db = require('../config/database');
 const { isAuthenticated, isAdmin } = require('../middleware/auth');
+const { moveToRecycleBin } = require('../utils/recycleBin');
 const { requireCompanyAccess, companyTableParamGuard } = require("../utils/tenancy");
 const { getCompanyPrefix } = require('../utils/quotePrefix');
 const { UPLOADS_ROOT, resolveUploadDiskPath } = require('../config/paths');
@@ -201,12 +202,9 @@ router.put('/:id', async (req, res) => {
 // DELETE /api/petty-cash/:id — admin only. Removes any attached receipt.
 router.delete('/:id', isAdmin, async (req, res) => {
   try {
-    const [rows] = await db.execute('SELECT receipt_url FROM petty_cash WHERE id = ?', [req.params.id]);
-    if (rows.length === 0) return res.status(404).json({ error: 'Entry not found' });
-    if (rows[0].receipt_url) {
-      try { fs.unlinkSync(resolveUploadDiskPath(rows[0].receipt_url)); } catch { /* already gone */ }
-    }
-    await db.execute('DELETE FROM petty_cash WHERE id = ?', [req.params.id]);
+    // The receipt file is kept so the entry can be restored from the recycle bin.
+    const result = await moveToRecycleBin('petty_cash', req.params.id, req);
+    if (!result.affectedRows) return res.status(404).json({ error: 'Entry not found' });
     res.json({ message: 'Entry deleted.' });
   } catch (error) {
     console.error('Error deleting petty cash entry:', error);

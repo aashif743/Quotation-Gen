@@ -280,9 +280,9 @@ const QuotationView: React.FC = () => {
           // document shows the same "VAT (X%)" / "PPDA (X%)" labels as the
           // live preview did.
           vat_rate: quotation.vat_rate
-            ?? (quotation.subtotal ? (quotation.vat_amount || 0) / quotation.subtotal : undefined),
+            ?? (quotation.subtotal ? (quotation.vat_amount || 0) / ((quotation.subtotal - (Number(quotation.discount_amount) || 0)) || 1) : undefined),
           ppda_rate: quotation.ppda_rate
-            ?? (quotation.subtotal ? (quotation.ppda_amount || 0) / quotation.subtotal : undefined),
+            ?? (quotation.subtotal ? (quotation.ppda_amount || 0) / ((quotation.subtotal - (Number(quotation.discount_amount) || 0)) || 1) : undefined),
           letterhead: quotation.company_letterhead,
         }}
       />

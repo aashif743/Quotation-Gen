@@ -5,6 +5,7 @@ import { Plus, Trash2, Calculator } from 'lucide-react';
 import { formatCurrency, formatNumber } from '../../utils/calculations';
 import ClientPicker from './ClientPicker';
 import CurrencyInput from '../common/CurrencyInput';
+import DiscountInput from '../common/DiscountInput';
 
 interface QuotationFormProps {
   quotationData: Partial<Quotation>;
@@ -188,6 +189,13 @@ const QuotationForm: React.FC<QuotationFormProps> = ({
               Auto-filled from the last quotation. Edit if needed.
             </p>
           </div>
+
+          <DiscountInput
+            className="md:col-span-2"
+            type={quotationData.discount_type}
+            value={quotationData.discount_value}
+            onChange={(t, v) => { onInputChange('discount_type', t); onInputChange('discount_value', v); }}
+          />
         </div>
       </div>
 
@@ -396,12 +404,18 @@ const QuotationForm: React.FC<QuotationFormProps> = ({
                 <span>Subtotal:</span>
                 <span className="font-medium">{formatCurrency(quotationData.subtotal || 0)}</span>
               </div>
+              {Number(quotationData.discount_amount) > 0 && (
+                <div className="flex justify-between text-sm text-amber-700">
+                  <span>Discount{quotationData.discount_type === 'percent' ? ` (${formatNumber(Number(quotationData.discount_value) || 0, 1)}%)` : ''}:</span>
+                  <span className="font-medium">− {formatCurrency(Number(quotationData.discount_amount))}</span>
+                </div>
+              )}
               <div className="flex justify-between text-sm">
-                <span>VAT ({formatNumber((selectedCompany?.vat_rate || 0) * 100, 1)}%):</span>
+                <span>VAT ({formatNumber((quotationData.vat_rate ?? selectedCompany?.vat_rate ?? 0) * 100, 1)}%):</span>
                 <span className="font-medium">{formatCurrency(quotationData.vat_amount || 0)}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span>PPDA ({formatNumber((selectedCompany?.ppda_rate || 0) * 100, 1)}%):</span>
+                <span>PPDA ({formatNumber((quotationData.ppda_rate ?? selectedCompany?.ppda_rate ?? 0) * 100, 1)}%):</span>
                 <span className="font-medium">{formatCurrency(quotationData.ppda_amount || 0)}</span>
               </div>
               <div className="flex justify-between text-lg font-bold border-t pt-2" style={getTextStyle()}>

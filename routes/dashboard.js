@@ -30,7 +30,7 @@ router.get('/', async (req, res) => {
     const q  = await one(`SELECT COUNT(*) c, IFNULL(SUM(grand_total),0) t FROM quotations WHERE company_id=?${own}`, args());
     const inv = await one(`SELECT COUNT(*) c, IFNULL(SUM(grand_total),0) t FROM invoices WHERE company_id=?${own}`, args());
     const paid = await one(
-      `SELECT IFNULL(SUM(p.amount),0) t
+      `SELECT IFNULL(SUM(p.amount),0) t, IFNULL(SUM(CASE WHEN p.is_discount = 1 THEN 0 ELSE p.amount END),0) cash
          FROM payments p JOIN invoices i ON p.invoice_id=i.id
         WHERE i.company_id=?${ownAs('i')}`, args());
     const exp = await one(`SELECT COUNT(*) c, IFNULL(SUM(amount),0) t FROM expenses WHERE company_id=?${own}`, args());
@@ -44,8 +44,10 @@ router.get('/', async (req, res) => {
       : { bal: 0 };
 
     const totalInvoiced = num(inv.t);
-    const totalPaid = num(paid.t);
-    const outstanding = Math.max(0, totalInvoiced - totalPaid);
+    // Collected = money actually received; settlement discounts still reduce
+    // what is outstanding.
+    const totalPaid = num(paid.cash);
+    const outstanding = Math.max(0, totalInvoiced - num(paid.t));
 
     // ---- This month vs last month (invoiced) for the trend badge ----
     const monthSum = async (table, offset) => num((await one(

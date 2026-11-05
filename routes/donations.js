@@ -4,6 +4,7 @@ const path = require('path');
 const multer = require('multer');
 const db = require('../config/database');
 const { isAuthenticated, isAdmin } = require('../middleware/auth');
+const { moveToRecycleBin } = require('../utils/recycleBin');
 const { requireCompanyAccess, companyTableParamGuard } = require('../utils/tenancy');
 const { getCompanyPrefix } = require('../utils/quotePrefix');
 const { UPLOADS_ROOT, resolveUploadDiskPath } = require('../config/paths');
@@ -385,7 +386,7 @@ router.delete('/:id/proof', isAdmin, async (req, res) => {
 // DELETE /api/donations/:id — admin only. The proof file is kept on disk.
 router.delete('/:id', isAdmin, async (req, res) => {
   try {
-    const [r] = await db.execute('DELETE FROM donations WHERE id = ?', [req.params.id]);
+    const r = await moveToRecycleBin('donation', req.params.id, req);
     if (!r.affectedRows) return res.status(404).json({ error: 'Donation not found' });
     res.json({ message: 'Donation deleted' });
   } catch (e) {

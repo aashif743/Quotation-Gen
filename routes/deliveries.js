@@ -4,6 +4,7 @@ const path = require('path');
 const multer = require('multer');
 const db = require('../config/database');
 const { isAuthenticated, isAdmin, canUseDeliveryNotes } = require('../middleware/auth');
+const { moveToRecycleBin } = require('../utils/recycleBin');
 const { requireCompanyAccess, companyTableParamGuard } = require("../utils/tenancy");
 const { getCompanyPrefix } = require('../utils/quotePrefix');
 const { resolveClientId } = require('../utils/clientResolver');
@@ -422,7 +423,7 @@ router.put('/:id', async (req, res) => {
 router.delete('/:id', isAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const [result] = await db.execute('DELETE FROM delivery_notes WHERE id = ?', [id]);
+    const result = await moveToRecycleBin('delivery_note', id, req);
     if (result.affectedRows === 0) {
       return res.status(404).json({ error: 'Delivery note not found' });
     }

@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('../config/database');
 const { isAuthenticated, isAdmin } = require('../middleware/auth');
+const { moveToRecycleBin } = require('../utils/recycleBin');
 const { requireCompanyAccess, companyTableParamGuard } = require("../utils/tenancy");
 
 const router = express.Router();
@@ -241,7 +242,7 @@ router.put('/:id', isAdmin, async (req, res) => {
 // DELETE /api/vendors/:id — admin only. Linked purchases survive (FK SET NULL).
 router.delete('/:id', isAdmin, async (req, res) => {
   try {
-    const [result] = await db.execute('DELETE FROM vendors WHERE id = ?', [req.params.id]);
+    const result = await moveToRecycleBin('vendor', req.params.id, req);
     if (result.affectedRows === 0) {
       return res.status(404).json({ error: 'Vendor not found' });
     }

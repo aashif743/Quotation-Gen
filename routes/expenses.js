@@ -4,6 +4,7 @@ const path = require('path');
 const multer = require('multer');
 const db = require('../config/database');
 const { isAuthenticated, isAdmin } = require('../middleware/auth');
+const { moveToRecycleBin } = require('../utils/recycleBin');
 const { requireCompanyAccess, companyTableParamGuard } = require("../utils/tenancy");
 const { getCompanyPrefix } = require('../utils/quotePrefix');
 const { UPLOADS_ROOT, resolveUploadDiskPath } = require('../config/paths');
@@ -188,12 +189,9 @@ router.put('/:id', async (req, res) => {
 // DELETE /api/expenses/:id — admin only. Removes any attached receipt file.
 router.delete('/:id', isAdmin, async (req, res) => {
   try {
-    const [rows] = await db.execute('SELECT receipt_url FROM expenses WHERE id = ?', [req.params.id]);
-    if (rows.length === 0) return res.status(404).json({ error: 'Expense not found' });
-    if (rows[0].receipt_url) {
-      try { fs.unlinkSync(resolveUploadDiskPath(rows[0].receipt_url)); } catch { /* already gone */ }
-    }
-    await db.execute('DELETE FROM expenses WHERE id = ?', [req.params.id]);
+    // The receipt file is kept so the expense can be restored from the recycle bin.
+    const result = await moveToRecycleBin('expense', req.params.id, req);
+    if (!result.affectedRows) return res.status(404).json({ error: 'Expense not found' });
     res.json({ message: 'Expense deleted.' });
   } catch (error) {
     console.error('Error deleting expense:', error);

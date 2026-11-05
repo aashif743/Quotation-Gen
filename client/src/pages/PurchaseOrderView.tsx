@@ -222,7 +222,7 @@ const PurchaseOrderView: React.FC = () => {
                 `Goods for ${po.lpo_number} have arrived? This records a purchase (vendor bill) from ${po.vendor_name} with the same items and total, and marks the LPO as received.`}
               {confirm === 'cancel' && `Mark ${po.lpo_number} as cancelled? You can reopen it later.`}
               {confirm === 'delete' &&
-                `Delete ${po.lpo_number}? This cannot be undone.${po.purchase_number ? ` The converted purchase ${po.purchase_number} will be kept.` : ''}`}
+                `Delete ${po.lpo_number}? You can restore it from Recently Deleted for 30 days.${po.purchase_number ? ` The converted purchase ${po.purchase_number} will be kept.` : ''}`}
             </p>
             {actionError && <div className="mt-3 p-3 rounded-lg bg-red-50 text-red-700 text-sm">{actionError}</div>}
             <div className="mt-6 flex justify-end space-x-3">

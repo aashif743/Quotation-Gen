@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('../config/database');
 const { isAuthenticated, isAdmin, canUseDeliveryNotes } = require('../middleware/auth');
+const { moveToRecycleBin } = require('../utils/recycleBin');
 const { requireCompanyAccess, companyTableParamGuard } = require("../utils/tenancy");
 
 const router = express.Router();
@@ -330,7 +331,7 @@ router.put('/:id', isAdmin, async (req, res) => {
 // DELETE /api/clients/:id — admin only. Linked docs survive (FK is SET NULL).
 router.delete('/:id', isAdmin, async (req, res) => {
   try {
-    const [result] = await db.execute('DELETE FROM clients WHERE id = ?', [req.params.id]);
+    const result = await moveToRecycleBin('client', req.params.id, req);
     if (result.affectedRows === 0) {
       return res.status(404).json({ error: 'Client not found' });
     }
@@ -422,7 +423,7 @@ router.get('/:id/statement', async (req, res) => {
 
     // Payments received in the period
     const [periodPayments] = await db.execute(
-      `SELECT p.id, p.amount, p.payment_date, p.method, p.reference, p.notes,
+      `SELECT p.id, p.amount, p.payment_date, p.method, p.reference, p.notes, p.is_discount,
               p.recorded_by, u.name AS recorded_by_name,
               i.id AS invoice_id, i.invoice_number
          FROM payments p

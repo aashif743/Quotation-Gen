@@ -17,6 +17,9 @@ export interface QuotationDocData {
   vat_amount?: number;
   ppda_amount?: number;
   grand_total?: number;
+  discount_type?: 'amount' | 'percent' | null;
+  discount_value?: number | string | null;
+  discount_amount?: number | string | null;
   notes?: string;
   terms_conditions?: string;
   title?: string | null;
@@ -55,12 +58,21 @@ export const PRICED_COLUMNS: DocColumn[] = [
 
 /** Subtotal / VAT / PPDA lines + grand total, shared by quotations and invoices. */
 export const pricedTotals = (
-  d: { subtotal?: number; vat_amount?: number; ppda_amount?: number; grand_total?: number },
+  d: {
+    subtotal?: number; vat_amount?: number; ppda_amount?: number; grand_total?: number;
+    discount_type?: 'amount' | 'percent' | null; discount_value?: number | string | null; discount_amount?: number | string | null;
+  },
   vatRate?: number | null,
   ppdaRate?: number | null,
 ) => ({
   lines: [
     { l: 'Subtotal', v: formatCurrency(Number(d.subtotal) || 0) },
+    ...(Number(d.discount_amount) > 0
+      ? [{
+          l: d.discount_type === 'percent' ? `Discount (${formatNumber(Number(d.discount_value) || 0, Number(d.discount_value) % 1 ? 1 : 0)}%)` : 'Discount',
+          v: `− ${formatCurrency(Number(d.discount_amount))}`,
+        }]
+      : []),
     { l: vatRate != null ? `VAT (${formatNumber(vatRate * 100, 1)}%)` : 'VAT', v: formatCurrency(Number(d.vat_amount) || 0) },
     ...(Number(d.ppda_amount) > 0
       ? [{ l: ppdaRate != null ? `PPDA (${formatNumber(ppdaRate * 100, 1)}%)` : 'PPDA', v: formatCurrency(Number(d.ppda_amount) || 0) }]

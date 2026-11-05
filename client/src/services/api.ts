@@ -388,6 +388,7 @@ export interface ClientStatement {
     invoice_id: number;
     invoice_number: string;
     recorded_by_name?: string | null;
+    is_discount?: number | boolean;
   }>;
 }
 
@@ -415,6 +416,8 @@ export const recordPayment = async (data: {
   method?: string;
   reference?: string;
   notes?: string;
+  /** Settlement discount given with this payment (stored as its own row). */
+  discount?: number;
 }): Promise<Payment> => {
   const response = await api.post('/payments', data);
   return response.data;

@@ -4,6 +4,7 @@ const fs = require('fs');
 const multer = require('multer');
 const db = require('../config/database');
 const { isAuthenticated, isAdmin } = require('../middleware/auth');
+const { moveToRecycleBin } = require('../utils/recycleBin');
 const { requireCompanyAccess, companyTableParamGuard } = require('../utils/tenancy');
 const { resolveClientId } = require('../utils/clientResolver');
 const { UPLOADS_ROOT, resolveUploadDiskPath } = require('../config/paths');
@@ -341,7 +342,7 @@ router.delete('/:id/signature', async (req, res) => {
 // DELETE /api/contracts/:id — admin only (mirrors quotations).
 router.delete('/:id', isAdmin, async (req, res) => {
   try {
-    const [result] = await db.execute('DELETE FROM contracts WHERE id = ?', [req.params.id]);
+    const result = await moveToRecycleBin('contract', req.params.id, req);
     if (result.affectedRows === 0) return res.status(404).json({ error: 'Contract not found' });
     res.json({ message: 'Contract deleted successfully' });
   } catch (e) {

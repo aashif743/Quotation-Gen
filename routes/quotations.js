@@ -1,6 +1,8 @@
 const express = require('express');
 const db = require('../config/database');
 const { isAuthenticated, isAdmin } = require('../middleware/auth');
+const { moveToRecycleBin } = require('../utils/recycleBin');
+const { discountOf, pushDiscountFields, SET_DISCOUNT_SQL } = require('../utils/discount');
 const { requireCompanyAccess, companyTableParamGuard } = require("../utils/tenancy");
 const { resolveClientId } = require('../utils/clientResolver');
 
@@ -141,6 +143,8 @@ router.post('/', async (req, res) => {
     ]);
 
     const quotationId = quotationResult.insertId;
+    const qDisc = discountOf(req.body);
+    if (qDisc[2] > 0) await connection.execute(SET_DISCOUNT_SQL('quotations'), [...qDisc, quotationId]);
 
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
@@ -241,6 +245,7 @@ router.put('/:id', async (req, res) => {
     if (notes != null)            { fields.push('notes = ?');            values.push(notes); }
     if (terms_conditions != null) { fields.push('terms_conditions = ?'); values.push(terms_conditions); }
     if (req.body.title !== undefined) { fields.push('title = ?'); values.push((req.body.title && String(req.body.title).trim()) || null); }
+    pushDiscountFields(req.body, fields, values);
     values.push(id);
 
     const [updateResult] = await connection.execute(
@@ -290,7 +295,7 @@ router.delete('/:id', isAdmin, async (req, res) => {
   try {
     const { id } = req.params;
 
-    const [result] = await db.execute('DELETE FROM quotations WHERE id = ?', [id]);
+    const result = await moveToRecycleBin('quotation', id, req);
     
     if (result.affectedRows === 0) {
       return res.status(404).json({ error: 'Quotation not found' });

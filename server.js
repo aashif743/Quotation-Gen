@@ -151,6 +151,8 @@ app.use('/api/job-cards', jobCardRoutes);
 app.use('/api/purchase-orders', purchaseOrderRoutes);
 app.use('/api/payroll', payrollRoutes);
 app.use('/api/audit-logs', auditLogRoutes);
+app.use('/api/recycle-bin', require('./routes/recycleBin'));
+app.use('/api/services', require('./routes/services'));
 app.use('/api/donations', donationRoutes);
 
 // Serve the React build in production. Express 5 tightened path syntax, so

@@ -6,7 +6,10 @@ import { JobCard, JobCardItem, JOB_CARD_STATUSES, JOB_CARD_STATUS_LABELS } from 
 import { getClient } from '../services/api';
 import { getJobCard, createJobCard, updateJobCard, getNextJobCardNumber } from '../services/jobCardsApi';
 import ClientPicker from '../components/Quotation/ClientPicker';
-import { ArrowLeft, Save, Plus, Trash2 } from 'lucide-react';
+import { getServices, CatalogService } from '../services/servicesApi';
+import { formatCurrency } from '../utils/calculations';
+import { ArrowLeft, Save, Plus, Trash2, Tags } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 /** Today as a local 'YYYY-MM-DD' (toISOString would use UTC). */
 const localToday = () => {
@@ -33,6 +36,17 @@ const JobCardForm: React.FC = () => {
   const [initialLoading, setInitialLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  // The company's services & prices: picking one fills in the price.
+  const [catalog, setCatalog] = useState<CatalogService[]>([]);
+  const catalogCompanyId = data.company_id || selectedCompany?.id;
+  useEffect(() => {
+    if (!catalogCompanyId) return;
+    getServices(catalogCompanyId).then(setCatalog).catch(() => setCatalog([]));
+  }, [catalogCompanyId]);
+  const findService = (name?: string | null) => {
+    const n = String(name || '').trim().toLowerCase();
+    return n ? catalog.find((c) => c.name.trim().toLowerCase() === n) : undefined;
+  };
 
   useEffect(() => {
     if (isNew) {
@@ -111,9 +125,19 @@ const JobCardForm: React.FC = () => {
         ...items[idx],
         [field]: field === 'quantity' || field === 'unit_price' ? parseFloat(value) || 0 : value,
       };
-      // Letterhead design: size (e.g. "2 x 3") × cost per square metre fills
-      // in the cost per item. The cost stays editable afterwards.
-      if (field === 'size' || field === 'rate_per_sqm') {
+      // Picking a service from the price list fills in its price (per item,
+      // or per square metre) and, if empty, the description.
+      if (field === 'service') {
+        const svc = findService(value);
+        if (svc) {
+          if (svc.pricing === 'sqm') next.rate_per_sqm = svc.price;
+          else { next.unit_price = svc.price; next.rate_per_sqm = null; }
+          if (!String(next.description || '').trim()) next.description = svc.name;
+        }
+      }
+      // Size (e.g. "2 x 3") × cost per square metre fills in the cost per
+      // item. The cost stays editable afterwards.
+      if (field === 'size' || field === 'rate_per_sqm' || field === 'service') {
         const area = sizeArea(next.size);
         const rate = parseFloat(String(next.rate_per_sqm ?? ''));
         if (area && rate > 0) next.unit_price = Math.round(area * rate * 100) / 100;
@@ -376,6 +400,10 @@ const JobCardForm: React.FC = () => {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-xl font-semibold">Items / Tasks</h2>
+            <div className="flex items-center gap-2">
+            <Link to="/services" className="inline-flex items-center px-3 py-1.5 text-sm rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">
+              <Tags className="h-4 w-4 mr-1.5" /> Services & prices
+            </Link>
             <button
               type="button"
               onClick={addItem}
@@ -384,7 +412,13 @@ const JobCardForm: React.FC = () => {
               <Plus className="h-4 w-4 mr-1.5" />
               Add Item
             </button>
+            </div>
           </div>
+          <datalist id="service-catalog">
+            {catalog.map((c) => (
+              <option key={c.id} value={c.name}>{`${formatCurrency(c.price)} ${c.pricing === 'sqm' ? 'per m²' : 'per item'}`}</option>
+            ))}
+          </datalist>
           <p className="text-sm text-gray-500 mb-6">
             {isSupreme
               ? 'Costs are printed on the job card and used when generating an invoice. Enter a size like "2 x 3" and a cost per square metre to fill in the cost per item.'
@@ -472,11 +506,13 @@ const JobCardForm: React.FC = () => {
                       <div className={`col-span-6 ${data.card_type !== 'interiors' ? 'sm:col-span-5' : 'sm:col-span-7'}`}>
                         <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 mb-1.5">Service</label>
                         <input
+                          list="service-catalog"
                           value={item.service || ''}
                           onChange={(e) => updateItem(idx, 'service', e.target.value)}
-                          placeholder="e.g. Printing & installation"
+                          placeholder="Pick from your price list or type a new one"
                           className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                         />
+                        <ServiceHint name={item.service} found={findService(item.service)} />
                       </div>
                       {data.card_type !== 'interiors' && (
                         <div className="col-span-6 sm:col-span-4">
@@ -493,6 +529,48 @@ const JobCardForm: React.FC = () => {
                             step="any"
                           />
                         </div>
+                      )}
+                    </>
+                  )}
+                  {!isSupreme && (
+                    <>
+                      <div className="col-span-12 sm:col-span-6">
+                        <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 mb-1.5">Service</label>
+                        <input
+                          list="service-catalog"
+                          value={item.service || ''}
+                          onChange={(e) => updateItem(idx, 'service', e.target.value)}
+                          placeholder="Pick from your price list or type a new one"
+                          className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                        <ServiceHint name={item.service} found={findService(item.service)} />
+                      </div>
+                      {(Number(item.rate_per_sqm) > 0 || !!item.size) && (
+                        <>
+                          <div className="col-span-6 sm:col-span-3">
+                            <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 mb-1.5">Size (m)</label>
+                            <input
+                              value={item.size || ''}
+                              onChange={(e) => updateItem(idx, 'size', e.target.value)}
+                              placeholder="e.g. 2 x 3"
+                              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            />
+                          </div>
+                          <div className="col-span-6 sm:col-span-3">
+                            <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 mb-1.5">Price per m²</label>
+                            <input
+                              type="number"
+                              inputMode="decimal"
+                              value={item.rate_per_sqm ?? ''}
+                              onChange={(e) => updateItem(idx, 'rate_per_sqm', e.target.value)}
+                              onWheel={(e) => e.currentTarget.blur()}
+                              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-right text-sm tabular-nums focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                              placeholder="0.00"
+                              min="0"
+                              step="any"
+                            />
+                          </div>
+                        </>
                       )}
                     </>
                   )}
@@ -528,6 +606,19 @@ const JobCardForm: React.FC = () => {
         </div>
       </form>
     </div>
+  );
+};
+
+// Under the Service field: the list price when it comes from the price list,
+// or a note that a new service will be added to the list on save.
+const ServiceHint: React.FC<{ name?: string | null; found?: CatalogService }> = ({ name, found }) => {
+  if (!String(name || '').trim()) return null;
+  return found ? (
+    <p className="mt-1 text-xs text-emerald-700">
+      From your price list: {formatCurrency(found.price)} {found.pricing === 'sqm' ? 'per m²' : 'per item'}
+    </p>
+  ) : (
+    <p className="mt-1 text-xs text-gray-500">New service: it will be added to your price list when you save.</p>
   );
 };
 

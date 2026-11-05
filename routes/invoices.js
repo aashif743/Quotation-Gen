@@ -1,6 +1,8 @@
 const express = require('express');
 const db = require('../config/database');
 const { isAuthenticated, isAdmin } = require('../middleware/auth');
+const { moveToRecycleBin } = require('../utils/recycleBin');
+const { discountOf, pushDiscountFields, SET_DISCOUNT_SQL } = require('../utils/discount');
 const { requireCompanyAccess, companyTableParamGuard } = require("../utils/tenancy");
 const { getCompanyPrefix } = require('../utils/quotePrefix');
 const { resolveClientId } = require('../utils/clientResolver');
@@ -181,6 +183,8 @@ router.post('/', async (req, res) => {
     const invoiceId = invoiceResult.insertId;
     const invTitle = (req.body.title && String(req.body.title).trim()) || null;
     if (invTitle) await connection.execute('UPDATE invoices SET title = ? WHERE id = ?', [invTitle, invoiceId]);
+    const iDisc = discountOf(req.body);
+    if (iDisc[2] > 0) await connection.execute(SET_DISCOUNT_SQL('invoices'), [...iDisc, invoiceId]);
 
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
@@ -291,6 +295,8 @@ router.post('/from-quotation/:quotationId', async (req, res) => {
 
     const invoiceId = invoiceResult.insertId;
     if (quotation.title) await connection.execute('UPDATE invoices SET title = ? WHERE id = ?', [quotation.title, invoiceId]);
+    const qDisc = discountOf(quotation);
+    if (qDisc[2] > 0) await connection.execute(SET_DISCOUNT_SQL('invoices'), [...qDisc, invoiceId]);
 
     // Copy quotation items to invoice items
     for (let i = 0; i < quotationItems.length; i++) {
@@ -362,19 +368,22 @@ router.post('/from-job-card/:jobCardId', async (req, res) => {
     let ppdaRate = Number(jobCard.company_ppda_rate) || 0;
     let dueDays = 30;
     let quotationId = null;
+    let qDiscount = null; // the source quotation's discount, re-applied to the job card total
     if (jobCard.quotation_id) {
       const [quotations] = await connection.execute(
-        'SELECT id, subtotal, vat_amount, ppda_amount, expiry_days FROM quotations WHERE id = ?',
+        'SELECT id, subtotal, vat_amount, ppda_amount, expiry_days, discount_type, discount_value, discount_amount FROM quotations WHERE id = ?',
         [jobCard.quotation_id]
       );
       if (quotations.length > 0) {
         const q = quotations[0];
         quotationId = q.id;
-        const qSubtotal = Number(q.subtotal) || 0;
+        // Rates are worked out on the discounted base the quotation was taxed on.
+        const qSubtotal = (Number(q.subtotal) || 0) - (Number(q.discount_amount) || 0);
         if (qSubtotal > 0) {
           vatRate = (Number(q.vat_amount) || 0) / qSubtotal;
           ppdaRate = (Number(q.ppda_amount) || 0) / qSubtotal;
         }
+        if (Number(q.discount_amount) > 0) qDiscount = q;
         if (q.expiry_days != null && Number(q.expiry_days) > 0) dueDays = Number(q.expiry_days);
       }
     }
@@ -386,9 +395,16 @@ router.post('/from-job-card/:jobCardId', async (req, res) => {
       return { description: it.description, quantity, unit_price: unitPrice, total: round2(quantity * unitPrice) };
     });
     const subtotal = round2(items.reduce((sum, it) => sum + it.quantity * it.unit_price, 0));
-    const vatAmount = round2(subtotal * vatRate);
-    const ppdaAmount = round2(subtotal * ppdaRate);
-    const grandTotal = round2(subtotal + vatAmount + ppdaAmount);
+    let discountAmount = 0;
+    if (qDiscount) {
+      discountAmount = qDiscount.discount_type === 'percent'
+        ? round2((subtotal * Math.min(Number(qDiscount.discount_value) || 0, 100)) / 100)
+        : round2(Math.min(Number(qDiscount.discount_amount) || 0, subtotal));
+    }
+    const taxable = subtotal - discountAmount;
+    const vatAmount = round2(taxable * vatRate);
+    const ppdaAmount = round2(taxable * ppdaRate);
+    const grandTotal = round2(taxable + vatAmount + ppdaAmount);
 
     // Same numbering scheme as from-quotation.
     const prefix = `${getCompanyPrefix(jobCard.company_name)}-INV`;
@@ -431,6 +447,10 @@ router.post('/from-job-card/:jobCardId', async (req, res) => {
     ]);
 
     const invoiceId = invoiceResult.insertId;
+    if (discountAmount > 0) {
+      await connection.execute(SET_DISCOUNT_SQL('invoices'),
+        [qDiscount.discount_type === 'percent' ? 'percent' : 'amount', Number(qDiscount.discount_value) || 0, discountAmount, invoiceId]);
+    }
     // Carry the subject line from the job card's source quotation, if any.
     if (jobCard.quotation_id) {
       await connection.execute(
@@ -537,6 +557,8 @@ router.post('/:id/duplicate', async (req, res) => {
     const newId = result.insertId;
     // Keep the subject line ("TITLE") too.
     if (source.title) await connection.execute('UPDATE invoices SET title = ? WHERE id = ?', [source.title, newId]);
+    const sDisc = discountOf(source);
+    if (sDisc[2] > 0) await connection.execute(SET_DISCOUNT_SQL('invoices'), [...sDisc, newId]);
 
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
@@ -618,6 +640,7 @@ router.put('/:id', async (req, res) => {
     if (notes != null)            { fields.push('notes = ?');            values.push(notes); }
     if (terms_conditions != null) { fields.push('terms_conditions = ?'); values.push(terms_conditions); }
     if (req.body.title !== undefined) { fields.push('title = ?'); values.push((req.body.title && String(req.body.title).trim()) || null); }
+    pushDiscountFields(req.body, fields, values);
     values.push(id);
 
     const [updateResult] = await connection.execute(
@@ -668,7 +691,7 @@ router.delete('/:id', isAdmin, async (req, res) => {
   try {
     const { id } = req.params;
 
-    const [result] = await db.execute('DELETE FROM invoices WHERE id = ?', [id]);
+    const result = await moveToRecycleBin('invoice', id, req);
 
     if (result.affectedRows === 0) {
       return res.status(404).json({ error: 'Invoice not found' });

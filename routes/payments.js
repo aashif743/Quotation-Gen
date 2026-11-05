@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('../config/database');
 const { isAuthenticated, isAdmin, canHandlePayments } = require('../middleware/auth');
+const { moveToRecycleBin } = require('../utils/recycleBin');
 const { requireCompanyAccess } = require("../utils/tenancy");
 const {
   makeProofUpload, acceptProofFile, publicProofUrl, discardUploaded, deleteStoredProof, originalName,
@@ -43,7 +44,7 @@ async function loadAccessibleInvoice(req, invoiceId) {
 async function loadEditablePayment(req, paymentId) {
   // Payment → invoice → company must be in the caller's organization.
   const [rows] = await db.execute(
-    `SELECT p.id, p.invoice_id, p.recorded_by
+    `SELECT p.id, p.invoice_id, p.recorded_by, p.is_discount
        FROM payments p
        JOIN invoices i  ON p.invoice_id = i.id
        JOIN companies c ON i.company_id = c.id
@@ -78,8 +79,13 @@ router.get('/', async (req, res) => {
   }
 });
 
-// POST /api/payments — record a new payment (invoice_id in body)
+// POST /api/payments — record a payment (invoice_id in body). An optional
+// `discount` settles part of the balance without money changing hands
+// (e.g. "paid 950,000, we gave 50,000 off"): it is stored as its own payment
+// row flagged is_discount, so paid status and balance include it while cash
+// "collected" figures leave it out. Either amount or discount may be 0, not both.
 router.post('/', async (req, res) => {
+  let conn;
   try {
     const { invoice_id, amount, payment_date, method, reference, notes } = req.body;
     if (!invoice_id) {
@@ -88,28 +94,56 @@ router.post('/', async (req, res) => {
     const invoice = await loadAccessibleInvoice(req, invoice_id);
     if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
 
-    const amt = parseFloat(amount);
-    if (!Number.isFinite(amt) || amt <= 0) {
+    const amt = amount == null || amount === '' ? 0 : parseFloat(amount);
+    const disc = req.body.discount == null || req.body.discount === '' ? 0 : parseFloat(req.body.discount);
+    if (!Number.isFinite(amt) || amt < 0 || !Number.isFinite(disc) || disc < 0) {
+      return res.status(400).json({ message: 'Amounts cannot be negative.' });
+    }
+    if (amt <= 0 && disc <= 0) {
       return res.status(400).json({ message: 'Amount must be greater than 0.' });
     }
     if (!payment_date) {
       return res.status(400).json({ message: 'Payment date is required.' });
     }
+    if (disc > 0) {
+      const [[{ settled }]] = await db.execute(
+        'SELECT IFNULL(SUM(amount), 0) AS settled FROM payments WHERE invoice_id = ?', [invoice.id]
+      );
+      const balance = Number(invoice.grand_total) - Number(settled);
+      if (amt + disc > balance + 0.01) {
+        return res.status(400).json({ message: 'The discount cannot be more than the balance left after this payment.' });
+      }
+    }
 
-    const [result] = await db.execute(
-      `INSERT INTO payments (invoice_id, amount, payment_date, method, reference, notes, recorded_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [invoice.id, amt, payment_date, method || null, reference || null, notes || null, req.user.id]
-    );
-    const [created] = await db.execute(
-      `${PAYMENT_SELECT}
-        WHERE p.id = ?`,
-      [result.insertId]
-    );
-    res.status(201).json(created[0]);
+    conn = await db.getConnection();
+    await conn.beginTransaction();
+    const ids = [];
+    if (amt > 0) {
+      const [r] = await conn.execute(
+        `INSERT INTO payments (invoice_id, amount, payment_date, method, reference, notes, recorded_by, is_discount)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 0)`,
+        [invoice.id, amt, payment_date, method || null, reference || null, notes || null, req.user.id]
+      );
+      ids.push(r.insertId);
+    }
+    if (disc > 0) {
+      const [r] = await conn.execute(
+        `INSERT INTO payments (invoice_id, amount, payment_date, method, reference, notes, recorded_by, is_discount)
+         VALUES (?, ?, ?, 'Discount', ?, ?, ?, 1)`,
+        [invoice.id, disc, payment_date, reference || null, req.body.discount_note || 'Discount allowed', req.user.id]
+      );
+      ids.push(r.insertId);
+    }
+    await conn.commit();
+    const [created] = await db.query(`${PAYMENT_SELECT} WHERE p.id IN (?) ORDER BY p.id`, [ids]);
+    // The first row is the money payment (or the discount when no money was received).
+    res.status(201).json({ ...created[0], discount_payment: disc > 0 ? created[created.length - 1] : null });
   } catch (error) {
+    if (conn) { try { await conn.rollback(); } catch { /* ignore */ } }
     console.error('Error recording payment:', error);
     res.status(500).json({ error: 'Failed to record payment' });
+  } finally {
+    if (conn) conn.release();
   }
 });
 
@@ -132,7 +166,7 @@ router.put('/:id', async (req, res) => {
       fields.push('amount = ?'); values.push(amt);
     }
     if (payment_date != null) { fields.push('payment_date = ?'); values.push(payment_date); }
-    if (method != null)      { fields.push('method = ?');       values.push(method || null); }
+    if (method != null && !payment.is_discount) { fields.push('method = ?'); values.push(method || null); }
     if (reference != null)   { fields.push('reference = ?');    values.push(reference || null); }
     if (notes != null)       { fields.push('notes = ?');        values.push(notes || null); }
     if (fields.length === 0) {
@@ -164,7 +198,7 @@ router.delete('/:id', async (req, res) => {
     }
     // The payment's proof file (if any) is intentionally left on disk: uploaded
     // documents are never deleted as a side effect.
-    await db.execute('DELETE FROM payments WHERE id = ?', [req.params.id]);
+    await moveToRecycleBin('payment', req.params.id, req);
     res.json({ message: 'Payment deleted.' });
   } catch (error) {
     console.error('Error deleting payment:', error);

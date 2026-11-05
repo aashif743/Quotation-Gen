@@ -1196,6 +1196,69 @@ async function migrate() {
     } else { console.log(`  • users.${col} already present, skipping.`); }
   }
 
+  // 3z. Discounts, recycle bin, service price list.
+  //  - payments.is_discount: a settlement discount recorded at payment time is
+  //    stored as its own payment row (amount = discount) so balances and paid
+  //    status include it; "collected" cash figures exclude it.
+  //  - quotations / invoices: optional document discount (amount or percent).
+  //  - deleted_records: 30-day recycle bin (snapshot of a deleted record and
+  //    its child rows, restorable).
+  //  - service_catalog: per-company services and prices for job cards.
+  if (!(await columnExists('payments', 'is_discount'))) {
+    console.log('  • Adding `is_discount` to payments...');
+    await db.query('ALTER TABLE `payments` ADD COLUMN `is_discount` TINYINT(1) NOT NULL DEFAULT 0');
+  } else { console.log('  • payments.is_discount already present, skipping.'); }
+  for (const table of ['quotations', 'invoices']) {
+    for (const [col, type] of [
+      ['discount_type', "VARCHAR(10) NULL"],
+      ['discount_value', 'DECIMAL(15,2) NOT NULL DEFAULT 0'],
+      ['discount_amount', 'DECIMAL(15,2) NOT NULL DEFAULT 0'],
+    ]) {
+      if (!(await columnExists(table, col))) {
+        console.log(`  • Adding \`${col}\` to ${table}...`);
+        await db.query(`ALTER TABLE \`${table}\` ADD COLUMN \`${col}\` ${type}`);
+      } else { console.log(`  • ${table}.${col} already present, skipping.`); }
+    }
+  }
+  if (!(await tableExists('deleted_records'))) {
+    console.log('  • Creating `deleted_records` table...');
+    await db.query(`
+      CREATE TABLE \`deleted_records\` (
+        \`id\` INT PRIMARY KEY AUTO_INCREMENT,
+        \`organization_id\` INT NULL,
+        \`company_id\` INT NULL,
+        \`entity_type\` VARCHAR(40) NOT NULL,
+        \`entity_id\` INT NOT NULL,
+        \`label\` VARCHAR(255) NULL,
+        \`summary\` VARCHAR(500) NULL,
+        \`data\` LONGTEXT NOT NULL,
+        \`deleted_by\` INT NULL,
+        \`deleted_by_name\` VARCHAR(255) NULL,
+        \`deleted_at\` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        KEY \`idx_deleted_org\` (\`organization_id\`, \`deleted_at\`),
+        KEY \`idx_deleted_entity\` (\`entity_type\`, \`entity_id\`)
+      ) ENGINE=InnoDB
+    `);
+  } else { console.log('  • deleted_records already present, skipping.'); }
+  if (!(await tableExists('service_catalog'))) {
+    console.log('  • Creating `service_catalog` table...');
+    await db.query(`
+      CREATE TABLE \`service_catalog\` (
+        \`id\` INT PRIMARY KEY AUTO_INCREMENT,
+        \`company_id\` INT NOT NULL,
+        \`name\` VARCHAR(255) NOT NULL,
+        \`pricing\` VARCHAR(10) NOT NULL DEFAULT 'unit',
+        \`price\` DECIMAL(15,2) NOT NULL DEFAULT 0,
+        \`notes\` VARCHAR(255) NULL,
+        \`created_by\` INT NULL,
+        \`created_at\` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+        \`updated_at\` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY \`uniq_service_company_name\` (\`company_id\`, \`name\`),
+        FOREIGN KEY (\`company_id\`) REFERENCES \`companies\`(\`id\`) ON DELETE CASCADE
+      ) ENGINE=InnoDB
+    `);
+  } else { console.log('  • service_catalog already present, skipping.'); }
+
   // 4. Backfill created_by from each row's company owner so existing records
   //    are attributed to the user who originally owned the company.
   const [qBackfill] = await db.query(

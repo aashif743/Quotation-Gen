@@ -175,7 +175,7 @@ const Contracts: React.FC = () => {
               <h3 className="font-semibold text-gray-900 dark:text-gray-100">Delete contract?</h3>
               <button onClick={() => setToDelete(null)} className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"><X size={18} /></button>
             </div>
-            <p className="text-sm text-gray-600 dark:text-gray-300 mb-5">{toDelete.contract_number} · {toDelete.client_name} — this cannot be undone.</p>
+            <p className="text-sm text-gray-600 dark:text-gray-300 mb-5">{toDelete.contract_number} · {toDelete.client_name}. You can restore it from Recently Deleted for 30 days.</p>
             <div className="flex justify-end gap-2">
               <button onClick={() => setToDelete(null)} className="px-4 py-2 rounded-lg text-sm border border-gray-200 dark:border-gray-700">Cancel</button>
               <button onClick={confirmDelete} className="px-4 py-2 rounded-lg text-sm text-white font-medium bg-red-600 hover:bg-red-700">Delete</button>

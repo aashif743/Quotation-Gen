@@ -4,12 +4,7 @@ import { useCompany } from '../context/CompanyContext';
 import { useAuth } from '../context/AuthContext';
 import { QuotationItem, Quotation, Client } from '../types';
 import { createQuotation, getNextQuoteNumber, getClient } from '../services/api';
-import {
-  calculateSubtotal,
-  calculateVAT,
-  calculatePPDA,
-  calculateGrandTotal,
-} from '../utils/calculations';
+import { computeTotals } from '../utils/calculations';
 import QuotationForm from '../components/Quotation/QuotationForm';
 import QuotationPreview from '../components/Quotation/QuotationPreview';
 import { brandColorFor } from '../utils/colors';
@@ -160,14 +155,8 @@ const NewQuotation: React.FC = () => {
       const next = { ...prev, [field]: value };
 
       // Recompute totals if a tax rate changed and we already have items.
-      if ((field === 'vat_rate' || field === 'ppda_rate') && next.items?.length) {
-        const subtotal = calculateSubtotal(next.items);
-        const vat = calculateVAT(subtotal, next.vat_rate ?? 0);
-        const ppda = calculatePPDA(subtotal, next.ppda_rate ?? 0);
-        next.subtotal = subtotal;
-        next.vat_amount = vat;
-        next.ppda_amount = ppda;
-        next.grand_total = calculateGrandTotal(subtotal, vat, ppda);
+      if (['vat_rate', 'ppda_rate', 'discount_type', 'discount_value'].includes(field) && next.items?.length) {
+        Object.assign(next, computeTotals(next.items, next.vat_rate ?? 0, next.ppda_rate ?? 0, next.discount_type, next.discount_value));
       }
 
       return next;
@@ -185,16 +174,10 @@ const NewQuotation: React.FC = () => {
     setQuotationData((prev) => {
       const vatRate = prev.vat_rate ?? 0;
       const ppdaRate = prev.ppda_rate ?? 0;
-      const subtotal = calculateSubtotal(updatedItems);
-      const vat = calculateVAT(subtotal, vatRate);
-      const ppda = calculatePPDA(subtotal, ppdaRate);
       return {
         ...prev,
         items: updatedItems,
-        subtotal,
-        vat_amount: vat,
-        ppda_amount: ppda,
-        grand_total: calculateGrandTotal(subtotal, vat, ppda),
+        ...computeTotals(updatedItems, vatRate, ppdaRate, prev.discount_type, prev.discount_value),
       };
     });
   };

@@ -3,12 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useCompany } from '../context/CompanyContext';
 import { QuotationItem, Quotation, Client } from '../types';
 import { getQuotation, updateQuotation } from '../services/api';
-import {
-  calculateSubtotal,
-  calculateVAT,
-  calculatePPDA,
-  calculateGrandTotal,
-} from '../utils/calculations';
+import { computeTotals } from '../utils/calculations';
 import QuotationForm from '../components/Quotation/QuotationForm';
 import QuotationPreview from '../components/Quotation/QuotationPreview';
 import { Save, Eye, EyeOff, ArrowLeft } from 'lucide-react';
@@ -35,10 +30,10 @@ const EditQuotation: React.FC = () => {
         // pre-dates the per-quotation rate fields.
         const filled: Partial<Quotation> = { ...data };
         if (filled.vat_rate == null) {
-          filled.vat_rate = filled.subtotal ? (filled.vat_amount || 0) / filled.subtotal : 0;
+          filled.vat_rate = filled.subtotal ? (filled.vat_amount || 0) / (filled.subtotal - (Number(filled.discount_amount) || 0) || 1) : 0;
         }
         if (filled.ppda_rate == null) {
-          filled.ppda_rate = filled.subtotal ? (filled.ppda_amount || 0) / filled.subtotal : 0;
+          filled.ppda_rate = filled.subtotal ? (filled.ppda_amount || 0) / (filled.subtotal - (Number(filled.discount_amount) || 0) || 1) : 0;
         }
         setQuotationData(filled);
       } catch (error) {
@@ -56,14 +51,8 @@ const EditQuotation: React.FC = () => {
   const handleInputChange = (field: string, value: any) => {
     setQuotationData((prev) => {
       const next = { ...prev, [field]: value };
-      if ((field === 'vat_rate' || field === 'ppda_rate') && next.items?.length) {
-        const subtotal = calculateSubtotal(next.items);
-        const vat = calculateVAT(subtotal, next.vat_rate ?? 0);
-        const ppda = calculatePPDA(subtotal, next.ppda_rate ?? 0);
-        next.subtotal = subtotal;
-        next.vat_amount = vat;
-        next.ppda_amount = ppda;
-        next.grand_total = calculateGrandTotal(subtotal, vat, ppda);
+      if (['vat_rate', 'ppda_rate', 'discount_type', 'discount_value'].includes(field) && next.items?.length) {
+        Object.assign(next, computeTotals(next.items, next.vat_rate ?? 0, next.ppda_rate ?? 0, next.discount_type, next.discount_value));
       }
       return next;
     });
@@ -80,16 +69,10 @@ const EditQuotation: React.FC = () => {
     setQuotationData((prev) => {
       const vatRate = prev.vat_rate ?? selectedCompany.vat_rate;
       const ppdaRate = prev.ppda_rate ?? selectedCompany.ppda_rate;
-      const subtotal = calculateSubtotal(updatedItems);
-      const vat = calculateVAT(subtotal, vatRate);
-      const ppda = calculatePPDA(subtotal, ppdaRate);
       return {
         ...prev,
         items: updatedItems,
-        subtotal,
-        vat_amount: vat,
-        ppda_amount: ppda,
-        grand_total: calculateGrandTotal(subtotal, vat, ppda),
+        ...computeTotals(updatedItems, vatRate, ppdaRate, prev.discount_type, prev.discount_value),
       };
     });
   };

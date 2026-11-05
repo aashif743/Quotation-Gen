@@ -347,8 +347,8 @@ const InvoiceView: React.FC = () => {
           // invoice shows "VAT (X%)" / "PPDA (X%)" like the live preview did.
           totals={pricedTotals(
             invoice,
-            invoice.subtotal ? (invoice.vat_amount || 0) / invoice.subtotal : null,
-            invoice.subtotal ? (invoice.ppda_amount || 0) / invoice.subtotal : null,
+            invoice.subtotal ? (invoice.vat_amount || 0) / ((invoice.subtotal - (Number(invoice.discount_amount) || 0)) || 1) : null,
+            invoice.subtotal ? (invoice.ppda_amount || 0) / ((invoice.subtotal - (Number(invoice.discount_amount) || 0)) || 1) : null,
           )}
           showBank
           notes={invoice.notes}
@@ -428,6 +428,9 @@ const PaymentPanel: React.FC<{
   const total = Number(invoice.grand_total || 0);
   const paid = Number(invoice.amount_paid || 0);
   const balance = Number(invoice.balance_due ?? (total - paid));
+  // Settlement discounts count towards "settled" but aren't money received.
+  const discounts = payments.filter((p) => !!p.is_discount).reduce((s, p) => s + Number(p.amount || 0), 0);
+  const cashPaid = paid - discounts;
 
   return (
     <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
@@ -468,7 +471,10 @@ const PaymentPanel: React.FC<{
         </div>
         <div className="px-5 py-3">
           <p className="text-[11px] uppercase tracking-wide text-gray-500">Amount paid</p>
-          <p className="text-lg font-bold text-green-700 tabular-nums">{formatCurrency(paid)}</p>
+          <p className="text-lg font-bold text-green-700 tabular-nums">{formatCurrency(cashPaid)}</p>
+          {discounts > 0 && (
+            <p className="text-xs text-amber-700 tabular-nums">+ {formatCurrency(discounts)} discount allowed</p>
+          )}
         </div>
         <div className="px-5 py-3">
           <p className="text-[11px] uppercase tracking-wide text-gray-500">Balance due</p>
@@ -511,9 +517,13 @@ const PaymentPanel: React.FC<{
                     <td className="px-5 py-2 text-sm text-gray-900 whitespace-nowrap">
                       {new Date(p.payment_date).toLocaleDateString()}
                     </td>
-                    <td className="px-5 py-2 text-sm text-gray-700">{p.method || '—'}</td>
+                    <td className="px-5 py-2 text-sm text-gray-700">
+                      {p.is_discount ? (
+                        <span className="inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">Discount</span>
+                      ) : (p.method || '—')}
+                    </td>
                     <td className="px-5 py-2 text-sm text-gray-700">{p.reference || '—'}</td>
-                    <td className="px-5 py-2 text-sm text-right font-semibold text-green-700 tabular-nums">
+                    <td className={`px-5 py-2 text-sm text-right font-semibold tabular-nums ${p.is_discount ? 'text-amber-700' : 'text-green-700'}`}>
                       {formatCurrency(Number(p.amount))}
                     </td>
                     <td className="px-5 py-2 text-sm text-gray-600">{p.recorded_by_name || '—'}</td>

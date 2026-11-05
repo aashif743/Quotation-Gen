@@ -66,7 +66,7 @@ const DonationView: React.FC = () => {
   };
 
   const remove = async () => {
-    if (!window.confirm(`Delete donation ${d.donation_number}? This cannot be undone.`)) return;
+    if (!window.confirm(`Delete donation ${d.donation_number}? You can restore it from Recently Deleted for 30 days.`)) return;
     setBusy('delete');
     try { await deleteDonation(d.id!); navigate('/donations'); }
     catch (e: any) { setError(e?.response?.data?.error || 'Failed to delete.'); setBusy(''); }

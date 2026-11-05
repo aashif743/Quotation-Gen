@@ -42,6 +42,8 @@ import AuditLog from './pages/AuditLog';
 import Donations from './pages/Donations';
 import Profile from './pages/Profile';
 import DemoEntry from './pages/DemoEntry';
+import Services from './pages/Services';
+import RecycleBin from './pages/RecycleBin';
 import DonationForm from './pages/DonationForm';
 import DonationView from './pages/DonationView';
 import Organizations from './pages/Organizations';
@@ -225,6 +227,8 @@ function AppRoutes() {
                   <Route path="/contracts/:id" element={<ContractView />} />
                   <Route path="/contracts/:id/edit" element={<ContractForm />} />
                   <Route path="/job-cards" element={<JobCards />} />
+                  <Route path="/services" element={<Services />} />
+                  <Route path="/recycle-bin" element={<AdminRoute><RecycleBin /></AdminRoute>} />
                   <Route path="/job-cards/new" element={<JobCardForm />} />
                   <Route path="/job-cards/:id" element={<JobCardView />} />
                   <Route path="/job-cards/:id/edit" element={<JobCardForm />} />

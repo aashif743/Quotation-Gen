@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('../config/database');
 const { isAuthenticated, isAdmin } = require('../middleware/auth');
+const { moveToRecycleBin } = require('../utils/recycleBin');
 const { requireCompanyAccess, companyTableParamGuard } = require('../utils/tenancy');
 const { getCompanyPrefix } = require('../utils/quotePrefix');
 const { resolveVendorId } = require('../utils/vendorResolver');
@@ -387,7 +388,7 @@ router.patch('/:id/status', async (req, res) => {
 // DELETE /api/purchase-orders/:id — admin only. A converted Purchase is kept.
 router.delete('/:id', isAdmin, async (req, res) => {
   try {
-    const [result] = await db.execute('DELETE FROM purchase_orders WHERE id = ?', [req.params.id]);
+    const result = await moveToRecycleBin('lpo', req.params.id, req);
     if (result.affectedRows === 0) return res.status(404).json({ error: 'LPO not found' });
     res.json({ message: 'LPO deleted.' });
   } catch (error) {
