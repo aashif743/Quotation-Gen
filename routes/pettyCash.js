@@ -3,7 +3,8 @@ const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
 const db = require('../config/database');
-const { isAuthenticated, isAdmin } = require('../middleware/auth');
+const { isAuthenticated, isAdmin, hasPaymentAccess } = require('../middleware/auth');
+const { pickAccount, AccountError } = require('../utils/accounts');
 const { moveToRecycleBin } = require('../utils/recycleBin');
 const { requireCompanyAccess, companyTableParamGuard } = require("../utils/tenancy");
 const { getCompanyPrefix } = require('../utils/quotePrefix');
@@ -65,9 +66,10 @@ router.get('/', async (req, res) => {
     const [rows] = await db.execute(
       `SELECT pc.id, pc.company_id, pc.created_by, pc.entry_number, pc.type, pc.category,
               pc.description, pc.amount, pc.date, pc.reference, pc.receipt_url, pc.notes,
-              pc.created_at, u.name AS created_by_name
+              pc.created_at, pc.transfer_account_id, u.name AS created_by_name, a.name AS transfer_account_name
          FROM petty_cash pc
          LEFT JOIN users u ON pc.created_by = u.id
+         LEFT JOIN accounts a ON pc.transfer_account_id = a.id
          ${whereSql}
         ORDER BY pc.date DESC, pc.id DESC`,
       params
@@ -111,8 +113,9 @@ router.get('/summary', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const [rows] = await db.execute(
-      `SELECT pc.*, u.name AS created_by_name
+      `SELECT pc.*, u.name AS created_by_name, a.name AS transfer_account_name
          FROM petty_cash pc LEFT JOIN users u ON pc.created_by = u.id
+         LEFT JOIN accounts a ON pc.transfer_account_id = a.id
         WHERE pc.id = ?`,
       [req.params.id]
     );
@@ -135,6 +138,10 @@ router.post('/', async (req, res) => {
     const amt = Number(amount);
     if (!amt || amt <= 0) { await connection.rollback(); return res.status(400).json({ error: 'A positive amount is required.' }); }
 
+    // Top-up: the account the cash was taken from. Payout: the account it was
+    // paid back into (e.g. returned to the bank). Optional.
+    const acct = hasPaymentAccess(req.user) ? await pickAccount(company_id, req.body.transfer_account_id) : { id: null };
+
     const [companies] = await connection.execute('SELECT name FROM companies WHERE id = ?', [company_id]);
     const companyName = companies.length ? companies[0].name : '';
     const prefix = `${getCompanyPrefix(companyName)}-PC`;
@@ -148,11 +155,11 @@ router.post('/', async (req, res) => {
 
     const [result] = await connection.execute(
       `INSERT INTO petty_cash
-        (company_id, created_by, entry_number, type, category, description, amount, date, reference, notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (company_id, created_by, entry_number, type, category, description, amount, date, reference, notes, transfer_account_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         company_id, req.user.id, entryNumber, kind, category || null, description || null,
-        amt, date || new Date().toISOString().split('T')[0], reference || null, notes || null,
+        amt, date || new Date().toISOString().split('T')[0], reference || null, notes || null, acct.id ?? null,
       ]
     );
     await connection.commit();
@@ -160,6 +167,7 @@ router.post('/', async (req, res) => {
     res.status(201).json(created[0]);
   } catch (error) {
     await connection.rollback();
+    if (error instanceof AccountError) return res.status(error.status).json({ error: error.message });
     if (error && error.code === 'ER_DUP_ENTRY') {
       return res.status(409).json({ error: 'An entry with that number already exists for this company.' });
     }
@@ -173,7 +181,7 @@ router.post('/', async (req, res) => {
 // PUT /api/petty-cash/:id — creator or admin.
 router.put('/:id', async (req, res) => {
   try {
-    const [check] = await db.execute('SELECT created_by FROM petty_cash WHERE id = ?', [req.params.id]);
+    const [check] = await db.execute('SELECT created_by, company_id, transfer_account_id FROM petty_cash WHERE id = ?', [req.params.id]);
     if (check.length === 0) return res.status(404).json({ error: 'Entry not found' });
     if (req.user.role !== 'admin' && check[0].created_by !== req.user.id) {
       return res.status(403).json({ error: 'You can only edit your own entries.' });
@@ -188,12 +196,17 @@ router.put('/:id', async (req, res) => {
     if (date !== undefined)        { fields.push('date = ?');        values.push(date); }
     if (reference !== undefined)   { fields.push('reference = ?');   values.push(reference || null); }
     if (notes !== undefined)       { fields.push('notes = ?');       values.push(notes || null); }
+    if (hasPaymentAccess(req.user)) {
+      const acct = await pickAccount(check[0].company_id, req.body.transfer_account_id, { current: check[0].transfer_account_id });
+      if (!acct.skip) { fields.push('transfer_account_id = ?'); values.push(acct.id); }
+    }
     if (fields.length === 0) return res.status(400).json({ message: 'No changes provided.' });
     values.push(req.params.id);
     await db.execute(`UPDATE petty_cash SET ${fields.join(', ')} WHERE id = ?`, values);
     const [updated] = await db.execute('SELECT * FROM petty_cash WHERE id = ?', [req.params.id]);
     res.json(updated[0]);
   } catch (error) {
+    if (error instanceof AccountError) return res.status(error.status).json({ error: error.message });
     console.error('Error updating petty cash entry:', error);
     res.status(500).json({ error: 'Failed to update entry' });
   }

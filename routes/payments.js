@@ -3,6 +3,7 @@ const db = require('../config/database');
 const { isAuthenticated, isAdmin, canHandlePayments } = require('../middleware/auth');
 const { moveToRecycleBin } = require('../utils/recycleBin');
 const { requireCompanyAccess } = require("../utils/tenancy");
+const { pickAccount, methodFor, AccountError } = require('../utils/accounts');
 const {
   makeProofUpload, acceptProofFile, publicProofUrl, discardUploaded, deleteStoredProof, originalName,
 } = require('../utils/proofUpload');
@@ -11,10 +12,11 @@ const proofUpload = acceptProofFile(makeProofUpload('inv'));
 
 // Columns returned for a payment everywhere (recorder + proof uploader names).
 const PAYMENT_SELECT = `
-  SELECT p.*, u.name AS recorded_by_name, pu.name AS proof_uploaded_by_name
+  SELECT p.*, u.name AS recorded_by_name, pu.name AS proof_uploaded_by_name, a.name AS account_name
     FROM payments p
     LEFT JOIN users u  ON p.recorded_by = u.id
-    LEFT JOIN users pu ON p.proof_uploaded_by = pu.id`;
+    LEFT JOIN users pu ON p.proof_uploaded_by = pu.id
+    LEFT JOIN accounts a ON p.account_id = a.id`;
 
 const router = express.Router();
 router.use(isAuthenticated);
@@ -44,7 +46,7 @@ async function loadAccessibleInvoice(req, invoiceId) {
 async function loadEditablePayment(req, paymentId) {
   // Payment → invoice → company must be in the caller's organization.
   const [rows] = await db.execute(
-    `SELECT p.id, p.invoice_id, p.recorded_by, p.is_discount
+    `SELECT p.id, p.invoice_id, p.recorded_by, p.is_discount, p.account_id, i.company_id
        FROM payments p
        JOIN invoices i  ON p.invoice_id = i.id
        JOIN companies c ON i.company_id = c.id
@@ -105,6 +107,8 @@ router.post('/', async (req, res) => {
     if (!payment_date) {
       return res.status(400).json({ message: 'Payment date is required.' });
     }
+    // The account the money went into (bank / mobile money / cash).
+    const acct = amt > 0 ? await pickAccount(invoice.company_id, req.body.account_id) : { id: null };
     if (disc > 0) {
       const [[{ settled }]] = await db.execute(
         'SELECT IFNULL(SUM(amount), 0) AS settled FROM payments WHERE invoice_id = ?', [invoice.id]
@@ -120,9 +124,9 @@ router.post('/', async (req, res) => {
     const ids = [];
     if (amt > 0) {
       const [r] = await conn.execute(
-        `INSERT INTO payments (invoice_id, amount, payment_date, method, reference, notes, recorded_by, is_discount)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 0)`,
-        [invoice.id, amt, payment_date, method || null, reference || null, notes || null, req.user.id]
+        `INSERT INTO payments (invoice_id, amount, payment_date, method, reference, notes, recorded_by, is_discount, account_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)`,
+        [invoice.id, amt, payment_date, methodFor(acct.account, method) || null, reference || null, notes || null, req.user.id, acct.id ?? null]
       );
       ids.push(r.insertId);
     }
@@ -140,6 +144,7 @@ router.post('/', async (req, res) => {
     res.status(201).json({ ...created[0], discount_payment: disc > 0 ? created[created.length - 1] : null });
   } catch (error) {
     if (conn) { try { await conn.rollback(); } catch { /* ignore */ } }
+    if (error instanceof AccountError) return res.status(error.status).json({ message: error.message });
     console.error('Error recording payment:', error);
     res.status(500).json({ error: 'Failed to record payment' });
   } finally {
@@ -169,6 +174,11 @@ router.put('/:id', async (req, res) => {
     if (method != null && !payment.is_discount) { fields.push('method = ?'); values.push(method || null); }
     if (reference != null)   { fields.push('reference = ?');    values.push(reference || null); }
     if (notes != null)       { fields.push('notes = ?');        values.push(notes || null); }
+    // A discount row never touches an account (no money moved).
+    if (!payment.is_discount) {
+      const acct = await pickAccount(payment.company_id, req.body.account_id, { current: payment.account_id });
+      if (!acct.skip) { fields.push('account_id = ?'); values.push(acct.id); }
+    }
     if (fields.length === 0) {
       return res.status(400).json({ message: 'No changes provided.' });
     }
@@ -184,6 +194,7 @@ router.put('/:id', async (req, res) => {
     );
     res.json(updated[0]);
   } catch (error) {
+    if (error instanceof AccountError) return res.status(error.status).json({ message: error.message });
     console.error('Error updating payment:', error);
     res.status(500).json({ error: 'Failed to update payment' });
   }

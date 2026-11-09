@@ -291,7 +291,22 @@ code {
    print/download bars and the payment / signed-copy / "prepared by" lines
    are tagged inside each view page).
 */
+/* Account statement: kept off-screen on the page (it is only for printing
+   and the PDF), shown in place when printing. */
+.account-print {
+  position: absolute;
+  left: -10000px;
+  top: 0;
+  width: 820px;
+}
+
 @media print {
+  .account-print {
+    position: static !important;
+    left: auto !important;
+    width: 100% !important;
+  }
+
   /* Hide anything explicitly marked as chrome. */
   .no-print {
     display: none !important;

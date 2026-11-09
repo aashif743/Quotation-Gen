@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('../config/database');
-const { isAuthenticated, canAccessPayroll } = require('../middleware/auth');
+const { isAuthenticated, canAccessPayroll, hasPaymentAccess } = require('../middleware/auth');
+const { pickAccount, AccountError } = require('../utils/accounts');
 const { requireCompanyAccess, companyTableParamGuard } = require('../utils/tenancy');
 const {
   DEFAULT_PAYE_BANDS, normalizeBands, safeBands, normalizeLines, computePayslip,
@@ -145,6 +146,7 @@ const SLIP_COLS = `id, company_id, created_by, employee_id, employee_name, emplo
   basic_salary, \`lines\`, gross_pay, taxable_pay, paye, pension_employee, pension_employer,
   total_deductions, net_pay, days_present, days_absent, status,
   DATE_FORMAT(payment_date, '%Y-%m-%d') AS payment_date, payment_method, bank_name, bank_account, notes,
+  account_id, (SELECT a.name FROM accounts a WHERE a.id = payslips.account_id) AS account_name,
   created_at, updated_at`;
 
 const serializeSlip = (r) => ({
@@ -301,14 +303,22 @@ router.patch('/payslips/:id/status', async (req, res) => {
       }
       const date = isYmd(payment_date) ? payment_date : (slip.payment_date || await dbToday());
       const method = payment_method !== undefined ? strOrNull(payment_method, 60) : slip.payment_method;
-      await db.execute('UPDATE payslips SET status = ?, payment_date = ?, payment_method = ? WHERE id = ?',
-        ['paid', date, method, req.params.id]);
+      // The account the salary was paid from.
+      const acct = hasPaymentAccess(req.user)
+        ? await pickAccount(slip.company_id, req.body.account_id, { current: slip.account_id })
+        : { skip: true };
+      const accountId = acct.skip ? (slip.account_id ?? null) : acct.id;
+      await db.execute('UPDATE payslips SET status = ?, payment_date = ?, payment_method = ?, account_id = ? WHERE id = ?',
+        ['paid', date, method || (acct.account ? 'Bank Transfer' : null), accountId, req.params.id]);
     } else {
       // Reopen: keep the payment details so re-marking paid is one click.
       await db.execute("UPDATE payslips SET status = 'draft' WHERE id = ?", [req.params.id]);
     }
     res.json(await fetchSlip(req.params.id));
-  } catch (e) { console.error(e); res.status(500).json({ error: 'Failed to update status' }); }
+  } catch (e) {
+    if (e instanceof AccountError) return res.status(e.status).json({ error: e.message });
+    console.error(e); res.status(500).json({ error: 'Failed to update status' });
+  }
 });
 
 // Only drafts can be deleted — paid slips are payroll history and must be

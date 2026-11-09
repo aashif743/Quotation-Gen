@@ -5,6 +5,7 @@ const { moveToRecycleBin } = require('../utils/recycleBin');
 const { requireCompanyAccess, companyTableParamGuard } = require("../utils/tenancy");
 const { getCompanyPrefix } = require('../utils/quotePrefix');
 const { resolveVendorId } = require('../utils/vendorResolver');
+const { pickAccount, methodFor, AccountError } = require('../utils/accounts');
 const {
   makeProofUpload, acceptProofFile, publicProofUrl, discardUploaded, deleteStoredProof, originalName,
 } = require('../utils/proofUpload');
@@ -121,10 +122,11 @@ router.get('/:id', async (req, res) => {
       [req.params.id]
     );
     const [payments] = await db.execute(
-      `SELECT vp.*, u.name AS recorded_by_name, pu.name AS proof_uploaded_by_name
+      `SELECT vp.*, u.name AS recorded_by_name, pu.name AS proof_uploaded_by_name, a.name AS account_name
          FROM vendor_payments vp
          LEFT JOIN users u  ON vp.recorded_by = u.id
          LEFT JOIN users pu ON vp.proof_uploaded_by = pu.id
+         LEFT JOIN accounts a ON vp.account_id = a.id
         WHERE vp.purchase_id = ?
         ORDER BY vp.payment_date, vp.id`,
       [req.params.id]
@@ -318,7 +320,7 @@ router.delete('/:id', isAdmin, async (req, res) => {
 router.post('/:id/payments', canHandlePayments, async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
-    const [rows] = await db.execute('SELECT created_by, grand_total FROM purchases WHERE id = ?', [id]);
+    const [rows] = await db.execute('SELECT created_by, grand_total, company_id FROM purchases WHERE id = ?', [id]);
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Purchase not found' });
     }
@@ -332,11 +334,13 @@ router.post('/:id/payments', canHandlePayments, async (req, res) => {
       return res.status(400).json({ error: 'A positive amount is required.' });
     }
 
+    // The account the money was paid from.
+    const acct = await pickAccount(rows[0].company_id, req.body.account_id);
     const [inserted] = await db.execute(
-      `INSERT INTO vendor_payments (purchase_id, amount, payment_date, method, reference, notes, recorded_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO vendor_payments (purchase_id, amount, payment_date, method, reference, notes, recorded_by, account_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [id, amt, payment_date || new Date().toISOString().split('T')[0],
-       method || null, reference || null, notes || null, req.user.id]
+       methodFor(acct.account, method) || null, reference || null, notes || null, req.user.id, acct.id ?? null]
     );
 
     const [[paidRow]] = await db.execute(
@@ -351,6 +355,7 @@ router.post('/:id/payments', canHandlePayments, async (req, res) => {
       payment_status: paid >= grand ? 'paid' : paid > 0 ? 'partial' : 'pending',
     });
   } catch (error) {
+    if (error instanceof AccountError) return res.status(error.status).json({ message: error.message, error: error.message });
     console.error('Error recording vendor payment:', error);
     res.status(500).json({ error: 'Failed to record payment' });
   }

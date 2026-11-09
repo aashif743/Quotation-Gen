@@ -3,6 +3,8 @@ import { recordPayment, updatePayment, uploadPaymentProof } from '../../services
 import { ProofFilePicker } from './PaymentProof';
 import { formatCurrency, getActiveCurrency } from '../../utils/calculations';
 import CurrencyInput from '../common/CurrencyInput';
+import AccountSelect from '../common/AccountSelect';
+import { useCompany } from '../../context/CompanyContext';
 import { Payment } from '../../types';
 import { X, CreditCard, CheckCircle2, BadgePercent } from 'lucide-react';
 
@@ -17,6 +19,7 @@ const METHODS = [
 
 interface InvoiceSummary {
   id: number;
+  company_id?: number;
   invoice_number: string;
   grand_total: number | string;
   amount_paid?: number | string;
@@ -45,6 +48,7 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
   existingPayment,
 }) => {
   const isEdit = !!existingPayment;
+  const { selectedCompany } = useCompany();
   // Editing a discount row: only the amount, date and notes make sense.
   const isDiscountRow = isEdit && !!existingPayment!.is_discount;
   const total = Number(invoice.grand_total || 0);
@@ -88,6 +92,12 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
   const canAttachProof = !isEdit || !existingPayment!.proof_file_url;
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string>('');
+  // The bank / mobile money / cash account the money went into. Required for
+  // new payments once the company has accounts; older payments may stay unlinked.
+  const [accountId, setAccountId] = useState<number | null>(isEdit ? existingPayment!.account_id ?? null : null);
+  const [accountsAvailable, setAccountsAvailable] = useState(false);
+  const [triedSave, setTriedSave] = useState(false);
+  const needsAccount = accountsAvailable && !isDiscountRow && amount > 0 && (!isEdit || existingPayment!.account_id != null);
 
   const amountRef = useRef<HTMLInputElement>(null);
 
@@ -123,6 +133,11 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
       setError('Payment date is required.');
       return;
     }
+    setTriedSave(true);
+    if (needsAccount && !accountId) {
+      setError('Choose the account the money went into.');
+      return;
+    }
 
     setSaving(true);
     setError('');
@@ -136,6 +151,7 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
           method: method || undefined,
           reference: reference || undefined,
           notes: notes || undefined,
+          ...(isDiscountRow ? {} : { account_id: accountId }),
         });
       } else {
         const created = await recordPayment({
@@ -146,6 +162,7 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
           reference: reference || undefined,
           notes: notes || undefined,
           discount: discount > 0 ? discount : undefined,
+          account_id: amount > 0 ? accountId : null,
         });
         paymentId = created.id;
       }
@@ -239,7 +256,7 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
         {/* Form body — scrolls if needed so the footer is always visible */}
         <div className="px-5 py-3 space-y-3 overflow-y-auto flex-1">
           {error && (
-            <div className="p-2 bg-red-50 border border-red-200 rounded-lg text-red-700 text-xs">
+            <div className="p-2 bg-red-50 border border-red-200 rounded-lg text-red-700 text-xs dark:!bg-red-500/15 dark:!border-red-500/30 dark:!text-red-300">
               {error}
             </div>
           )}
@@ -360,6 +377,19 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
             </div>
             )}
           </div>
+
+          {!isDiscountRow && (
+            <AccountSelect
+              companyId={invoice.company_id || selectedCompany?.id}
+              value={accountId}
+              onChange={(id, opt) => { setAccountId(id); if (opt?.method) setMethod(opt.method); }}
+              direction="in"
+              savedAccountId={isEdit ? existingPayment!.account_id ?? null : null}
+              savedAccountName={isEdit ? existingPayment!.account_name : null}
+              onAvailable={setAccountsAvailable}
+              showError={triedSave && needsAccount}
+            />
+          )}
 
           {/* Reference */}
           <div>

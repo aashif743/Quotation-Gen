@@ -3,7 +3,8 @@ const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
 const db = require('../config/database');
-const { isAuthenticated, isAdmin } = require('../middleware/auth');
+const { isAuthenticated, isAdmin, hasPaymentAccess } = require('../middleware/auth');
+const { pickAccount, methodFor, AccountError } = require('../utils/accounts');
 const { moveToRecycleBin } = require('../utils/recycleBin');
 const { requireCompanyAccess, companyTableParamGuard } = require("../utils/tenancy");
 const { getCompanyPrefix } = require('../utils/quotePrefix');
@@ -64,11 +65,12 @@ router.get('/', async (req, res) => {
       `
       SELECT e.id, e.company_id, e.created_by, e.vendor_id, e.expense_number,
              e.category, e.description, e.amount, e.date, e.payment_method,
-             e.reference, e.receipt_url, e.notes, e.created_at,
-             u.name AS created_by_name, v.name AS vendor_name
+             e.reference, e.receipt_url, e.notes, e.created_at, e.account_id,
+             u.name AS created_by_name, v.name AS vendor_name, a.name AS account_name
         FROM expenses e
         LEFT JOIN users u   ON e.created_by = u.id
         LEFT JOIN vendors v ON e.vendor_id = v.id
+        LEFT JOIN accounts a ON e.account_id = a.id
         ${whereSql}
        ORDER BY e.date DESC, e.id DESC
       `,
@@ -85,10 +87,11 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const [rows] = await db.execute(
-      `SELECT e.*, u.name AS created_by_name, v.name AS vendor_name
+      `SELECT e.*, u.name AS created_by_name, v.name AS vendor_name, a.name AS account_name
          FROM expenses e
          LEFT JOIN users u   ON e.created_by = u.id
          LEFT JOIN vendors v ON e.vendor_id = v.id
+         LEFT JOIN accounts a ON e.account_id = a.id
         WHERE e.id = ?`,
       [req.params.id]
     );
@@ -117,6 +120,9 @@ router.post('/', async (req, res) => {
     const amt = Number(amount);
     if (!amt || amt <= 0) { await connection.rollback(); return res.status(400).json({ error: 'A positive amount is required.' }); }
 
+    // The account it was paid from (only people who handle payments link accounts).
+    const acct = hasPaymentAccess(req.user) ? await pickAccount(company_id, req.body.account_id) : { id: null };
+
     const [companies] = await connection.execute('SELECT name FROM companies WHERE id = ?', [company_id]);
     const companyName = companies.length ? companies[0].name : '';
     const prefix = `${getCompanyPrefix(companyName)}-EXP`;
@@ -131,12 +137,12 @@ router.post('/', async (req, res) => {
     const [result] = await connection.execute(
       `INSERT INTO expenses
         (company_id, created_by, vendor_id, expense_number, category, description,
-         amount, date, payment_method, reference, notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         amount, date, payment_method, reference, notes, account_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         company_id, req.user.id, vendor_id || null, expenseNumber, category || null,
         description || null, amt, date || new Date().toISOString().split('T')[0],
-        payment_method || null, reference || null, notes || null,
+        methodFor(acct.account, payment_method) || null, reference || null, notes || null, acct.id ?? null,
       ]
     );
     await connection.commit();
@@ -144,6 +150,7 @@ router.post('/', async (req, res) => {
     res.status(201).json(created[0]);
   } catch (error) {
     await connection.rollback();
+    if (error instanceof AccountError) return res.status(error.status).json({ error: error.message });
     if (error && error.code === 'ER_DUP_ENTRY') {
       return res.status(409).json({ error: 'An expense with that number already exists for this company.' });
     }
@@ -157,7 +164,7 @@ router.post('/', async (req, res) => {
 // PUT /api/expenses/:id — staff may edit their own; admins any.
 router.put('/:id', async (req, res) => {
   try {
-    const [check] = await db.execute('SELECT created_by FROM expenses WHERE id = ?', [req.params.id]);
+    const [check] = await db.execute('SELECT created_by, company_id, account_id FROM expenses WHERE id = ?', [req.params.id]);
     if (check.length === 0) return res.status(404).json({ error: 'Expense not found' });
     if (req.user.role !== 'admin' && check[0].created_by !== req.user.id) {
       return res.status(403).json({ error: 'You can only edit your own expenses.' });
@@ -174,6 +181,10 @@ router.put('/:id', async (req, res) => {
     if (payment_method !== undefined){ fields.push('payment_method = ?'); values.push(payment_method || null); }
     if (reference !== undefined)     { fields.push('reference = ?');      values.push(reference || null); }
     if (notes !== undefined)         { fields.push('notes = ?');          values.push(notes || null); }
+    if (hasPaymentAccess(req.user)) {
+      const acct = await pickAccount(check[0].company_id, req.body.account_id, { current: check[0].account_id });
+      if (!acct.skip) { fields.push('account_id = ?'); values.push(acct.id); }
+    }
     if (fields.length === 0) return res.status(400).json({ message: 'No changes provided.' });
     values.push(req.params.id);
 
@@ -181,6 +192,7 @@ router.put('/:id', async (req, res) => {
     const [updated] = await db.execute('SELECT * FROM expenses WHERE id = ?', [req.params.id]);
     res.json(updated[0]);
   } catch (error) {
+    if (error instanceof AccountError) return res.status(error.status).json({ error: error.message });
     console.error('Error updating expense:', error);
     res.status(500).json({ error: 'Failed to update expense' });
   }

@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('../config/database');
-const { isAuthenticated } = require('../middleware/auth');
+const { isAuthenticated, hasPaymentAccess } = require('../middleware/auth');
+const { listAccounts } = require('../utils/accounts');
 const { requireCompanyAccess } = require('../utils/tenancy');
 
 const router = express.Router();
@@ -42,6 +43,12 @@ router.get('/', async (req, res) => {
     const petty = isAdmin
       ? await one(`SELECT IFNULL(SUM(CASE WHEN type='in' THEN amount ELSE -amount END),0) bal FROM petty_cash WHERE company_id=?`, [companyId])
       : { bal: 0 };
+
+    // Cash position: each open account's balance (admins who handle payments).
+    const accounts = isAdmin && hasPaymentAccess(req.user)
+      ? (await listAccounts(companyId, { userId: uid, includeClosed: false }))
+          .map((a) => ({ id: a.id, name: a.name, type: a.type, balance: a.balance }))
+      : null;
 
     const totalInvoiced = num(inv.t);
     // Collected = money actually received; settlement discounts still reduce
@@ -141,6 +148,7 @@ router.get('/', async (req, res) => {
       expenses_by_category: expCat.map((r) => ({ category: r.category, amount: num(r.amount) })),
       top_clients: topClients.map((r) => ({ name: r.name, invoiced: num(r.invoiced), invoices: num(r.invoices) })),
       recent_invoices: recent,
+      accounts,
     });
   } catch (error) {
     console.error('Error building dashboard:', error);

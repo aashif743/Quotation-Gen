@@ -520,7 +520,12 @@ const PaymentPanel: React.FC<{
                     <td className="px-5 py-2 text-sm text-gray-700">
                       {p.is_discount ? (
                         <span className="inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">Discount</span>
-                      ) : (p.method || '—')}
+                      ) : (
+                        <>
+                          {p.method || '—'}
+                          {p.account_name && <div className="text-xs text-gray-500">into {p.account_name}</div>}
+                        </>
+                      )}
                     </td>
                     <td className="px-5 py-2 text-sm text-gray-700">{p.reference || '—'}</td>
                     <td className={`px-5 py-2 text-sm text-right font-semibold tabular-nums ${p.is_discount ? 'text-amber-700' : 'text-green-700'}`}>

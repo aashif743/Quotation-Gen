@@ -10,6 +10,7 @@ import {
 } from '../services/api';
 import { Expense, Vendor } from '../types';
 import { toCsv, downloadCsv } from '../utils/csv';
+import AccountSelect from '../components/common/AccountSelect';
 import {
   Wallet, Search, Plus, Trash2, Edit2, X, AlertCircle, DollarSign, Calendar,
   Paperclip, ExternalLink, Loader2, Download,
@@ -30,11 +31,12 @@ interface FormValues {
   reference: string;
   vendor_id: string;
   notes: string;
+  account_id: number | null;
 }
 
 const blankForm = (): FormValues => ({
   category: '', description: '', amount: '', date: new Date().toISOString().split('T')[0],
-  payment_method: '', reference: '', vendor_id: '', notes: '',
+  payment_method: '', reference: '', vendor_id: '', notes: '', account_id: null,
 });
 
 const Expenses: React.FC = () => {
@@ -55,6 +57,8 @@ const Expenses: React.FC = () => {
   const [form, setForm] = useState<FormValues>(blankForm());
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
+  const [accountsAvailable, setAccountsAvailable] = useState(false);
+  const [triedSave, setTriedSave] = useState(false);
 
   const [toDelete, setToDelete] = useState<Expense | null>(null);
   const [uploadingFor, setUploadingFor] = useState<number | null>(null);
@@ -110,15 +114,17 @@ const Expenses: React.FC = () => {
     return { total, count: filtered.length, thisMonth };
   }, [filtered, expenses]);
 
-  const openAdd = () => { setEditing(null); setForm(blankForm()); setFormError(''); setModalOpen(true); };
+  const openAdd = () => { setEditing(null); setForm(blankForm()); setFormError(''); setTriedSave(false); setModalOpen(true); };
   const openEdit = (e: Expense) => {
     setEditing(e);
     setForm({
       category: e.category || '', description: e.description || '', amount: String(e.amount ?? ''),
       date: (e.date || '').split('T')[0], payment_method: e.payment_method || '',
       reference: e.reference || '', vendor_id: e.vendor_id ? String(e.vendor_id) : '', notes: e.notes || '',
+      account_id: e.account_id ?? null,
     });
     setFormError('');
+    setTriedSave(false);
     setModalOpen(true);
   };
 
@@ -127,6 +133,10 @@ const Expenses: React.FC = () => {
     const amt = Number(form.amount);
     if (!amt || amt <= 0) { setFormError('Enter a positive amount.'); return; }
     if (!form.date) { setFormError('Pick a date.'); return; }
+    setTriedSave(true);
+    if (accountsAvailable && !form.account_id && (!editing || editing.account_id != null)) {
+      setFormError('Choose the account it was paid from.'); return;
+    }
     setSaving(true);
     setFormError('');
     try {
@@ -139,6 +149,7 @@ const Expenses: React.FC = () => {
         reference: form.reference || null,
         vendor_id: form.vendor_id ? Number(form.vendor_id) : null,
         notes: form.notes || null,
+        account_id: form.account_id,
       };
       if (editing) {
         await updateExpense(editing.id, payload as any);
@@ -315,6 +326,7 @@ const Expenses: React.FC = () => {
                     <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">
                       {e.description || '—'}
                       {e.vendor_name && <span className="text-xs text-gray-500 block">to {e.vendor_name}</span>}
+                      {e.account_name && <span className="text-xs text-gray-500 block">from {e.account_name}</span>}
                     </td>
                     <td className="px-6 py-4 text-right text-sm font-semibold text-gray-900 tabular-nums">{formatCurrency(Number(e.amount || 0))}</td>
                     <td className="px-6 py-4 text-center">
@@ -383,6 +395,19 @@ const Expenses: React.FC = () => {
                 <label className={labelCls}>Description</label>
                 <input className={inputCls} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="What was this expense for?" />
               </div>
+              <AccountSelect
+                companyId={selectedCompany?.id}
+                value={form.account_id}
+                onChange={(id, opt) => setForm((f) => ({ ...f, account_id: id, payment_method: opt?.method || f.payment_method }))}
+                direction="out"
+                amount={Number(form.amount) || 0}
+                savedAccountId={editing?.account_id ?? null}
+                savedAccountName={editing?.account_name}
+                savedAmount={editing ? Number(editing.amount) || 0 : 0}
+                onAvailable={setAccountsAvailable}
+                showError={triedSave && (!editing || editing.account_id != null)}
+                selectClassName={`${inputCls} bg-white`}
+              />
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={labelCls}>Payment method</label>

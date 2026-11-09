@@ -3,7 +3,8 @@ const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
 const db = require('../config/database');
-const { isAuthenticated, isAdmin } = require('../middleware/auth');
+const { isAuthenticated, isAdmin, hasPaymentAccess } = require('../middleware/auth');
+const { pickAccount, AccountError } = require('../utils/accounts');
 const { moveToRecycleBin } = require('../utils/recycleBin');
 const { requireCompanyAccess, companyTableParamGuard } = require('../utils/tenancy');
 const { getCompanyPrefix } = require('../utils/quotePrefix');
@@ -104,7 +105,7 @@ async function nextNumber(conn, companyId) {
 }
 
 const DETAIL_SQL = `
-  SELECT d.*, u.name AS created_by_name, ap.name AS approved_by_name,
+  SELECT d.*, u.name AS created_by_name, ap.name AS approved_by_name, ac.name AS account_name,
          c.name AS company_name, c.address AS company_address, c.tpin AS company_tpin,
          c.logo_url AS company_logo, c.quote_logo_url AS company_quote_logo,
          c.primary_color, c.secondary_color, c.currency AS company_currency
@@ -112,6 +113,7 @@ const DETAIL_SQL = `
     JOIN companies c ON c.id = d.company_id
     LEFT JOIN users u ON u.id = d.created_by
     LEFT JOIN users ap ON ap.id = d.approved_by
+    LEFT JOIN accounts ac ON ac.id = d.account_id
    WHERE d.id = ?`;
 
 async function loadFull(id) {
@@ -238,6 +240,15 @@ router.post('/', async (req, res) => {
   let status = STATUSES.includes(b.status) ? b.status : 'planned';
   if (!isAdminUser(req)) status = 'planned';
 
+  // The account the money is paid from (counted once the donation is given).
+  let acct = { id: null };
+  try {
+    if (hasPaymentAccess(req.user)) acct = await pickAccount(b.company_id, b.account_id);
+  } catch (e) {
+    if (e instanceof AccountError) return res.status(e.status).json({ error: e.message });
+    throw e;
+  }
+
   const conn = await db.getConnection();
   try {
     await conn.beginTransaction();
@@ -247,14 +258,15 @@ router.post('/', async (req, res) => {
       `INSERT INTO donations
          (company_id, created_by, donation_number, date, recipient_name, recipient_type, recipient_contact,
           recipient_address, category, purpose, description, amount, payment_method, reference, status,
-          approved_by, approved_at, received_by, notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          approved_by, approved_at, received_by, notes, account_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         b.company_id, req.user.id, number, dateOnly(b.date) || localToday(), String(b.recipient_name).trim(),
         orNull(b.recipient_type), orNull(b.recipient_contact), orNull(b.recipient_address),
         b.category || 'cash', orNull(b.purpose), orNull(b.description), amount,
         orNull(b.payment_method), orNull(b.reference), status,
         approved ? req.user.id : null, approved ? new Date() : null, orNull(b.received_by), orNull(b.notes),
+        acct.id ?? null,
       ]
     );
     await saveItems(conn, r.insertId, items);
@@ -273,7 +285,7 @@ router.post('/', async (req, res) => {
 // PUT /api/donations/:id — edit details (not the status; see PATCH /status).
 router.put('/:id', async (req, res) => {
   const b = req.body || {};
-  const [rows] = await db.execute('SELECT created_by, status FROM donations WHERE id = ?', [req.params.id]);
+  const [rows] = await db.execute('SELECT created_by, status, company_id, account_id FROM donations WHERE id = ?', [req.params.id]);
   if (!rows.length) return res.status(404).json({ error: 'Donation not found' });
   if (!isAdminUser(req)) {
     if (rows[0].created_by !== req.user.id) return res.status(403).json({ error: 'You can only edit your own donations.' });
@@ -283,10 +295,18 @@ router.put('/:id', async (req, res) => {
   if (err) return res.status(400).json({ error: err });
   const { items, amount } = normalise(b);
   if (!(amount > 0) && !items.length) return res.status(400).json({ error: 'Enter an amount or at least one item.' });
+  let acct = { skip: true };
+  try {
+    if (hasPaymentAccess(req.user)) acct = await pickAccount(rows[0].company_id, b.account_id, { current: rows[0].account_id });
+  } catch (e) {
+    if (e instanceof AccountError) return res.status(e.status).json({ error: e.message });
+    throw e;
+  }
 
   const conn = await db.getConnection();
   try {
     await conn.beginTransaction();
+    if (!acct.skip) await conn.execute('UPDATE donations SET account_id = ? WHERE id = ?', [acct.id, req.params.id]);
     await conn.execute(
       `UPDATE donations SET
          donation_number = COALESCE(?, donation_number), date = COALESCE(?, date), recipient_name = ?,
@@ -327,6 +347,11 @@ router.patch('/:id/status', isAdmin, async (req, res) => {
     }
     if (status === 'planned') fields.push('approved_by = NULL', 'approved_at = NULL');
     if (status === 'given') {
+      if (hasPaymentAccess(req.user)) {
+        const [[cur]] = await db.execute('SELECT company_id, account_id FROM donations WHERE id = ?', [req.params.id]);
+        const acct = await pickAccount(cur.company_id, req.body.account_id, { current: cur.account_id });
+        if (!acct.skip) { fields.push('account_id = ?'); values.push(acct.id); }
+      }
       if (orNull(req.body.received_by)) { fields.push('received_by = ?'); values.push(String(req.body.received_by).trim()); }
       if (dateOnly(req.body.date)) { fields.push('date = ?'); values.push(dateOnly(req.body.date)); }
     }
@@ -334,6 +359,7 @@ router.patch('/:id/status', isAdmin, async (req, res) => {
     await db.execute(`UPDATE donations SET ${fields.join(', ')} WHERE id = ?`, values);
     res.json(await loadFull(req.params.id));
   } catch (e) {
+    if (e instanceof AccountError) return res.status(e.status).json({ error: e.message });
     console.error('Error changing donation status:', e);
     res.status(500).json({ error: 'Failed to change status' });
   }

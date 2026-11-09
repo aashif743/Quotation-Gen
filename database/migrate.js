@@ -1259,6 +1259,90 @@ async function migrate() {
     `);
   } else { console.log('  • service_catalog already present, skipping.'); }
 
+  // 3za. Money accounts (added 2026-11) — a company's bank accounts, mobile
+  //     money (Airtel Money / Mpamba) wallets, cash on hand and its petty cash
+  //     fund. Balances are never stored: they are opening balance + the
+  //     records linked to the account (payments in, vendor payments /
+  //     expenses / donations / salaries out, transfers), so edits, deletes and
+  //     restores always keep them right. Existing records stay unlinked.
+  //     Additive, nullable only.
+  if (!(await tableExists('accounts'))) {
+    console.log('  • Creating `accounts` table...');
+    await db.query(`
+      CREATE TABLE \`accounts\` (
+        \`id\` INT PRIMARY KEY AUTO_INCREMENT,
+        \`company_id\` INT NOT NULL,
+        \`name\` VARCHAR(120) NOT NULL,
+        \`type\` VARCHAR(20) NOT NULL DEFAULT 'bank',
+        \`bank_name\` VARCHAR(120) NULL,
+        \`branch\` VARCHAR(120) NULL,
+        \`account_number\` VARCHAR(60) NULL,
+        \`opening_balance\` DECIMAL(15,2) NOT NULL DEFAULT 0,
+        \`opening_date\` DATE NULL,
+        \`is_active\` TINYINT(1) NOT NULL DEFAULT 1,
+        \`notes\` VARCHAR(255) NULL,
+        \`created_by\` INT NULL,
+        \`created_at\` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+        \`updated_at\` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY \`uniq_account_company_name\` (\`company_id\`, \`name\`),
+        FOREIGN KEY (\`company_id\`) REFERENCES \`companies\`(\`id\`) ON DELETE CASCADE,
+        FOREIGN KEY (\`created_by\`) REFERENCES \`users\`(\`id\`) ON DELETE SET NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+  } else { console.log('  • accounts already present, skipping.'); }
+
+  // Transfers between accounts, plus money in / out that isn't tied to an
+  // invoice or expense (owner capital, bank charges, interest…).
+  if (!(await tableExists('account_transactions'))) {
+    console.log('  • Creating `account_transactions` table...');
+    await db.query(`
+      CREATE TABLE \`account_transactions\` (
+        \`id\` INT PRIMARY KEY AUTO_INCREMENT,
+        \`company_id\` INT NOT NULL,
+        \`kind\` VARCHAR(20) NOT NULL DEFAULT 'transfer',
+        \`from_account_id\` INT NULL,
+        \`to_account_id\` INT NULL,
+        \`amount\` DECIMAL(15,2) NOT NULL,
+        \`date\` DATE NOT NULL,
+        \`category\` VARCHAR(100) NULL,
+        \`reference\` VARCHAR(100) NULL,
+        \`notes\` TEXT NULL,
+        \`created_by\` INT NULL,
+        \`created_at\` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+        \`updated_at\` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        KEY \`idx_acctxn_company_date\` (\`company_id\`, \`date\`),
+        FOREIGN KEY (\`company_id\`) REFERENCES \`companies\`(\`id\`) ON DELETE CASCADE,
+        FOREIGN KEY (\`from_account_id\`) REFERENCES \`accounts\`(\`id\`) ON DELETE CASCADE,
+        FOREIGN KEY (\`to_account_id\`) REFERENCES \`accounts\`(\`id\`) ON DELETE CASCADE,
+        FOREIGN KEY (\`created_by\`) REFERENCES \`users\`(\`id\`) ON DELETE SET NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+  } else { console.log('  • account_transactions already present, skipping.'); }
+
+  // Link columns. petty_cash.transfer_account_id: the account a top-up was
+  // taken from (or a payout was paid back into).
+  for (const [table, col] of [
+    ['payments', 'account_id'],
+    ['vendor_payments', 'account_id'],
+    ['expenses', 'account_id'],
+    ['donations', 'account_id'],
+    ['payslips', 'account_id'],
+    ['petty_cash', 'transfer_account_id'],
+  ]) {
+    if (!(await tableExists(table))) continue;
+    if (!(await columnExists(table, col))) {
+      console.log(`  • Adding \`${col}\` to ${table}...`);
+      await db.query(`ALTER TABLE \`${table}\` ADD COLUMN \`${col}\` INT NULL`);
+    } else { console.log(`  • ${table}.${col} already present, skipping.`); }
+    if (!(await foreignKeyExists(table, col)).length) {
+      console.log(`  • Linking ${table}.${col} to accounts...`);
+      await db.query(
+        `ALTER TABLE \`${table}\` ADD CONSTRAINT \`fk_${table}_${col}\`
+           FOREIGN KEY (\`${col}\`) REFERENCES \`accounts\`(\`id\`) ON DELETE SET NULL`
+      );
+    }
+  }
+
   // 4. Backfill created_by from each row's company owner so existing records
   //    are attributed to the user who originally owned the company.
   const [qBackfill] = await db.query(

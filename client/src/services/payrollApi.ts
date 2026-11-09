@@ -33,7 +33,7 @@ export const updatePayslip = async (id: number, data: PayslipUpdate): Promise<Pa
   (await api.put(`/payroll/payslips/${id}`, data)).data;
 
 export const setPayslipStatus = async (
-  id: number, data: { status: 'paid' | 'draft'; payment_date?: string; payment_method?: string },
+  id: number, data: { status: 'paid' | 'draft'; payment_date?: string; payment_method?: string; account_id?: number | null },
 ): Promise<Payslip> => (await api.patch(`/payroll/payslips/${id}/status`, data)).data;
 
 export const deletePayslip = async (id: number): Promise<void> => { await api.delete(`/payroll/payslips/${id}`); };

@@ -10,6 +10,7 @@ import { QuoteFlowLogo, QuoteFlowMark } from '../common/QuoteFlowLogo';
 import DemoBanner from './DemoBanner';
 import {
   Home,
+  Landmark,
   FileText,
   History,
   Settings,
@@ -85,7 +86,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { selectedCompany, companies, loading: companiesLoading, createCompany } = useCompany();
-  const { user, logout, isAdmin, isSuperAdmin, canManageAttendance, canAccessPayroll, canViewAudit, actingOrganization, isDemo, canUseDeliveryNotes } = useAuth();
+  const { user, logout, isAdmin, isSuperAdmin, canManageAttendance, canAccessPayroll, canViewAudit, actingOrganization, isDemo, canUseDeliveryNotes, canHandlePayments } = useAuth();
   const { theme, toggle: toggleTheme } = useTheme();
   const isDark = theme === 'dark';
 
@@ -221,6 +222,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       { to: '/vendors', icon: Store, label: 'Vendors' },
     ]},
     { label: 'Finance', items: [
+      ...(isAdmin && canHandlePayments ? [{ to: '/accounts', icon: Landmark, label: 'Bank & Cash' }] : []),
       { to: '/lpos', icon: PackageCheck, label: 'LPOs' },
       { to: '/purchases', icon: ShoppingCart, label: 'Purchases' },
       { to: '/expenses', icon: Wallet, label: 'Expenses' },

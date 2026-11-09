@@ -59,7 +59,12 @@ const SPECS = {
   },
   payment: { table: 'payments', label: null, name: 'Payment', parent: { table: 'invoices', fk: 'invoice_id', label: 'invoice_number' } },
   vendor_payment: { table: 'vendor_payments', label: null, name: 'Vendor payment', parent: { table: 'purchases', fk: 'purchase_id', label: 'purchase_number' } },
+  account_transaction: { table: 'account_transactions', label: null, name: 'Account transaction' },
 };
+
+// Columns that point at a money account. If the account has since been
+// deleted, a restored record comes back unlinked rather than failing.
+const ACCOUNT_LINKS = ['account_id', 'transfer_account_id'];
 
 // Dates and times come back exactly as stored (no time-zone shifts), so a
 // restore writes back the same values.
@@ -94,6 +99,8 @@ function describe(type, row, parentRow) {
     case 'client':
     case 'vendor':
       return [row.contact_person, row.phone || row.email].filter(Boolean).join(' · ');
+    case 'account_transaction':
+      return `${row.kind === 'transfer' ? 'Transfer' : row.kind === 'deposit' ? 'Money in' : 'Money out'}${row.category ? ` (${row.category})` : ''} of ${money(row.amount)}`;
     case 'payment':
     case 'vendor_payment':
       return `${row.is_discount ? 'Discount' : row.method || 'Payment'} of ${money(row.amount)}${parentRow ? ` on ${parentRow[SPECS[type].parent.label]}` : ''}`;
@@ -187,10 +194,26 @@ async function restoreFromRecycleBin(entry) {
       if (!c.length) throw new RestoreError('The company this item belonged to no longer exists.');
     }
 
-    await conn.query(`INSERT INTO \`${spec.table}\` SET ?`, [row]);
+    const [accRows] = await conn.query('SELECT id FROM accounts WHERE company_id = ?', [row.company_id ?? -1]);
+    const accountIds = new Set(accRows.map((a) => a.id));
+    const relink = async (r) => {
+      for (const col of ACCOUNT_LINKS) {
+        if (r[col] == null) continue;
+        const [a] = await conn.query('SELECT id FROM accounts WHERE id = ?', [r[col]]);
+        if (!a.length) r[col] = null;
+      }
+      return r;
+    };
+    if (entry.entity_type === 'account_transaction') {
+      for (const col of ['from_account_id', 'to_account_id']) {
+        if (row[col] != null && !accountIds.has(row[col])) throw new RestoreError('An account this transaction used has been deleted.');
+      }
+    }
+
+    await conn.query(`INSERT INTO \`${spec.table}\` SET ?`, [await relink(row)]);
     for (const c of spec.children || []) {
       for (const child of children[c.table] || []) {
-        await conn.query(`INSERT INTO \`${c.table}\` SET ?`, [child]);
+        await conn.query(`INSERT INTO \`${c.table}\` SET ?`, [await relink(child)]);
       }
     }
     // Re-link records that pointed at it (only where nothing else was set since).

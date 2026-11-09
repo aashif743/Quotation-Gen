@@ -385,6 +385,9 @@ export interface Payment {
   proof_uploaded_by_name?: string | null;
   // A settlement discount (reduces the balance; no money received).
   is_discount?: number | boolean;
+  // The bank / mobile money / cash account the money went into.
+  account_id?: number | null;
+  account_name?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -473,6 +476,8 @@ export interface PurchaseDocSummary {
 export interface VendorPayment {
   id: number;
   purchase_id: number;
+  account_id?: number | null;
+  account_name?: string | null;
   amount: number;
   payment_date: string;
   method?: string | null;
@@ -505,6 +510,8 @@ export interface PettyCashEntry {
   notes?: string | null;
   created_at?: string;
   created_by_name?: string;
+  transfer_account_id?: number | null;
+  transfer_account_name?: string | null;
 }
 
 export interface PettyCashSummary {
@@ -533,6 +540,8 @@ export interface Expense {
   updated_at?: string;
   created_by_name?: string;
   vendor_name?: string | null;
+  account_id?: number | null;
+  account_name?: string | null;
 }
 
 export interface DeliveryNoteItem {

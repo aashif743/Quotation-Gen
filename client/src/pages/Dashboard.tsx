@@ -12,7 +12,7 @@ import { formatCurrency, formatCompactCurrency } from '../utils/calculations';
 import { brandColorFor, hexToRgba } from '../utils/colors';
 import {
   FileText, Receipt, DollarSign, TrendingUp, TrendingDown, Wallet, Plus,
-  ArrowUpRight, Users, Banknote, Truck,
+  ArrowUpRight, Users, Banknote, Truck, Landmark, Smartphone,
 } from 'lucide-react';
 
 // Animate a number from 0 → target on mount.
@@ -269,6 +269,49 @@ const Dashboard: React.FC = () => {
               )}
             </Card>
           </div>
+
+          {/* Cash position — balances of the bank / mobile money / cash accounts */}
+          {data?.accounts && data.accounts.length > 0 && (() => {
+            const accts = data.accounts!;
+            const total = accts.reduce((sum, a) => sum + a.balance, 0);
+            const icon = { bank: Landmark, mobile: Smartphone, cash: Banknote, petty_cash: Wallet };
+            const onlyPetty = !accts.some((a) => a.type !== 'petty_cash');
+            return (
+              <Card className="qg-rise" delay={100}>
+                <div className="flex items-start justify-between gap-3 mb-4">
+                  <div>
+                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Cash position</h2>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Money in your accounts right now</p>
+                  </div>
+                  <div className="text-right">
+                    <div className={`text-2xl font-bold tabular-nums ${total < 0 ? 'text-red-600' : 'text-gray-900 dark:text-white'}`}>{formatCurrency(total)}</div>
+                    <Link to="/accounts" className="text-sm font-medium hover:underline" style={{ color: brand }}>Bank & Cash</Link>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  {accts.map((a) => {
+                    const Icon = icon[a.type] || Landmark;
+                    return (
+                      <Link key={a.id} to={`/accounts/${a.id}`} className="flex items-center gap-3 rounded-xl border border-gray-100 dark:border-[#2e2e2e] p-3 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
+                        <div className="h-9 w-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: hexToRgba(brand, 0.12), color: brand }}>
+                          <Icon size={18} />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-sm text-gray-600 dark:text-gray-300 truncate">{a.name}</div>
+                          <div className={`text-base font-semibold tabular-nums ${a.balance < 0 ? 'text-red-600' : 'text-gray-900 dark:text-white'}`}>{formatCurrency(a.balance)}</div>
+                        </div>
+                      </Link>
+                    );
+                  })}
+                  {onlyPetty && (
+                    <Link to="/accounts" className="flex items-center justify-center rounded-xl border-2 border-dashed border-gray-200 dark:border-[#2e2e2e] p-3 text-sm font-medium text-gray-500 hover:text-gray-700">
+                      <Plus className="h-4 w-4 mr-1.5" /> Add your bank & Airtel Money accounts
+                    </Link>
+                  )}
+                </div>
+              </Card>
+            );
+          })()}
 
           {/* Recent invoices */}
           <Card className="qg-rise !p-0 overflow-hidden" delay={120}>

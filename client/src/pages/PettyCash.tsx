@@ -9,6 +9,7 @@ import {
   deletePettyCash, uploadPettyCashReceipt, deletePettyCashReceipt,
 } from '../services/api';
 import { PettyCashEntry, PettyCashSummary } from '../types';
+import AccountSelect from '../components/common/AccountSelect';
 import {
   Banknote, Search, Plus, Minus, Trash2, Edit2, X, AlertCircle,
   ArrowDownCircle, ArrowUpCircle, Paperclip, ExternalLink, Loader2, Wallet,
@@ -27,11 +28,12 @@ interface FormValues {
   date: string;
   reference: string;
   notes: string;
+  transfer_account_id: number | null;
 }
 
 const blankForm = (type: 'in' | 'out'): FormValues => ({
   type, category: '', description: '', amount: '',
-  date: new Date().toISOString().split('T')[0], reference: '', notes: '',
+  date: new Date().toISOString().split('T')[0], reference: '', notes: '', transfer_account_id: null,
 });
 
 const PettyCash: React.FC = () => {
@@ -120,7 +122,7 @@ const PettyCash: React.FC = () => {
     setForm({
       type: e.type, category: e.category || '', description: e.description || '',
       amount: String(e.amount ?? ''), date: (e.date || '').split('T')[0],
-      reference: e.reference || '', notes: e.notes || '',
+      reference: e.reference || '', notes: e.notes || '', transfer_account_id: e.transfer_account_id ?? null,
     });
     setFormError('');
     setModalOpen(true);
@@ -142,6 +144,7 @@ const PettyCash: React.FC = () => {
         date: form.date,
         reference: form.reference || null,
         notes: form.notes || null,
+        transfer_account_id: form.transfer_account_id,
       };
       if (editing) {
         await updatePettyCash(editing.id, payload as any);
@@ -293,6 +296,9 @@ const PettyCash: React.FC = () => {
                     <td className="px-4 py-3">
                       <div className="text-sm text-gray-900">{e.description || (e.type === 'in' ? 'Top-up' : 'Payout')}</div>
                       {e.category && <div className="text-xs text-gray-500">{e.category}</div>}
+                      {e.transfer_account_name && (
+                        <div className="text-xs text-gray-500">{e.type === 'in' ? 'from' : 'paid into'} {e.transfer_account_name}</div>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-right text-sm font-medium text-emerald-600 tabular-nums">{e.type === 'in' ? formatCurrency(Number(e.amount)) : ''}</td>
                     <td className="px-4 py-3 text-right text-sm font-medium text-rose-600 tabular-nums">{e.type === 'out' ? formatCurrency(Number(e.amount)) : ''}</td>
@@ -354,6 +360,19 @@ const PettyCash: React.FC = () => {
                   <datalist id="pc-categories">{OUT_CATEGORIES.map((c) => <option key={c} value={c} />)}</datalist>
                 </div>
               )}
+              <AccountSelect
+                key={form.type}
+                companyId={selectedCompany?.id}
+                value={form.transfer_account_id}
+                onChange={(id) => setForm((f) => ({ ...f, transfer_account_id: id }))}
+                direction={form.type === 'in' ? 'out' : 'in'}
+                label={form.type === 'in' ? 'Taken from account (optional)' : 'Paid back into an account? (optional)'}
+                amount={form.type === 'in' ? Number(form.amount) || 0 : 0}
+                savedAccountId={editing?.transfer_account_id ?? null}
+                savedAccountName={editing?.transfer_account_name}
+                savedAmount={editing && editing.type === 'in' ? Number(editing.amount) || 0 : 0}
+                selectClassName={`${inputCls} bg-white`}
+              />
               <div>
                 <label className={labelCls}>{form.type === 'in' ? 'Source / note' : 'What was it for?'}</label>
                 <input className={inputCls} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder={form.type === 'in' ? 'e.g. Withdrawn from bank' : 'e.g. Taxi to bank'} />

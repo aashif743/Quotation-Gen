@@ -418,6 +418,8 @@ export const recordPayment = async (data: {
   notes?: string;
   /** Settlement discount given with this payment (stored as its own row). */
   discount?: number;
+  /** The bank / mobile money / cash account the money went into. */
+  account_id?: number | null;
 }): Promise<Payment> => {
   const response = await api.post('/payments', data);
   return response.data;
@@ -525,7 +527,7 @@ export const deletePurchase = async (id: number): Promise<void> => {
 
 export const recordVendorPayment = async (
   purchaseId: number,
-  data: { amount: number; payment_date: string; method?: string; reference?: string; notes?: string }
+  data: { amount: number; payment_date: string; method?: string; reference?: string; notes?: string; account_id?: number | null }
 ): Promise<{ payment_id: number; amount_paid: number; balance_due: number; payment_status: 'pending' | 'partial' | 'paid' }> => {
   const response = await api.post(`/purchases/${purchaseId}/payments`, data);
   return response.data;
@@ -703,6 +705,8 @@ export interface DashboardData {
     id: number; invoice_number: string; client_name: string; date: string;
     grand_total: number; amount_paid: number; payment_status: 'paid' | 'partial' | 'pending';
   }>;
+  /** Open money accounts with balances (admins who handle payments; otherwise null). */
+  accounts?: Array<{ id: number; name: string; type: 'bank' | 'mobile' | 'cash' | 'petty_cash'; balance: number }> | null;
 }
 
 export const getDashboard = async (companyId: number): Promise<DashboardData> => {

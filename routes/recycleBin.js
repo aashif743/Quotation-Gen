@@ -9,7 +9,7 @@ const { writeAudit } = require('../utils/audit');
 const router = express.Router();
 router.use(isAuthenticated, isAdmin);
 
-const PAYMENT_TYPES = new Set(['payment', 'vendor_payment']);
+const PAYMENT_TYPES = new Set(['payment', 'vendor_payment', 'account_transaction']);
 
 async function loadEntry(req, id) {
   const [rows] = await db.execute(
@@ -33,7 +33,7 @@ router.get('/', async (req, res) => {
       where.push('(d.label LIKE ? OR d.summary LIKE ? OR d.deleted_by_name LIKE ?)');
       params.push(like, like, like);
     }
-    if (!hasPaymentAccess(req.user)) where.push("d.entity_type NOT IN ('payment', 'vendor_payment')");
+    if (!hasPaymentAccess(req.user)) where.push("d.entity_type NOT IN ('payment', 'vendor_payment', 'account_transaction')");
     const [rows] = await db.query(
       `SELECT d.id, d.company_id, c.name AS company_name, d.entity_type, d.entity_id, d.label, d.summary,
               d.deleted_by, d.deleted_by_name, d.deleted_at,

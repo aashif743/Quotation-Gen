@@ -7,6 +7,7 @@ import { brandColorFor } from '../utils/colors';
 import { formatCurrency } from '../utils/calculations';
 import { getPurchase, recordVendorPayment, deleteVendorPayment, deletePurchase, uploadVendorPaymentProof, deleteVendorPaymentProof } from '../services/api';
 import { PaymentProofCell, ProofFilePicker } from '../components/Payment/PaymentProof';
+import AccountSelect from '../components/common/AccountSelect';
 import { Purchase } from '../types';
 import { ArrowLeft, Trash2, Plus, Loader2, TrendingUp, Link as LinkIcon, X } from 'lucide-react';
 
@@ -197,7 +198,7 @@ const PurchaseView: React.FC = () => {
                   <p className="text-sm font-medium text-gray-900 tabular-nums">{formatCurrency(Number(p.amount))}</p>
                   <p className="text-xs text-gray-500">
                     {new Date(p.payment_date).toLocaleDateString()}
-                    {p.method ? ` · ${p.method}` : ''}{p.reference ? ` · ${p.reference}` : ''}
+                    {p.method ? ` · ${p.method}` : ''}{p.account_name ? ` · from ${p.account_name}` : ''}{p.reference ? ` · ${p.reference}` : ''}
                     {p.recorded_by_name ? ` · ${p.recorded_by_name}` : ''}
                   </p>
                 </div>
@@ -230,6 +231,7 @@ const PurchaseView: React.FC = () => {
       {payOpen && purchase.id && (
         <PaymentModal
           purchaseId={purchase.id}
+          companyId={purchase.company_id}
           maxAmount={balance}
           primary={primary}
           onClose={() => setPayOpen(false)}
@@ -262,11 +264,12 @@ const Metric: React.FC<{ label: string; value: string; valueClass?: string }> = 
 
 const PaymentModal: React.FC<{
   purchaseId: number;
+  companyId?: number;
   maxAmount: number;
   primary: string;
   onClose: () => void;
   onSaved: () => void;
-}> = ({ purchaseId, maxAmount, primary, onClose, onSaved }) => {
+}> = ({ purchaseId, companyId, maxAmount, primary, onClose, onSaved }) => {
   const [amount, setAmount] = useState(maxAmount > 0 ? String(maxAmount) : '');
   const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [method, setMethod] = useState('');
@@ -275,14 +278,19 @@ const PaymentModal: React.FC<{
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [accountId, setAccountId] = useState<number | null>(null);
+  const [accountsAvailable, setAccountsAvailable] = useState(false);
+  const [triedSave, setTriedSave] = useState(false);
 
   const submit = async () => {
     const amt = Number(amount);
     if (!amt || amt <= 0) { setError('Enter a positive amount.'); return; }
+    setTriedSave(true);
+    if (accountsAvailable && !accountId) { setError('Choose the account the money was paid from.'); return; }
     setSaving(true);
     setError('');
     try {
-      const res = await recordVendorPayment(purchaseId, { amount: amt, payment_date: paymentDate, method, reference, notes });
+      const res = await recordVendorPayment(purchaseId, { amount: amt, payment_date: paymentDate, method, reference, notes, account_id: accountId });
       if (proofFile && res.payment_id) {
         try {
           await uploadVendorPaymentProof(purchaseId, res.payment_id, proofFile);
@@ -293,7 +301,7 @@ const PaymentModal: React.FC<{
       }
       onSaved();
     } catch (e: any) {
-      setError(e?.response?.data?.error || 'Failed to record payment.');
+      setError(e?.response?.data?.error || e?.response?.data?.message || 'Failed to record payment.');
       setSaving(false);
     }
   };
@@ -319,6 +327,16 @@ const PaymentModal: React.FC<{
               <input type="date" className={cls} value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} />
             </div>
           </div>
+          <AccountSelect
+            companyId={companyId}
+            value={accountId}
+            onChange={(id, opt) => { setAccountId(id); if (opt?.method) setMethod(opt.method); }}
+            direction="out"
+            amount={Number(amount) || 0}
+            onAvailable={setAccountsAvailable}
+            showError={triedSave}
+            selectClassName={`${cls} bg-white ${triedSave && !accountId ? '!border-red-400' : ''}`}
+          />
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Method</label>

@@ -11,6 +11,7 @@ import {
   DONATION_CATEGORY_LABELS, RECIPIENT_TYPE_LABELS,
 } from '../types/donations';
 import { ArrowLeft, HeartHandshake, Plus, Save, Trash2, Loader2, AlertCircle } from 'lucide-react';
+import AccountSelect from '../components/common/AccountSelect';
 
 const METHODS = ['Cash', 'Bank Transfer', 'Mobile Money', 'Cheque', 'Other'];
 const localToday = () => {
@@ -41,12 +42,13 @@ interface FormState {
   notes: string;
   status: DonationStatus;
   items: DonationItem[];
+  account_id: number | null;
 }
 
 const blank = (): FormState => ({
   date: localToday(), recipient_name: '', recipient_type: '', recipient_contact: '', recipient_address: '',
   category: 'cash', purpose: '', description: '', amount: '', payment_method: '', reference: '',
-  received_by: '', notes: '', status: 'planned', items: [],
+  received_by: '', notes: '', status: 'planned', items: [], account_id: null,
 });
 
 const DonationForm: React.FC = () => {
@@ -64,6 +66,7 @@ const DonationForm: React.FC = () => {
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [savedAccount, setSavedAccount] = useState<{ id: number | null; name: string | null; amount: number; given: boolean }>({ id: null, name: null, amount: 0, given: false });
 
   useEffect(() => {
     if (!isEdit) return;
@@ -77,7 +80,9 @@ const DonationForm: React.FC = () => {
           amount: d.amount != null ? String(Number(d.amount)) : '', payment_method: d.payment_method || '',
           reference: d.reference || '', received_by: d.received_by || '', notes: d.notes || '', status: d.status,
           items: (d.items || []).map((it) => ({ description: it.description, quantity: Number(it.quantity), unit_value: Number(it.unit_value) })),
+          account_id: d.account_id ?? null,
         });
+        setSavedAccount({ id: d.account_id ?? null, name: d.account_name || null, amount: Number(d.amount) || 0, given: d.status === 'given' });
       })
       .catch(() => setError('Failed to load the donation.'))
       .finally(() => setLoading(false));
@@ -104,6 +109,7 @@ const DonationForm: React.FC = () => {
         recipient_type: form.recipient_type || null, recipient_contact: form.recipient_contact, recipient_address: form.recipient_address,
         category: form.category, purpose: form.purpose, description: form.description, amount: Number(form.amount) || 0,
         payment_method: form.payment_method, reference: form.reference, received_by: form.received_by, notes: form.notes, items,
+        account_id: usesItems ? null : form.account_id,
         ...(isEdit ? {} : { status: form.status }),
       };
       const saved = isEdit ? await updateDonation(Number(id), payload) : await createDonation(payload);
@@ -203,6 +209,21 @@ const DonationForm: React.FC = () => {
             </div>
             <div><Label>Reference</Label><input value={form.reference} onChange={(e) => set('reference', e.target.value)} className={inp} placeholder="Cheque / transfer no." /></div>
           </div>
+          {!usesItems && (
+            <AccountSelect
+              className="mt-4 sm:max-w-sm"
+              companyId={selectedCompany.id}
+              value={form.account_id}
+              onChange={(aid, opt) => setForm((f) => ({ ...f, account_id: aid, payment_method: opt?.method || f.payment_method }))}
+              direction="out"
+              label="Paid from account (taken off when marked given)"
+              amount={Number(form.amount) || 0}
+              savedAccountId={savedAccount.id}
+              savedAccountName={savedAccount.name}
+              savedAmount={savedAccount.given ? savedAccount.amount : 0}
+              selectClassName={`${inp} bg-white`}
+            />
+          )}
         </section>
 
         <section className="bg-white rounded-xl border border-gray-200 p-5">

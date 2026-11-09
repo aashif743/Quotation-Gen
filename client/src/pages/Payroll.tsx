@@ -25,6 +25,7 @@ import {
   HandCoins, FileText, Users, Settings as SettingsIcon, AlertCircle, Download, Eye, Edit2, Trash2,
   CheckCircle2, RotateCcw, Loader2, Wand2, Plus, Info,
 } from 'lucide-react';
+import AccountSelect from '../components/common/AccountSelect';
 
 type Tab = 'payslips' | 'staff' | 'settings';
 
@@ -379,9 +380,14 @@ const MarkPaidModal: React.FC<{ slip: Payslip; primary: string; flash: Flash; on
   const [date, setDate] = useState(slip.payment_date || todayYmd());
   const [method, setMethod] = useState(slip.payment_method || (slip.bank_account ? 'Bank transfer' : 'Cash'));
   const [saving, setSaving] = useState(false);
+  const [accountId, setAccountId] = useState<number | null>(slip.account_id ?? null);
+  const [accountsAvailable, setAccountsAvailable] = useState(false);
+  const [tried, setTried] = useState(false);
   const save = async () => {
+    setTried(true);
+    if (accountsAvailable && !accountId) { flash('error', 'Choose the account the salary was paid from.'); return; }
     setSaving(true);
-    try { await setPayslipStatus(slip.id, { status: 'paid', payment_date: date || undefined, payment_method: method.trim() || undefined }); onSaved(); }
+    try { await setPayslipStatus(slip.id, { status: 'paid', payment_date: date || undefined, payment_method: method.trim() || undefined, account_id: accountId }); onSaved(); }
     catch (e: any) { flash('error', e?.response?.data?.error || 'Failed to mark paid.'); }
     finally { setSaving(false); }
   };
@@ -390,6 +396,18 @@ const MarkPaidModal: React.FC<{ slip: Payslip; primary: string; flash: Flash; on
       <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">Net pay <strong>{formatCurrency(slip.net_pay)}</strong> for {periodLabel(slip.period)}.</p>
       <div className="space-y-3">
         <Field label="Payment date"><input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={`${inputCls} w-full`} /></Field>
+        <AccountSelect
+          companyId={slip.company_id}
+          value={accountId}
+          onChange={(id, opt) => { setAccountId(id); if (opt?.method) setMethod(opt.method); }}
+          direction="out"
+          amount={slip.net_pay}
+          savedAccountId={slip.status === 'paid' ? slip.account_id ?? null : null}
+          savedAccountName={slip.account_name}
+          onAvailable={setAccountsAvailable}
+          showError={tried}
+          selectClassName={`${inputCls} w-full`}
+        />
         <Field label="Payment method">
           <input list="payroll-pay-methods" value={method} onChange={(e) => setMethod(e.target.value)} className={`${inputCls} w-full`} />
           <datalist id="payroll-pay-methods">

@@ -11,6 +11,7 @@ const TYPES: [string, string][] = [
   ['delivery_note', 'Delivery notes'], ['job_card', 'Job cards'], ['lpo', 'LPOs'], ['purchase', 'Purchases'],
   ['vendor_payment', 'Vendor payments'], ['expense', 'Expenses'], ['petty_cash', 'Petty cash'],
   ['donation', 'Donations'], ['contract', 'Contracts'], ['client', 'Clients'], ['vendor', 'Vendors'],
+  ['account_transaction', 'Transfers & money in/out'],
 ];
 
 // Where a restored item can be opened.

@@ -35,6 +35,8 @@ const ENTITIES = {
   organizations:     { type: 'organization',  table: 'organizations',   label: 'name' },
   donations:         { type: 'donation',      table: 'donations',       label: 'donation_number' },
   services:          { type: 'service',       table: 'service_catalog', label: 'name' },
+  accounts:          { type: 'account',       table: 'accounts',        label: 'name' },
+  'account-transactions': { type: 'account_transaction', table: 'account_transactions', label: 'category' },
   payroll: {
     nested: {
       payslips:  { type: 'payslip',          table: 'payslips',             label: 'employee_name' },

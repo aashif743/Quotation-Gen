@@ -65,6 +65,8 @@ export interface Payslip {
   status: PayslipStatus;
   payment_date: string | null;
   payment_method: string | null;
+  account_id?: number | null;
+  account_name?: string | null;
   bank_name: string | null;
   bank_account: string | null;
   notes: string | null;

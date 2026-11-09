@@ -26,6 +26,8 @@ export interface Donation {
   description?: string | null;
   amount: number | string;
   payment_method?: string | null;
+  account_id?: number | null;
+  account_name?: string | null;
   reference?: string | null;
   status: DonationStatus;
   approved_by?: number | null;

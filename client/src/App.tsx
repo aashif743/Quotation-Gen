@@ -44,6 +44,8 @@ import Profile from './pages/Profile';
 import DemoEntry from './pages/DemoEntry';
 import Services from './pages/Services';
 import RecycleBin from './pages/RecycleBin';
+import Accounts from './pages/Accounts';
+import AccountLedger from './pages/AccountLedger';
 import DonationForm from './pages/DonationForm';
 import DonationView from './pages/DonationView';
 import Organizations from './pages/Organizations';
@@ -149,6 +151,13 @@ const DeliveryRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   return <>{children}</>;
 };
 
+// Bank & Cash: admins who handle payments.
+const AccountsRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { isAdmin, canHandlePayments } = useAuth();
+  if (!isAdmin || !canHandlePayments) return <Navigate to="/" replace />;
+  return <>{children}</>;
+};
+
 // Super-admin (platform owner) route wrapper.
 const SuperAdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isSuperAdmin } = useAuth();
@@ -229,6 +238,8 @@ function AppRoutes() {
                   <Route path="/job-cards" element={<JobCards />} />
                   <Route path="/services" element={<Services />} />
                   <Route path="/recycle-bin" element={<AdminRoute><RecycleBin /></AdminRoute>} />
+                  <Route path="/accounts" element={<AccountsRoute><Accounts /></AccountsRoute>} />
+                  <Route path="/accounts/:id" element={<AccountsRoute><AccountLedger /></AccountsRoute>} />
                   <Route path="/job-cards/new" element={<JobCardForm />} />
                   <Route path="/job-cards/:id" element={<JobCardView />} />
                   <Route path="/job-cards/:id/edit" element={<JobCardForm />} />
