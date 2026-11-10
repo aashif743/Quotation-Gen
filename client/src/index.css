@@ -150,6 +150,30 @@ html.dark .bg-yellow-50  { background-color: rgba(245, 158, 11, 0.18) !important
 html.dark .bg-red-50     { background-color: rgba(239, 68, 68, 0.18) !important; }
 html.dark .bg-purple-50  { background-color: rgba(168, 85, 247, 0.18) !important; }
 html.dark .bg-emerald-50 { background-color: rgba(16, 185, 129, 0.18) !important; }
+html.dark .bg-indigo-50,
+html.dark .bg-indigo-50\/50,
+html.dark .bg-violet-50  { background-color: rgba(99, 102, 241, 0.16) !important; }
+html.dark .bg-indigo-100 { background-color: rgba(99, 102, 241, 0.24) !important; }
+html.dark .bg-blue-100   { background-color: rgba(59, 130, 246, 0.24) !important; }
+html.dark .bg-green-100,
+html.dark .bg-emerald-100 { background-color: rgba(16, 185, 129, 0.24) !important; }
+html.dark .bg-amber-100  { background-color: rgba(245, 158, 11, 0.24) !important; }
+html.dark .bg-red-100    { background-color: rgba(239, 68, 68, 0.24) !important; }
+html.dark .bg-sky-50     { background-color: rgba(14, 165, 233, 0.16) !important; }
+html.dark .bg-rose-50    { background-color: rgba(244, 63, 94, 0.16) !important; }
+html.dark .bg-gray-200   { background-color: #333333 !important; }
+/* Light-to-white gradients (e.g. tab bars) would stay white on dark. */
+html.dark .from-gray-50 { background-image: none !important; background-color: #181818 !important; }
+/* Coloured text on those tints: lighter shades so it stays readable. */
+html.dark .text-indigo-700, html.dark .text-indigo-800, html.dark .text-violet-700 { color: #a5b4fc !important; }
+html.dark .text-blue-700,   html.dark .text-blue-800   { color: #93c5fd !important; }
+html.dark .text-green-700,  html.dark .text-green-800,
+html.dark .text-emerald-700, html.dark .text-emerald-800 { color: #6ee7b7 !important; }
+html.dark .text-amber-700,  html.dark .text-amber-800  { color: #fcd34d !important; }
+html.dark .text-red-700,    html.dark .text-red-800    { color: #fca5a5 !important; }
+html.dark .text-rose-700 { color: #fda4af !important; }
+html.dark .text-sky-700  { color: #7dd3fc !important; }
+html.dark .border-indigo-600 { border-color: #818cf8 !important; }
 
 /* ---------------------------------------------------------------------------
    Document protection — keep .quotation-document, .invoice-document, and
@@ -313,6 +337,25 @@ code {
    print/download bars and the payment / signed-copy / "prepared by" lines
    are tagged inside each view page).
 */
+/* ---------------------------------------------------------------------------
+   Light mode: slightly stronger lines and outlines so cards, tables, inputs
+   and dividers are easy to tell apart. Printable documents keep their own
+   look (excluded below).
+   --------------------------------------------------------------------------- */
+html:not(.dark) .border-gray-100:not(:is(.quotation-document, .invoice-document, .job-card-document, .lpo-document, .payslip-document, .delivery-note-document, .doc-preview, .account-statement-document, .statement-document, .account-print) *) { border-color: #e2e6eb; }
+html:not(.dark) .border-gray-200:not(:is(.quotation-document, .invoice-document, .job-card-document, .lpo-document, .payslip-document, .delivery-note-document, .doc-preview, .account-statement-document, .statement-document, .account-print) *) { border-color: #d3d9e0; }
+html:not(.dark) .border-gray-300:not(:is(.quotation-document, .invoice-document, .job-card-document, .lpo-document, .payslip-document, .delivery-note-document, .doc-preview, .account-statement-document, .statement-document, .account-print) *) { border-color: #bfc6d0; }
+html:not(.dark) .divide-gray-100:not(:is(.quotation-document, .invoice-document, .job-card-document, .lpo-document, .payslip-document, .delivery-note-document, .doc-preview, .account-statement-document, .statement-document, .account-print) *) > :not([hidden]) ~ :not([hidden]) { border-color: #e2e6eb; }
+html:not(.dark) .divide-gray-200:not(:is(.quotation-document, .invoice-document, .job-card-document, .lpo-document, .payslip-document, .delivery-note-document, .doc-preview, .account-statement-document, .statement-document, .account-print) *) > :not([hidden]) ~ :not([hidden]) { border-color: #d3d9e0; }
+html:not(.dark) .shadow-sm:not(:is(.quotation-document, .invoice-document, .job-card-document, .lpo-document, .payslip-document, .delivery-note-document, .doc-preview, .account-statement-document, .statement-document, .account-print) *) { box-shadow: 0 1px 2px rgba(15, 23, 42, 0.07), 0 1px 3px rgba(15, 23, 42, 0.05); }
+/* Form fields that only use the default border colour. Zero specificity
+   (:where) so focus colours and explicit border classes still win. */
+:where(html:not(.dark)) :where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), select, textarea) {
+  border-color: #bfc6d0;
+}
+html:not(.dark) .li-row { border-color: #d3d9e0; }
+html:not(.dark) .li-head { border-color: #d3d9e0; }
+
 /* Line items editor (LineItemsEditor.tsx). Narrow: each line is a card
    (description on top, numbers below, small labels). Wide (the editor itself
    is at least 640px): a table with one header row. Based on the editor's own
@@ -354,7 +397,7 @@ code {
   .li-qty-only .li-head, .li-qty-only .li-row { grid-template-columns: 2rem minmax(0, 1fr) 7rem 2.5rem; }
   .li-head { padding: 0 0.5rem 0.5rem; border-bottom: 1px solid #e5e7eb; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #6b7280; }
   .li-rows { gap: 0; }
-  .li-row { padding: 0.6rem 0.5rem; border: 0; border-bottom: 1px solid #f1f5f9; border-radius: 0; background: transparent; }
+  .li-row { padding: 0.6rem 0.5rem; border: 0; border-bottom: 1px solid #e2e6eb; border-radius: 0; background: transparent; }
   .li-row .li-label { display: none; }
   .li-no { position: static; margin-top: 0.4rem; }
   .li-desc, .li-qty, .li-price, .li-amount, .li-qty-only .li-qty { grid-column: auto; padding: 0; }
