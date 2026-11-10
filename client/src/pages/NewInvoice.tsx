@@ -15,12 +15,13 @@ import {
 } from '../utils/calculations';
 import VatControl from '../components/common/VatControl';
 import ClientPicker from '../components/Quotation/ClientPicker';
-import CurrencyInput from '../components/common/CurrencyInput';
+import LineItemsEditor from '../components/common/LineItemsEditor';
 import { brandColorFor } from '../utils/colors';
 import { useTheme } from '../context/ThemeContext';
 import { Save, ArrowLeft, Plus, Trash2, Calculator } from 'lucide-react';
 import DocumentPreview, { PreviewColumn, PreviewToggleButton, usePreviewToggle } from '../components/Document/DocumentPreview';
 import InvoiceDocument from '../components/Invoice/InvoiceDocument';
+import { UnitInput } from '../components/common/MoneyInput';
 
 const blankForm = (): Partial<Invoice> => ({
   client_name: '',
@@ -203,27 +204,9 @@ const NewInvoice: React.FC = () => {
     setInvoiceData((prev) => ({ ...prev, items: updated, ...recomputeTotals(updated, vatRate, ppdaRate, prev.discount_type, prev.discount_value) }));
   };
 
-  const updateItem = (index: number, field: keyof InvoiceItem, value: any) => {
-    const current = invoiceData.items || [];
-    const next = [...current];
-    next[index] = {
-      ...next[index],
-      [field]:
-        field === 'quantity' || field === 'unit_price'
-          ? parseFloat(value) || 0
-          : value,
-    };
-    handleItemsChange(next);
-  };
-
   const addNewItem = () => {
     const next: InvoiceItem = { description: '', quantity: 1, unit_price: 0, total: 0 };
     handleItemsChange([...(invoiceData.items || []), next]);
-  };
-
-  const removeItem = (index: number) => {
-    const next = (invoiceData.items || []).filter((_, i) => i !== index);
-    handleItemsChange(next);
   };
 
   const handleVatChange = (v: number) => {
@@ -400,19 +383,9 @@ const NewInvoice: React.FC = () => {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Due In (Days)
+                Payment due in
               </label>
-              <input
-                type="number"
-                min={1}
-                value={invoiceData.due_days || 30}
-                onChange={(e) =>
-                  handleInputChange('due_days', parseInt(e.target.value) || 0)
-                }
-                onWheel={(e) => e.currentTarget.blur()}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                required
-              />
+              <UnitInput unit="days" min={1} step="1" fallback={30} value={invoiceData.due_days ?? 30} onChange={(v) => handleInputChange('due_days', v === '' ? '' : parseInt(v, 10) || 0)} />
             </div>
 
             {selectedCompany?.template === 'supreme' && (
@@ -438,19 +411,9 @@ const NewInvoice: React.FC = () => {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                PPDA Rate (%)
+                PPDA
               </label>
-              <input
-                type="number"
-                value={+(ppdaRate * 100).toFixed(4)}
-                onChange={(e) => handlePpdaChange(e.target.value)}
-                onWheel={(e) => e.currentTarget.blur()}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                step="0.1"
-                min="0"
-                max="100"
-                placeholder="1.0"
-              />
+              <UnitInput unit="%" max={100} step="0.1" placeholder="0" value={+(ppdaRate * 100).toFixed(4)} onChange={handlePpdaChange} />
             </div>
 
             <DiscountInput className="md:col-span-2" type={invoiceData.discount_type} value={invoiceData.discount_value} onChange={handleDiscountChange} />
@@ -547,75 +510,12 @@ const NewInvoice: React.FC = () => {
             </div>
           ) : (
             <div className="space-y-4">
-              {items.map((item, index) => (
-                <div key={index} className="border border-gray-200 rounded-lg p-4">
-                  <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-                    <div className="md:col-span-5">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Description *
-                      </label>
-                      <textarea
-                        value={item.description}
-                        onChange={(e) => updateItem(index, 'description', e.target.value)}
-                        rows={2}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        placeholder="Item description"
-                        required
-                      />
-                    </div>
-
-                    <div className="md:col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Quantity *
-                      </label>
-                      <input
-                        type="number"
-                        value={item.quantity}
-                        onChange={(e) => updateItem(index, 'quantity', e.target.value)}
-                        onWheel={(e) => e.currentTarget.blur()}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        min={0}
-                        step="any"
-                        required
-                      />
-                    </div>
-
-                    <div className="md:col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Unit Price (MWK) *
-                      </label>
-                      <CurrencyInput
-                        value={Number(item.unit_price || 0)}
-                        onChange={(n) => updateItem(index, 'unit_price', n)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        required
-                      />
-                    </div>
-
-                    <div className="md:col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Total
-                      </label>
-                      <div
-                        className="px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg text-sm font-semibold tabular-nums text-right"
-                        style={accentTextStyle}
-                      >
-                        {formatCurrency(Number(item.quantity) * Number(item.unit_price))}
-                      </div>
-                    </div>
-
-                    <div className="md:col-span-1 flex items-end">
-                      <button
-                        onClick={() => removeItem(index)}
-                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Remove item"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
+              <LineItemsEditor
+                items={items}
+                onChange={handleItemsChange}
+                newItem={() => ({ description: '', quantity: 1, unit_price: 0, total: 0 })}
+                accent={primaryColor}
+              />
 
               {/* Totals */}
               <div className="border-t border-gray-200 pt-4">

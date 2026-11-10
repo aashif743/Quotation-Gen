@@ -5,6 +5,7 @@ import { updatePayslip } from '../../services/payrollApi';
 import { formatCurrency } from '../../utils/calculations';
 import { computePayslip, periodLabel, workingDaysInMonth, round2 } from '../../utils/payroll';
 import { Modal, Field, inputCls, LinesEditor, LineDraft, toDrafts, fromDrafts, Flash } from './ui';
+import MoneyInput, { UnitInput } from '../common/MoneyInput';
 
 // Edit one pay slip with live recalculation (client mirror). The server
 // recomputes the real totals on save.
@@ -86,10 +87,10 @@ const PayslipEditor: React.FC<{
       <div className="grid md:grid-cols-3 gap-5">
         <div className="md:col-span-2 space-y-4">
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Basic salary"><input type="number" min={0} step="0.01" value={basic} onChange={(e) => setBasic(e.target.value)} className={`${inputCls} w-full`} /></Field>
+            <Field label="Basic salary"><MoneyInput value={basic} onChange={(n) => setBasic(n ? String(n) : '')} /></Field>
             <Field label="Position"><input value={position} onChange={(e) => setPosition(e.target.value)} className={`${inputCls} w-full`} /></Field>
-            <Field label="Days present"><input type="number" min={0} value={daysPresent} onChange={(e) => setDaysPresent(e.target.value)} className={`${inputCls} w-full`} /></Field>
-            <Field label={`Days absent (of ${workingDays} working days)`}><input type="number" min={0} value={daysAbsent} onChange={(e) => setDaysAbsent(e.target.value)} className={`${inputCls} w-full`} /></Field>
+            <Field label="Days present"><UnitInput unit="days" step="1" value={daysPresent} onChange={setDaysPresent} /></Field>
+            <Field label={`Days absent (of ${workingDays} working days)`}><UnitInput unit="days" step="1" value={daysAbsent} onChange={setDaysAbsent} /></Field>
           </div>
 
           <div>

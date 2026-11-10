@@ -56,7 +56,7 @@ const DocumentPreview: React.FC<Props> = ({ children, watch, title = 'Live Previ
         <div ref={areaRef} className="flex justify-center">
           {/* Reserves the scaled footprint so the card sizes/centers correctly */}
           <div style={{ width: BASE_WIDTH * scale, height: naturalHeight * scale }}>
-            <div ref={docRef} style={{ width: BASE_WIDTH, transformOrigin: 'top left', transform: `scale(${scale})` }}>
+            <div ref={docRef} className="doc-preview" style={{ width: BASE_WIDTH, transformOrigin: 'top left', transform: `scale(${scale})` }}>
               {children}
             </div>
           </div>

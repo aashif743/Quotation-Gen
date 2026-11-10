@@ -6,6 +6,7 @@ import { brandColorFor } from '../utils/colors';
 import { formatCurrency } from '../utils/calculations';
 import { getServices, createService, updateService, deleteService, CatalogService, ServicePricing } from '../services/servicesApi';
 import { Tags, Plus, Search, Pencil, Trash2, Check, X, Loader2, AlertCircle } from 'lucide-react';
+import MoneyInput from '../components/common/MoneyInput';
 
 const PRICING_LABEL: Record<ServicePricing, string> = { unit: 'Per item', sqm: 'Per square metre' };
 
@@ -83,7 +84,7 @@ const Services: React.FC = () => {
         <option value="unit">Per item</option>
         <option value="sqm">Per square metre</option>
       </select>
-      <input type="number" min="0" step="any" value={d.price} onChange={(e) => set({ ...d, price: e.target.value })} placeholder="Price" className={`${input} text-right tabular-nums`} />
+      <MoneyInput value={d.price} onChange={(n) => set({ ...d, price: n ? String(n) : '' })} aria-label="Price" />
       <input value={d.notes} onChange={(e) => set({ ...d, notes: e.target.value })} placeholder="Notes (optional)" className={input} />
     </>
   );

@@ -1,12 +1,13 @@
 import React from 'react';
 import { useCompany } from '../../context/CompanyContext';
 import { QuotationItem, Quotation, Client } from '../../types';
-import { Plus, Trash2, Calculator } from 'lucide-react';
+import { Plus, Calculator } from 'lucide-react';
 import { formatCurrency, formatNumber } from '../../utils/calculations';
 import ClientPicker from './ClientPicker';
-import CurrencyInput from '../common/CurrencyInput';
+import LineItemsEditor from '../common/LineItemsEditor';
 import DiscountInput from '../common/DiscountInput';
 import VatControl from '../common/VatControl';
+import { UnitInput } from '../common/MoneyInput';
 
 interface QuotationFormProps {
   quotationData: Partial<Quotation>;
@@ -32,20 +33,6 @@ const QuotationForm: React.FC<QuotationFormProps> = ({
     };
     
     const updatedItems = [...(quotationData.items || []), newItem];
-    onItemsChange(updatedItems);
-  };
-
-  const updateItem = (index: number, field: keyof QuotationItem, value: any) => {
-    const updatedItems = [...(quotationData.items || [])];
-    updatedItems[index] = {
-      ...updatedItems[index],
-      [field]: field === 'quantity' || field === 'unit_price' ? parseFloat(value) || 0 : value
-    };
-    onItemsChange(updatedItems);
-  };
-
-  const removeItem = (index: number) => {
-    const updatedItems = (quotationData.items || []).filter((_, i) => i !== index);
     onItemsChange(updatedItems);
   };
 
@@ -124,16 +111,15 @@ const QuotationForm: React.FC<QuotationFormProps> = ({
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Valid For (Days)
+              Valid for
             </label>
-            <input
-              type="number"
-              value={quotationData.expiry_days || 30}
-              onChange={(e) => onInputChange('expiry_days', parseInt(e.target.value))}
-              onWheel={(e) => e.currentTarget.blur()}
-              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500`}
-              min="1"
-              required
+            <UnitInput
+              unit="days"
+              min={1}
+              step="1"
+              fallback={30}
+              value={quotationData.expiry_days ?? 30}
+              onChange={(v) => onInputChange('expiry_days', v === '' ? ('' as any) : parseInt(v, 10))}
             />
           </div>
 
@@ -145,25 +131,15 @@ const QuotationForm: React.FC<QuotationFormProps> = ({
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              PPDA Rate (%)
+              PPDA
             </label>
-            <input
-              type="number"
-              value={
-                quotationData.ppda_rate != null
-                  ? +(quotationData.ppda_rate * 100).toFixed(4)
-                  : ''
-              }
-              onChange={(e) => {
-                const raw = e.target.value;
-                onInputChange('ppda_rate', raw === '' ? 0 : parseFloat(raw) / 100);
-              }}
-              onWheel={(e) => e.currentTarget.blur()}
-              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            <UnitInput
+              unit="%"
+              max={100}
               step="0.1"
-              min="0"
-              max="100"
-              placeholder="1.0"
+              placeholder="0"
+              value={quotationData.ppda_rate != null ? +(quotationData.ppda_rate * 100).toFixed(4) : ''}
+              onChange={(v) => onInputChange('ppda_rate', v === '' ? 0 : parseFloat(v) / 100)}
             />
             <p className="mt-1 text-xs text-gray-500">
               Auto-filled from the last quotation. Edit if needed.
@@ -268,114 +244,27 @@ const QuotationForm: React.FC<QuotationFormProps> = ({
           </button>
         </div>
 
-        <div className="space-y-4">
-          {quotationData.items && quotationData.items.length > 0 ? (
-            quotationData.items.map((item, index) => (
-              <div
-                key={index}
-                className="relative rounded-xl border border-gray-200 bg-gray-50/40 p-4 transition-colors hover:border-gray-300"
-              >
-                {/* Row header: item number + remove */}
-                <div className="mb-3 flex items-center justify-between">
-                  <span
-                    className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold"
-                    style={{ backgroundColor: hexToRgba(primaryColor, 0.12), color: primaryColor }}
-                  >
-                    Item {index + 1}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => removeItem(index)}
-                    className="inline-flex items-center rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-gray-400"
-                    disabled={quotationData.items!.length === 1}
-                    title="Remove item"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-
-                {/* Description */}
-                <div className="mb-3">
-                  <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-gray-500">
-                    Description *
-                  </label>
-                  <textarea
-                    value={item.description}
-                    onChange={(e) => updateItem(index, 'description', e.target.value)}
-                    rows={2}
-                    className="w-full resize-none rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    placeholder="Describe the product or service…"
-                    required
-                  />
-                </div>
-
-                {/* Quantity (small) · Unit price (large) · Line total */}
-                <div className="grid grid-cols-12 gap-3">
-                  <div className="col-span-12 sm:col-span-3">
-                    <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-gray-500">
-                      Qty *
-                    </label>
-                    <input
-                      type="number"
-                      inputMode="decimal"
-                      value={item.quantity === 0 ? '' : item.quantity}
-                      onChange={(e) => updateItem(index, 'quantity', e.target.value)}
-                      onWheel={(e) => e.currentTarget.blur()}
-                      className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-right text-sm tabular-nums focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      placeholder="1"
-                      min="0"
-                      step="any"
-                      required
-                    />
-                  </div>
-
-                  <div className="col-span-7 sm:col-span-5">
-                    <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-gray-500">
-                      Unit Price *
-                    </label>
-                    <div className="relative">
-                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-gray-400">
-                        MWK
-                      </span>
-                      <CurrencyInput
-                        value={Number(item.unit_price || 0)}
-                        onChange={(n) => updateItem(index, 'unit_price', n)}
-                        className="w-full rounded-lg border border-gray-300 bg-white py-2.5 pl-12 pr-3 text-right text-sm tabular-nums focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        placeholder="0.00"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div className="col-span-5 sm:col-span-4">
-                    <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-gray-500">
-                      Line Total
-                    </label>
-                    <div
-                      className="flex h-[42px] items-center justify-end rounded-lg border px-3 text-sm font-semibold tabular-nums"
-                      style={{ borderColor: hexToRgba(primaryColor, 0.25), backgroundColor: hexToRgba(primaryColor, 0.06), color: primaryColor }}
-                    >
-                      {formatCurrency((item.quantity || 0) * (item.unit_price || 0))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))
-          ) : (
-            <div className="text-center py-12 border-2 border-dashed border-gray-300 rounded-lg">
-              <Calculator className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-600 mb-4">No items added yet</p>
-              <button
-                onClick={addNewItem}
-                className="inline-flex items-center px-4 py-2 text-white rounded-lg hover:opacity-90 transition-all"
-                style={getButtonStyle()}
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Add Your First Item
-              </button>
-            </div>
-          )}
-        </div>
+        {quotationData.items && quotationData.items.length > 0 ? (
+          <LineItemsEditor
+            items={quotationData.items}
+            onChange={onItemsChange}
+            newItem={() => ({ description: '', quantity: 1, unit_price: 0, total: 0 })}
+            accent={primaryColor}
+          />
+        ) : (
+          <div className="text-center py-12 border-2 border-dashed border-gray-300 rounded-lg">
+            <Calculator className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <p className="text-gray-600 mb-4">No items added yet</p>
+            <button
+              onClick={addNewItem}
+              className="inline-flex items-center px-4 py-2 text-white rounded-lg hover:opacity-90 transition-all"
+              style={getButtonStyle()}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Your First Item
+            </button>
+          </div>
+        )}
 
         {quotationData.items && quotationData.items.length > 0 && (
           <div className="mt-6 bg-gray-50 rounded-lg p-4">

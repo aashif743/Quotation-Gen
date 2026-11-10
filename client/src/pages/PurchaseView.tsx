@@ -10,6 +10,7 @@ import { PaymentProofCell, ProofFilePicker } from '../components/Payment/Payment
 import AccountSelect from '../components/common/AccountSelect';
 import { Purchase } from '../types';
 import { ArrowLeft, Trash2, Plus, Loader2, TrendingUp, Link as LinkIcon, X } from 'lucide-react';
+import MoneyInput from '../components/common/MoneyInput';
 
 const statusPill = (s?: string) => {
   const map: Record<string, string> = {
@@ -320,7 +321,7 @@ const PaymentModal: React.FC<{
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Amount *</label>
-              <input type="number" min="0" className={cls} value={amount} onChange={(e) => setAmount(e.target.value)} onWheel={(e) => e.currentTarget.blur()} />
+              <MoneyInput value={amount} onChange={(n) => setAmount(n ? String(n) : '')} />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>

@@ -12,13 +12,13 @@ import {
 import { Vendor, Quotation } from '../types';
 import { PurchaseOrder, PurchaseOrderInput } from '../types/purchaseOrders';
 import VendorPicker from '../components/Vendor/VendorPicker';
-import CurrencyInput from '../components/common/CurrencyInput';
 import { localToday } from '../components/PurchaseOrder/poUtils';
-import { ArrowLeft, Plus, Trash2, Save, Loader2 } from 'lucide-react';
+import { ArrowLeft, Plus, Save, Loader2 } from 'lucide-react';
+import LineItemsEditor from '../components/common/LineItemsEditor';
 import DocumentPreview, { PreviewColumn, PreviewToggleButton, usePreviewToggle } from '../components/Document/DocumentPreview';
 import PurchaseOrderDocument from '../components/PurchaseOrder/PurchaseOrderDocument';
 
-interface Row { description: string; quantity: string; unit_cost: number; }
+interface Row { description: string; quantity: string | number; unit_cost: number; }
 
 const emptyRow = (): Row => ({ description: '', quantity: '1', unit_cost: 0 });
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -143,10 +143,7 @@ const PurchaseOrderForm: React.FC = () => {
   const vatAmount = includeVat ? round2(subtotal * vatRate) : 0;
   const grandTotal = round2(subtotal + vatAmount);
 
-  const setRow = (i: number, patch: Partial<Row>) =>
-    setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
   const addRow = () => setRows((prev) => [...prev, emptyRow()]);
-  const removeRow = (i: number) => setRows((prev) => (prev.length === 1 ? prev : prev.filter((_, idx) => idx !== i)));
 
   const handleSave = async () => {
     if (!companyId) return;
@@ -325,48 +322,15 @@ const PurchaseOrderForm: React.FC = () => {
             <Plus className="h-4 w-4 mr-1.5" /> Add item
           </button>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="text-xs text-gray-500 uppercase tracking-wider">
-                <th className="text-left font-medium py-2">Description</th>
-                <th className="text-right font-medium py-2 w-24">Qty</th>
-                <th className="text-right font-medium py-2 w-36">Unit cost</th>
-                <th className="text-right font-medium py-2 w-36">Total</th>
-                <th className="w-10"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r, i) => (
-                <tr key={i} className="border-t border-gray-100 align-top">
-                  <td className="py-2 pr-2">
-                    <textarea
-                      className={inputCls}
-                      rows={1}
-                      value={r.description}
-                      onChange={(e) => setRow(i, { description: e.target.value })}
-                      placeholder="What you are ordering"
-                    />
-                  </td>
-                  <td className="py-2 px-1">
-                    <input type="number" min="0" className={`${inputCls} text-right`} value={r.quantity} onChange={(e) => setRow(i, { quantity: e.target.value })} onWheel={(e) => e.currentTarget.blur()} />
-                  </td>
-                  <td className="py-2 px-1">
-                    <CurrencyInput className={`${inputCls} text-right`} value={r.unit_cost} onChange={(v) => setRow(i, { unit_cost: v })} />
-                  </td>
-                  <td className="py-2 pl-1 pt-4 text-right text-sm font-medium text-gray-900 tabular-nums">
-                    {formatCurrency((Number(r.quantity) || 0) * (Number(r.unit_cost) || 0))}
-                  </td>
-                  <td className="py-2 text-right">
-                    <button onClick={() => removeRow(i)} className="p-1.5 mt-1 text-red-500 hover:bg-red-50 rounded" title="Remove item">
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <LineItemsEditor
+          items={rows}
+          onChange={setRows}
+          priceKey="unit_cost"
+          priceLabel="Unit cost"
+          newItem={emptyRow}
+          descriptionPlaceholder="What you are ordering…"
+          accent={primary}
+        />
 
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mt-4 pt-4 border-t border-gray-200">
           <label className="inline-flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none">

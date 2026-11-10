@@ -16,6 +16,7 @@ import {
   FileSignature, ArrowLeft, Plus, Trash2, ChevronUp, ChevronDown, RotateCcw, Eye, EyeOff,
   Save, Loader2, AlertCircle, Upload, Star,
 } from 'lucide-react';
+import MoneyInput from '../components/common/MoneyInput';
 
 const FREQUENCIES = [
   { value: 'monthly', label: 'Monthly' },
@@ -313,20 +314,20 @@ const ContractForm: React.FC = () => {
           <Card title={isBillboard ? 'Site & payment' : 'Location & payment'}>
             <div className="grid sm:grid-cols-2 gap-3">
               <L label={isBillboard ? 'Site / Location' : 'Location / Site (optional)'} full><textarea value={form.site} onChange={(e) => set('site', e.target.value)} rows={2} className={inp} placeholder={isBillboard ? 'Billboard location / site address / intersection' : 'Where the work or service is delivered (optional)'} /></L>
-              <L label={`Contract amount (${selectedCompany.currency})`}><input type="number" min={0} value={form.amount} onChange={(e) => set('amount', e.target.value)} className={inp} placeholder="Total value (optional)" /></L>
+              <L label="Contract amount"><MoneyInput value={form.amount} onChange={(n) => set('amount', n ? String(n) : '')} currency={selectedCompany.currency} placeholder="Total value (optional)" /></L>
               <L label="Payment frequency">
                 <select value={form.payment_frequency} onChange={(e) => set('payment_frequency', e.target.value)} className={inp}>
                   {FREQUENCIES.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
                 </select>
               </L>
-              <L label={`Payment amount (${selectedCompany.currency})`}><input type="number" min={0} value={form.payment_amount} onChange={(e) => set('payment_amount', e.target.value)} className={inp} placeholder="Per payment" /></L>
+              <L label="Payment amount"><MoneyInput value={form.payment_amount} onChange={(n) => set('payment_amount', n ? String(n) : '')} currency={selectedCompany.currency} placeholder="Per payment" /></L>
               {/* Billboard-specific charges: always shown for billboard
                   organizations; for others only if a value is already set. */}
               {(isBillboard || Number(form.insurance) > 0) && (
-                <L label={`Insurance (${selectedCompany.currency})`}><input type="number" min={0} value={form.insurance} onChange={(e) => set('insurance', e.target.value)} className={inp} placeholder="Optional" /></L>
+                <L label="Insurance"><MoneyInput value={form.insurance} onChange={(n) => set('insurance', n ? String(n) : '')} currency={selectedCompany.currency} placeholder="Optional" /></L>
               )}
               {(isBillboard || Number(form.printing_charges) > 0) && (
-                <L label={`Printing / production charges (${selectedCompany.currency})`}><input type="number" min={0} value={form.printing_charges} onChange={(e) => set('printing_charges', e.target.value)} className={inp} placeholder="Optional" /></L>
+                <L label="Printing / production charges"><MoneyInput value={form.printing_charges} onChange={(n) => set('printing_charges', n ? String(n) : '')} currency={selectedCompany.currency} placeholder="Optional" /></L>
               )}
             </div>
           </Card>

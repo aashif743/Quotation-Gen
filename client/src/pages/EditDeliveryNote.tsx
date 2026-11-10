@@ -6,7 +6,8 @@ import {
   getDeliveryNote, updateDeliveryNote, createDeliveryNote, getNextDeliveryNoteNumber,
 } from '../services/api';
 import ClientPicker from '../components/Quotation/ClientPicker';
-import { ArrowLeft, Save, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, Save, Plus } from 'lucide-react';
+import LineItemsEditor from '../components/common/LineItemsEditor';
 import DocumentPreview, { PreviewColumn, PreviewToggleButton, usePreviewToggle } from '../components/Document/DocumentPreview';
 import DeliveryNoteDocument from '../components/Delivery/DeliveryNoteDocument';
 
@@ -86,28 +87,10 @@ const EditDeliveryNote: React.FC = () => {
     setData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const updateItem = (idx: number, field: keyof DeliveryNoteItem, value: any) => {
-    setData((prev) => {
-      const items = [...(prev.items || [])];
-      items[idx] = {
-        ...items[idx],
-        [field]: field === 'quantity' ? parseFloat(value) || 0 : value,
-      };
-      return { ...prev, items };
-    });
-  };
-
   const addItem = () => {
     setData((prev) => ({
       ...prev,
       items: [...(prev.items || []), { description: '', quantity: 1 }],
-    }));
-  };
-
-  const removeItem = (idx: number) => {
-    setData((prev) => ({
-      ...prev,
-      items: (prev.items || []).filter((_, i) => i !== idx),
     }));
   };
 
@@ -300,57 +283,15 @@ const EditDeliveryNote: React.FC = () => {
           </div>
 
           <div className="space-y-3">
-            {(data.items || []).map((item, idx) => (
-              <div
-                key={idx}
-                className="rounded-xl border border-gray-200 bg-gray-50/40 p-4"
-              >
-                <div className="mb-3 flex items-center justify-between">
-                  <span className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold bg-indigo-100 text-indigo-700">
-                    Item {idx + 1}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => removeItem(idx)}
-                    disabled={(data.items || []).length === 1}
-                    className="p-1.5 text-gray-400 rounded-lg hover:bg-red-50 hover:text-red-600 disabled:opacity-30 disabled:cursor-not-allowed"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-                <div className="grid grid-cols-12 gap-3">
-                  <div className="col-span-12 sm:col-span-9">
-                    <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 mb-1.5">
-                      Description *
-                    </label>
-                    <textarea
-                      value={item.description}
-                      onChange={(e) => updateItem(idx, 'description', e.target.value)}
-                      rows={2}
-                      className="w-full resize-none rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      required
-                    />
-                  </div>
-                  <div className="col-span-12 sm:col-span-3">
-                    <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 mb-1.5">
-                      Quantity *
-                    </label>
-                    <input
-                      type="number"
-                      inputMode="decimal"
-                      value={item.quantity === 0 ? '' : item.quantity}
-                      onChange={(e) => updateItem(idx, 'quantity', e.target.value)}
-                      onWheel={(e) => e.currentTarget.blur()}
-                      className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-right text-sm tabular-nums focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      placeholder="1"
-                      min="0"
-                      step="any"
-                      required
-                    />
-                  </div>
-                </div>
-              </div>
-            ))}
+            {(data.items || []).length > 0 && (
+              <LineItemsEditor
+                items={data.items || []}
+                onChange={(items) => setData((prev) => ({ ...prev, items }))}
+                priceKey={null}
+                newItem={() => ({ description: '', quantity: 1 })}
+                descriptionPlaceholder="What is being delivered…"
+              />
+            )}
 
             {(!data.items || data.items.length === 0) && (
               <div className="text-center py-8 border-2 border-dashed border-gray-300 rounded-lg">

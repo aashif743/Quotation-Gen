@@ -12,6 +12,8 @@ import { ArrowLeft, Save, Plus, Trash2, Tags } from 'lucide-react';
 import DocumentPreview, { PreviewColumn, PreviewToggleButton, usePreviewToggle } from '../components/Document/DocumentPreview';
 import JobCardDocument from '../components/JobCard/JobCardDocument';
 import { Link } from 'react-router-dom';
+import MoneyInput from '../components/common/MoneyInput';
+import CurrencyInput from '../components/common/CurrencyInput';
 
 /** Today as a local 'YYYY-MM-DD' (toISOString would use UTC). */
 const localToday = () => {
@@ -448,8 +450,8 @@ const JobCardForm: React.FC = () => {
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
-                <div className="grid grid-cols-12 gap-3">
-                  <div className="col-span-12 sm:col-span-7">
+                <div className="jc-fields">
+                  <div className="jc-full">
                     <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 mb-1.5">
                       Description *
                     </label>
@@ -457,50 +459,36 @@ const JobCardForm: React.FC = () => {
                       value={item.description}
                       onChange={(e) => updateItem(idx, 'description', e.target.value)}
                       rows={2}
+                      placeholder="What needs to be done…"
                       className="w-full resize-y rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                       required
                     />
                   </div>
-                  <div className="col-span-6 sm:col-span-2">
+                  <div>
                     <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 mb-1.5">
                       Quantity *
                     </label>
-                    <input
-                      type="number"
-                      inputMode="decimal"
-                      value={item.quantity === 0 ? '' : item.quantity}
-                      onChange={(e) => updateItem(idx, 'quantity', e.target.value)}
-                      onWheel={(e) => e.currentTarget.blur()}
+                    <CurrencyInput
+                      value={Number(item.quantity) || 0}
+                      onChange={(n) => updateItem(idx, 'quantity', n)}
                       className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-right text-sm tabular-nums focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                       placeholder="1"
-                      min="0"
-                      step="any"
-                      required
+                      aria-label="Quantity"
                     />
                   </div>
-                  <div className="col-span-6 sm:col-span-3">
+                  <div>
                     <label
                       className="block text-xs font-medium uppercase tracking-wide text-gray-500 mb-1.5"
                       title={isSupreme ? 'Printed on the job card and used for the invoice.' : 'Used when generating an invoice. Not printed on the job card.'}
                     >
-                      {isSupreme ? 'Cost per item' : 'Price (for invoice — not printed)'}
+                      {isSupreme ? 'Cost per item' : 'Price (for invoice only)'}
                     </label>
-                    <input
-                      type="number"
-                      inputMode="decimal"
-                      value={!item.unit_price ? '' : item.unit_price}
-                      onChange={(e) => updateItem(idx, 'unit_price', e.target.value)}
-                      onWheel={(e) => e.currentTarget.blur()}
-                      className="w-full rounded-lg border border-dashed border-gray-300 bg-white px-3 py-2.5 text-right text-sm tabular-nums focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      placeholder="0.00"
-                      min="0"
-                      step="any"
-                    />
+                    <MoneyInput value={item.unit_price} onChange={(n) => updateItem(idx, 'unit_price', n)} className={isSupreme ? '' : 'border-dashed'} />
                   </div>
                   {isSupreme && (
                     <>
                       {data.card_type !== 'interiors' && (
-                        <div className="col-span-6 sm:col-span-3">
+                        <div>
                           <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 mb-1.5">Size (m)</label>
                           <input
                             value={item.size || ''}
@@ -510,7 +498,7 @@ const JobCardForm: React.FC = () => {
                           />
                         </div>
                       )}
-                      <div className={`col-span-6 ${data.card_type !== 'interiors' ? 'sm:col-span-5' : 'sm:col-span-7'}`}>
+                      <div className="jc-wide">
                         <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 mb-1.5">Service</label>
                         <input
                           list="service-catalog"
@@ -522,26 +510,16 @@ const JobCardForm: React.FC = () => {
                         <ServiceHint name={item.service} found={findService(item.service)} />
                       </div>
                       {data.card_type !== 'interiors' && (
-                        <div className="col-span-6 sm:col-span-4">
+                        <div>
                           <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 mb-1.5">Cost per square metre</label>
-                          <input
-                            type="number"
-                            inputMode="decimal"
-                            value={item.rate_per_sqm ?? ''}
-                            onChange={(e) => updateItem(idx, 'rate_per_sqm', e.target.value)}
-                            onWheel={(e) => e.currentTarget.blur()}
-                            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-right text-sm tabular-nums focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                            placeholder="0.00"
-                            min="0"
-                            step="any"
-                          />
+                          <MoneyInput value={item.rate_per_sqm ?? ''} onChange={(n) => updateItem(idx, 'rate_per_sqm', n || null)} />
                         </div>
                       )}
                     </>
                   )}
                   {!isSupreme && (
                     <>
-                      <div className="col-span-12 sm:col-span-6">
+                      <div className="jc-wide">
                         <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 mb-1.5">Service</label>
                         <input
                           list="service-catalog"
@@ -554,7 +532,7 @@ const JobCardForm: React.FC = () => {
                       </div>
                       {(Number(item.rate_per_sqm) > 0 || !!item.size) && (
                         <>
-                          <div className="col-span-6 sm:col-span-3">
+                          <div>
                             <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 mb-1.5">Size (m)</label>
                             <input
                               value={item.size || ''}
@@ -563,19 +541,9 @@ const JobCardForm: React.FC = () => {
                               className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                             />
                           </div>
-                          <div className="col-span-6 sm:col-span-3">
+                          <div>
                             <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 mb-1.5">Price per m²</label>
-                            <input
-                              type="number"
-                              inputMode="decimal"
-                              value={item.rate_per_sqm ?? ''}
-                              onChange={(e) => updateItem(idx, 'rate_per_sqm', e.target.value)}
-                              onWheel={(e) => e.currentTarget.blur()}
-                              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-right text-sm tabular-nums focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                              placeholder="0.00"
-                              min="0"
-                              step="any"
-                            />
+                            <MoneyInput value={item.rate_per_sqm ?? ''} onChange={(n) => updateItem(idx, 'rate_per_sqm', n || null)} />
                           </div>
                         </>
                       )}

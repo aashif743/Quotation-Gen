@@ -26,6 +26,7 @@ import {
   CheckCircle2, RotateCcw, Loader2, Wand2, Plus, Info,
 } from 'lucide-react';
 import AccountSelect from '../components/common/AccountSelect';
+import MoneyInput, { UnitInput } from '../components/common/MoneyInput';
 
 type Tab = 'payslips' | 'staff' | 'settings';
 
@@ -525,7 +526,7 @@ const SalaryModal: React.FC<{ employee: PayrollEmployee; primary: string; flash:
     <Modal title={`Salary · ${employee.name}`} onClose={onClose} wide="xl">
       <div className="grid grid-cols-2 gap-3">
         <Field label="Position"><input value={position} onChange={(e) => setPosition(e.target.value)} placeholder="e.g. Technician" className={`${inputCls} w-full`} /></Field>
-        <Field label="Basic salary (monthly)"><input type="number" min={0} step="0.01" value={basic} onChange={(e) => setBasic(e.target.value)} placeholder="0.00" className={`${inputCls} w-full`} /></Field>
+        <Field label="Basic salary (monthly)"><MoneyInput value={basic} onChange={(n) => setBasic(n ? String(n) : '')} /></Field>
         <Field label="Bank name"><input value={bankName} onChange={(e) => setBankName(e.target.value)} className={`${inputCls} w-full`} /></Field>
         <Field label="Account number"><input value={bankAccount} onChange={(e) => setBankAccount(e.target.value)} className={`${inputCls} w-full`} /></Field>
         <Field label="Employee TPIN"><input value={tpin} onChange={(e) => setTpin(e.target.value)} className={`${inputCls} w-full`} /></Field>
@@ -608,10 +609,10 @@ const SettingsTab: React.FC<{ companyId: number; primary: string; settings: Payr
                   <td className={`${td} tabular-nums text-gray-500`}>{money(fromOf(i))}</td>
                   <td className={td}>
                     {last ? <span className="text-gray-500 dark:text-gray-400">and above</span> : (
-                      <input type="number" min={0} value={b.upTo} onChange={(e) => setBand(i, { upTo: e.target.value })} className={`${inputCls} w-40`} />
+                      <div className="w-44"><MoneyInput value={b.upTo} onChange={(n) => setBand(i, { upTo: n ? String(n) : '' })} /></div>
                     )}
                   </td>
-                  <td className={td}><input type="number" min={0} max={100} step="0.01" value={b.rate} onChange={(e) => setBand(i, { rate: e.target.value })} className={`${inputCls} w-24`} /></td>
+                  <td className={td}><div className="w-28"><UnitInput unit="%" max={100} step="0.01" value={b.rate} onChange={(v) => setBand(i, { rate: v })} /></div></td>
                   <td className={td}>
                     {!last && bands.length > 1 && (
                       <button onClick={() => removeBand(i)} className="text-gray-400 hover:text-red-500" title="Remove band"><Trash2 size={15} /></button>
@@ -629,7 +630,7 @@ const SettingsTab: React.FC<{ companyId: number; primary: string; settings: Payr
         {valid && (
           <div className="mt-4 flex flex-wrap items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
             <span>Check: PAYE on taxable pay of</span>
-            <input type="number" min={0} value={testAmount} onChange={(e) => setTestAmount(e.target.value)} className={`${inputCls} w-36`} />
+            <div className="w-44"><MoneyInput value={testAmount} onChange={(n) => setTestAmount(n ? String(n) : '')} /></div>
             <span>= <strong>{money(progressiveTax(Number(testAmount) || 0, parsed))}</strong></span>
           </div>
         )}
@@ -641,8 +642,8 @@ const SettingsTab: React.FC<{ companyId: number; primary: string; settings: Payr
           Percent of basic salary. The employee share is deducted from pay (and reduces taxable pay); the employer share is shown on the pay slip for information only.
         </p>
         <div className="flex flex-wrap items-end gap-3">
-          <Field label="Employee %"><input type="number" min={0} max={100} step="0.01" value={empPct} onChange={(e) => setEmpPct(e.target.value)} className={`${inputCls} w-28`} /></Field>
-          <Field label="Employer %"><input type="number" min={0} max={100} step="0.01" value={erPct} onChange={(e) => setErPct(e.target.value)} className={`${inputCls} w-28`} /></Field>
+          <Field label="Employee %"><div className="w-28"><UnitInput unit="%" max={100} step="0.01" value={empPct} onChange={setEmpPct} /></div></Field>
+          <Field label="Employer %"><div className="w-28"><UnitInput unit="%" max={100} step="0.01" value={erPct} onChange={setErPct} /></div></Field>
         </div>
       </div>
 

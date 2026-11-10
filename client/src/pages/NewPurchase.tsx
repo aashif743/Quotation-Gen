@@ -7,9 +7,10 @@ import { formatCurrency } from '../utils/calculations';
 import { getQuotations, getInvoices, createPurchase } from '../services/api';
 import { Vendor, Quotation, Invoice } from '../types';
 import VendorPicker from '../components/Vendor/VendorPicker';
-import { ArrowLeft, Plus, Trash2, Save, Loader2 } from 'lucide-react';
+import { ArrowLeft, Plus, Save, Loader2 } from 'lucide-react';
+import LineItemsEditor from '../components/common/LineItemsEditor';
 
-interface Row { description: string; quantity: string; unit_cost: string; }
+interface Row { description: string; quantity: string | number; unit_cost: string | number; }
 
 const emptyRow = (): Row => ({ description: '', quantity: '1', unit_cost: '' });
 
@@ -53,10 +54,7 @@ const NewPurchase: React.FC = () => {
     [rows]
   );
 
-  const setRow = (i: number, patch: Partial<Row>) =>
-    setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
   const addRow = () => setRows((prev) => [...prev, emptyRow()]);
-  const removeRow = (i: number) => setRows((prev) => (prev.length === 1 ? prev : prev.filter((_, idx) => idx !== i)));
 
   const handleSave = async () => {
     if (!selectedCompany) return;
@@ -160,42 +158,15 @@ const NewPurchase: React.FC = () => {
             <Plus className="h-4 w-4 mr-1.5" /> Add item
           </button>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="text-xs text-gray-500 uppercase tracking-wider">
-                <th className="text-left font-medium py-2">Description</th>
-                <th className="text-right font-medium py-2 w-24">Qty</th>
-                <th className="text-right font-medium py-2 w-32">Unit cost</th>
-                <th className="text-right font-medium py-2 w-32">Total</th>
-                <th className="w-10"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r, i) => (
-                <tr key={i} className="border-t border-gray-100">
-                  <td className="py-2 pr-2">
-                    <input className={inputCls} value={r.description} onChange={(e) => setRow(i, { description: e.target.value })} placeholder="What you bought" />
-                  </td>
-                  <td className="py-2 px-1">
-                    <input type="number" min="0" className={`${inputCls} text-right`} value={r.quantity} onChange={(e) => setRow(i, { quantity: e.target.value })} onWheel={(e) => e.currentTarget.blur()} />
-                  </td>
-                  <td className="py-2 px-1">
-                    <input type="number" min="0" className={`${inputCls} text-right`} value={r.unit_cost} onChange={(e) => setRow(i, { unit_cost: e.target.value })} onWheel={(e) => e.currentTarget.blur()} placeholder="0.00" />
-                  </td>
-                  <td className="py-2 pl-1 text-right text-sm font-medium text-gray-900 tabular-nums">
-                    {formatCurrency((Number(r.quantity) || 0) * (Number(r.unit_cost) || 0))}
-                  </td>
-                  <td className="py-2 text-right">
-                    <button onClick={() => removeRow(i)} className="p-1.5 text-red-500 hover:bg-red-50 rounded" title="Remove item">
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <LineItemsEditor
+          items={rows}
+          onChange={setRows}
+          priceKey="unit_cost"
+          priceLabel="Unit cost"
+          newItem={emptyRow}
+          descriptionPlaceholder="What you bought…"
+          accent={primary}
+        />
         <div className="flex justify-end mt-4 pt-4 border-t border-gray-200">
           <div className="text-right">
             <div className="text-sm text-gray-500">Total cost</div>

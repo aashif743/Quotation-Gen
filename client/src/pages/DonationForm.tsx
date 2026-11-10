@@ -10,8 +10,10 @@ import {
   Donation, DonationCategory, DonationItem, DonationStatus, RecipientType,
   DONATION_CATEGORY_LABELS, RECIPIENT_TYPE_LABELS,
 } from '../types/donations';
-import { ArrowLeft, HeartHandshake, Plus, Save, Trash2, Loader2, AlertCircle } from 'lucide-react';
+import { ArrowLeft, HeartHandshake, Plus, Save, Loader2, AlertCircle } from 'lucide-react';
+import LineItemsEditor from '../components/common/LineItemsEditor';
 import AccountSelect from '../components/common/AccountSelect';
+import MoneyInput from '../components/common/MoneyInput';
 
 const METHODS = ['Cash', 'Bank Transfer', 'Mobile Money', 'Cheque', 'Other'];
 const localToday = () => {
@@ -91,7 +93,6 @@ const DonationForm: React.FC = () => {
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) => setForm((f) => ({ ...f, [k]: v }));
   const usesItems = form.category === 'goods' || form.category === 'services' || form.items.length > 0;
   const itemsTotal = useMemo(() => form.items.reduce((s, it) => s + (Number(it.quantity) || 0) * (Number(it.unit_value) || 0), 0), [form.items]);
-  const setItem = (i: number, patch: Partial<DonationItem>) => set('items', form.items.map((it, k) => (k === i ? { ...it, ...patch } : it)));
 
   const save = async () => {
     setError('');
@@ -181,25 +182,28 @@ const DonationForm: React.FC = () => {
                 </button>
               </div>
               {form.items.length === 0 && <p className="text-sm text-gray-500 border border-dashed border-gray-300 rounded-lg p-4 text-center">No items yet — add what was donated, or just enter the total value below.</p>}
-              <div className="space-y-2">
-                {form.items.map((it, i) => (
-                  <div key={i} className="grid grid-cols-12 gap-2 items-center">
-                    <input value={it.description} onChange={(e) => setItem(i, { description: e.target.value })} placeholder="Item" className={`${inp} col-span-12 sm:col-span-6`} />
-                    <input type="number" min={0} step="any" value={it.quantity || ''} onChange={(e) => setItem(i, { quantity: Number(e.target.value) })} placeholder="Qty" className={`${inp} col-span-4 sm:col-span-2 text-right`} />
-                    <input type="number" min={0} step="any" value={it.unit_value || ''} onChange={(e) => setItem(i, { unit_value: Number(e.target.value) })} placeholder="Unit value" className={`${inp} col-span-6 sm:col-span-3 text-right`} />
-                    <button type="button" onClick={() => set('items', form.items.filter((_, k) => k !== i))} className="col-span-2 sm:col-span-1 p-2 text-gray-400 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
-                  </div>
-                ))}
-              </div>
+              {form.items.length > 0 && (
+                <LineItemsEditor
+                  items={form.items}
+                  onChange={(items) => set('items', items)}
+                  priceKey="unit_value"
+                  priceLabel="Unit value"
+                  newItem={() => ({ description: '', quantity: 1, unit_value: 0 })}
+                  descriptionPlaceholder="What was donated…"
+                  minItems={0}
+                  accent={primary}
+                  currency={currency || undefined}
+                />
+              )}
               {form.items.length > 0 && <p className="text-right text-sm text-gray-700 mt-2">Items total: <strong>{formatCurrency(itemsTotal, currency)}</strong></p>}
             </div>
           )}
 
           <div className="grid sm:grid-cols-3 gap-4 mt-5">
             <div><Label>{usesItems ? `Total value (${currency || 'MWK'})` : `Amount (${currency || 'MWK'}) *`}</Label>
-              <input type="number" min={0} step="any" value={form.items.length && itemsTotal > 0 ? itemsTotal : form.amount}
-                disabled={form.items.length > 0 && itemsTotal > 0} onChange={(e) => set('amount', e.target.value)}
-                className={`${inp} text-right disabled:bg-gray-50`} placeholder="0.00" />
+              <MoneyInput value={form.items.length && itemsTotal > 0 ? itemsTotal : form.amount}
+                disabled={form.items.length > 0 && itemsTotal > 0} onChange={(n) => set('amount', n ? String(n) : '')}
+                currency={currency} />
             </div>
             <div><Label>Paid / given by</Label>
               <select value={form.payment_method} onChange={(e) => set('payment_method', e.target.value)} className={inp}>

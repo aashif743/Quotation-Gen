@@ -83,6 +83,11 @@ html.dark body {
 html.dark .bg-white    { background-color: #1e1e1e !important; }  /* card / chrome — lifted off the page */
 html.dark .bg-gray-50  { background-color: #181818 !important; }  /* subtle inset (table headers, wells) */
 html.dark .bg-gray-100 { background-color: #2a2a2a !important; }  /* stronger inset / secondary button */
+/* Translucent light washes (e.g. bg-gray-50/40 on item cards) would show as a
+   flat grey block on the dark page; keep them as a faint lift instead. */
+html.dark .bg-gray-50\/40,
+html.dark .bg-gray-50\/50,
+html.dark .bg-gray-50\/60 { background-color: rgba(255, 255, 255, 0.03) !important; }
 
 /* Borders & dividers — subtle neutral gray outlines. */
 html.dark .border-gray-200,
@@ -161,6 +166,7 @@ html.dark .bg-emerald-50 { background-color: rgba(16, 185, 129, 0.18) !important
    The combined-class form (`.invoice-document.bg-white`) is needed because
    each document root carries both classes on the same element.
    --------------------------------------------------------------------------- */
+html .doc-preview,
 html .quotation-document,
 html .invoice-document,
 html .job-card-document,
@@ -172,12 +178,14 @@ html .delivery-note-document {
   color: #1f2937 !important;
 }
 /* Combined classes on the root element */
+html .doc-preview.bg-white,
 html .quotation-document.bg-white,
 html .invoice-document.bg-white,
 html .job-card-document.bg-white,
 html .lpo-document.bg-white,
 html .payslip-document.bg-white,
 html .delivery-note-document.bg-white   { background-color: #ffffff !important; }
+html .doc-preview.text-gray-800,
 html .quotation-document.text-gray-800,
 html .invoice-document.text-gray-800,
 html .job-card-document.text-gray-800,
@@ -185,66 +193,77 @@ html .lpo-document.text-gray-800,
 html .payslip-document.text-gray-800,
 html .delivery-note-document.text-gray-800 { color: #1f2937 !important; }
 /* Descendants */
+html .doc-preview .bg-white,
 html .quotation-document .bg-white,
 html .invoice-document .bg-white,
 html .job-card-document .bg-white,
 html .lpo-document .bg-white,
 html .payslip-document .bg-white,
 html .delivery-note-document .bg-white   { background-color: #ffffff !important; }
+html .doc-preview .bg-gray-50,
 html .quotation-document .bg-gray-50,
 html .invoice-document .bg-gray-50,
 html .job-card-document .bg-gray-50,
 html .lpo-document .bg-gray-50,
 html .payslip-document .bg-gray-50,
 html .delivery-note-document .bg-gray-50  { background-color: #f9fafb !important; }
+html .doc-preview .bg-gray-100,
 html .quotation-document .bg-gray-100,
 html .invoice-document .bg-gray-100,
 html .job-card-document .bg-gray-100,
 html .lpo-document .bg-gray-100,
 html .payslip-document .bg-gray-100,
 html .delivery-note-document .bg-gray-100 { background-color: #f3f4f6 !important; }
+html .doc-preview .text-gray-900,
 html .quotation-document .text-gray-900,
 html .invoice-document .text-gray-900,
 html .job-card-document .text-gray-900,
 html .lpo-document .text-gray-900,
 html .payslip-document .text-gray-900,
 html .delivery-note-document .text-gray-900 { color: #111827 !important; }
+html .doc-preview .text-gray-800,
 html .quotation-document .text-gray-800,
 html .invoice-document .text-gray-800,
 html .job-card-document .text-gray-800,
 html .lpo-document .text-gray-800,
 html .payslip-document .text-gray-800,
 html .delivery-note-document .text-gray-800 { color: #1f2937 !important; }
+html .doc-preview .text-gray-700,
 html .quotation-document .text-gray-700,
 html .invoice-document .text-gray-700,
 html .job-card-document .text-gray-700,
 html .lpo-document .text-gray-700,
 html .payslip-document .text-gray-700,
 html .delivery-note-document .text-gray-700 { color: #374151 !important; }
+html .doc-preview .text-gray-600,
 html .quotation-document .text-gray-600,
 html .invoice-document .text-gray-600,
 html .job-card-document .text-gray-600,
 html .lpo-document .text-gray-600,
 html .payslip-document .text-gray-600,
 html .delivery-note-document .text-gray-600 { color: #4b5563 !important; }
+html .doc-preview .text-gray-500,
 html .quotation-document .text-gray-500,
 html .invoice-document .text-gray-500,
 html .job-card-document .text-gray-500,
 html .lpo-document .text-gray-500,
 html .payslip-document .text-gray-500,
 html .delivery-note-document .text-gray-500 { color: #6b7280 !important; }
+html .doc-preview .text-gray-400,
 html .quotation-document .text-gray-400,
 html .invoice-document .text-gray-400,
 html .job-card-document .text-gray-400,
 html .lpo-document .text-gray-400,
 html .payslip-document .text-gray-400,
 html .delivery-note-document .text-gray-400 { color: #9ca3af !important; }
+html .doc-preview .border-gray-200,
 html .quotation-document .border-gray-200,
 html .invoice-document .border-gray-200,
 html .job-card-document .border-gray-200,
 html .lpo-document .border-gray-200,
 html .payslip-document .border-gray-200,
 html .delivery-note-document .border-gray-200 { border-color: #e5e7eb !important; }
+html .doc-preview .border-gray-300,
 html .quotation-document .border-gray-300,
 html .invoice-document .border-gray-300,
 html .job-card-document .border-gray-300,
@@ -253,8 +272,11 @@ html .payslip-document .border-gray-300,
 html .delivery-note-document .border-gray-300 { border-color: #d1d5db !important; }
 /* The document's own form inputs (if any) should also keep the light palette
    so a captured preview matches the PDF. */
+html .doc-preview input,
 html .quotation-document input,
+html .doc-preview textarea,
 html .quotation-document textarea,
+html .doc-preview select,
 html .quotation-document select,
 html .invoice-document input,
 html .invoice-document textarea,
@@ -291,6 +313,71 @@ code {
    print/download bars and the payment / signed-copy / "prepared by" lines
    are tagged inside each view page).
 */
+/* Line items editor (LineItemsEditor.tsx). Narrow: each line is a card
+   (description on top, numbers below, small labels). Wide (the editor itself
+   is at least 640px): a table with one header row. Based on the editor's own
+   width so it also adapts when the live preview takes half the screen. */
+.li-editor { container-type: inline-size; }
+.li-head { display: none; }
+.li-rows { display: flex; flex-direction: column; gap: 0.75rem; }
+.li-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.6rem 0.75rem;
+  align-items: end;
+  padding: 0.85rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.75rem;
+  background: rgba(249, 250, 251, 0.6);
+}
+.li-label { display: block; margin-bottom: 0.3rem; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #6b7280; }
+.li-no { position: absolute; top: 0.85rem; left: 0.85rem; display: inline-flex; align-items: center; justify-content: center; min-width: 1.6rem; height: 1.6rem; border-radius: 0.45rem; font-size: 0.75rem; font-weight: 700; }
+.li-desc { grid-column: 1 / -1; padding-left: 2.2rem; padding-right: 2.4rem; }
+.li-del { position: absolute; top: 0.6rem; right: 0.5rem; }
+.li-qty { grid-column: span 2; }
+.li-price { grid-column: span 4; }
+.li-amount { grid-column: 1 / -1; }
+.li-qty-only .li-qty { grid-column: span 3; }
+.li-price-input { padding-left: 3rem !important; }
+.li-amount-value { display: flex; align-items: center; justify-content: flex-end; min-height: 38px; padding: 0 0.25rem; font-size: 0.95rem; font-weight: 700; white-space: nowrap; }
+.li-amount { display: flex; align-items: center; justify-content: space-between; border-top: 1px dashed #e5e7eb; padding-top: 0.35rem; }
+.li-amount .li-label { margin: 0; }
+
+@container (min-width: 640px) {
+  .li-head, .li-row {
+    display: grid;
+    grid-template-columns: 2rem minmax(0, 1fr) 6rem 10.5rem 9.5rem 2.5rem;
+    gap: 0.6rem;
+    align-items: start;
+  }
+  .li-qty-only .li-head, .li-qty-only .li-row { grid-template-columns: 2rem minmax(0, 1fr) 7rem 2.5rem; }
+  .li-head { padding: 0 0.5rem 0.5rem; border-bottom: 1px solid #e5e7eb; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #6b7280; }
+  .li-rows { gap: 0; }
+  .li-row { padding: 0.6rem 0.5rem; border: 0; border-bottom: 1px solid #f1f5f9; border-radius: 0; background: transparent; }
+  .li-row .li-label { display: none; }
+  .li-no { position: static; margin-top: 0.4rem; }
+  .li-desc, .li-qty, .li-price, .li-amount, .li-qty-only .li-qty { grid-column: auto; padding: 0; }
+  .li-amount { display: block; border: 0; padding: 0; }
+  .li-del { position: static; margin-top: 0.1rem; }
+  .li-cur { display: none; }
+  .li-price-input { padding-left: 0.75rem !important; }
+}
+html.dark .li-row { border-color: #2e2e2e; background: rgba(255, 255, 255, 0.02); }
+html.dark .li-amount { border-color: #2e2e2e; }
+html.dark .li-head { border-color: #2e2e2e; color: #9ca3af; }
+html.dark .li-label { color: #9ca3af; }
+@container (min-width: 640px) {
+  html.dark .li-row { background: transparent; border-bottom-color: #262626; }
+}
+
+/* Job card item fields: description across the top, the other fields fill
+   the row and wrap as space allows (works beside the live preview too). */
+.jc-fields { container-type: inline-size; display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr)); }
+.jc-full { grid-column: 1 / -1; }
+.jc-wide { grid-column: 1 / -1; }
+@container (min-width: 30rem) { .jc-wide { grid-column: span 2; } }
+
 /* Horizontal scrollbar pinned to the bottom of the window for wide tables
    (see FloatingScrollbar.tsx). Styled so it is always visible, also where
    the system hides idle scrollbars (macOS). */

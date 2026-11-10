@@ -1,6 +1,7 @@
 import React from 'react';
 import { DiscountType } from '../../types';
 import { getActiveCurrency } from '../../utils/calculations';
+import CurrencyInput from './CurrencyInput';
 
 /**
  * Optional document discount: a fixed amount or a percentage of the
@@ -30,16 +31,12 @@ const DiscountInput: React.FC<{
             </button>
           ))}
         </div>
-        <input
-          type="number"
-          min="0"
-          step={t === 'percent' ? '0.1' : '0.01'}
-          max={t === 'percent' ? 100 : undefined}
-          value={value ? value : ''}
-          onChange={(e) => onChange(t, e.target.value === '' ? 0 : Math.max(0, parseFloat(e.target.value) || 0))}
-          onWheel={(e) => e.currentTarget.blur()}
+        <CurrencyInput
+          value={Number(value) || 0}
+          onChange={(n) => onChange(t, Math.max(0, t === 'percent' ? Math.min(n, 100) : n))}
           placeholder="0"
-          className="flex-1 min-w-0 px-3 py-2 focus:outline-none"
+          className="flex-1 min-w-0 px-3 py-2 text-right tabular-nums focus:outline-none"
+          aria-label={t === 'percent' ? 'Discount percent' : 'Discount amount'}
         />
       </div>
       <p className="mt-1 text-xs text-gray-500">{hint || 'Optional. Taken off the subtotal before VAT.'}</p>

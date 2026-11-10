@@ -1,6 +1,7 @@
 import React from 'react';
 import { Loader2, Plus, Trash2, X } from 'lucide-react';
 import { PayLine } from '../../types/payroll';
+import MoneyInput from '../common/MoneyInput';
 
 // Small shared UI bits for the Payroll page (mirrors Attendance.tsx styling).
 export const card = 'bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700';
@@ -80,7 +81,7 @@ export const LinesEditor: React.FC<{ lines: LineDraft[]; onChange: (l: LineDraft
                 <option value="deduction">Deduction</option>
               </select>
               <input value={l.label} onChange={(e) => set(i, { label: e.target.value })} placeholder={l.type === 'allowance' ? 'e.g. Housing' : 'e.g. Loan repayment'} className={`${inputCls} flex-1 min-w-[8rem]`} />
-              <input type="number" min={0} step="0.01" value={l.amount} onChange={(e) => set(i, { amount: e.target.value })} placeholder="0.00" className={`${inputCls} w-32 text-right`} />
+              <div className="w-40"><MoneyInput value={l.amount} onChange={(n) => set(i, { amount: n ? String(n) : '' })} /></div>
               <label className={`flex items-center gap-1 text-xs w-20 ${l.type === 'allowance' ? 'text-gray-600 dark:text-gray-300' : 'invisible'}`}>
                 <input type="checkbox" checked={l.taxable} onChange={(e) => set(i, { taxable: e.target.checked })} className="h-4 w-4 rounded border-gray-300" disabled={l.type !== 'allowance'} />
                 Taxable

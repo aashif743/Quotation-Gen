@@ -15,6 +15,7 @@ import {
   Wallet, Search, Plus, Trash2, Edit2, X, AlertCircle, DollarSign, Calendar,
   Paperclip, ExternalLink, Loader2, Download,
 } from 'lucide-react';
+import MoneyInput from '../components/common/MoneyInput';
 
 const CATEGORIES = [
   'Rent', 'Salaries', 'Transport', 'Fuel', 'Utilities', 'Office Supplies',
@@ -379,7 +380,7 @@ const Expenses: React.FC = () => {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={labelCls}>Amount *</label>
-                  <input type="number" min="0" className={inputCls} value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} onWheel={(e) => e.currentTarget.blur()} placeholder="0.00" />
+                  <MoneyInput value={form.amount} onChange={(n) => setForm((f) => ({ ...f, amount: n ? String(n) : '' }))} />
                 </div>
                 <div>
                   <label className={labelCls}>Date *</label>
