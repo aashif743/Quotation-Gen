@@ -259,7 +259,7 @@ const NewQuotation: React.FC = () => {
   };
 
   return (
-    <div className="max-w-[1600px] mx-auto">
+    <div className={showPreview ? 'max-w-[1700px] mx-auto' : 'max-w-4xl mx-auto'}>
       <div className="mb-8 flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">New Quotation</h1>
@@ -304,7 +304,7 @@ const NewQuotation: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[4fr_8fr] gap-8">
+      <div className={showPreview ? 'grid grid-cols-1 xl:grid-cols-2 gap-8 items-start' : ''}>
         <div className="space-y-6">
           <QuotationForm
             quotationData={quotationData}

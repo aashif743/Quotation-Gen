@@ -123,7 +123,7 @@ const EditQuotation: React.FC = () => {
   });
 
   return (
-    <div className="max-w-7xl mx-auto">
+    <div className={showPreview ? 'max-w-[1700px] mx-auto' : 'max-w-4xl mx-auto'}>
       <div className="mb-8 flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <button
@@ -169,7 +169,7 @@ const EditQuotation: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+      <div className={showPreview ? 'grid grid-cols-1 xl:grid-cols-2 gap-8 items-start' : ''}>
         <div className="space-y-6">
           <QuotationForm
             quotationData={quotationData}
@@ -189,7 +189,7 @@ const EditQuotation: React.FC = () => {
         </div>
 
         {showPreview && (
-          <div className="xl:sticky xl:top-6">
+          <div className="xl:sticky xl:top-6 xl:max-h-[calc(100vh_-_3rem)] xl:overflow-y-auto">
             <QuotationPreview
               quotationData={quotationData}
               company={{
