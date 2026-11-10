@@ -6,6 +6,7 @@ import { getQuotation, updateQuotation } from '../services/api';
 import { computeTotals, documentVatRate, toDateInput } from '../utils/calculations';
 import QuotationForm from '../components/Quotation/QuotationForm';
 import QuotationPreview from '../components/Quotation/QuotationPreview';
+import { usePreviewToggle } from '../components/Document/DocumentPreview';
 import { Save, Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import { brandColorFor } from '../utils/colors';
 import { useTheme } from '../context/ThemeContext';
@@ -15,7 +16,7 @@ const EditQuotation: React.FC = () => {
   const navigate = useNavigate();
   const { selectedCompany } = useCompany();
   const { theme } = useTheme();
-  const [showPreview, setShowPreview] = useState(true);
+  const [showPreview, togglePreview] = usePreviewToggle();
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [quotationData, setQuotationData] = useState<Partial<Quotation>>({});
@@ -141,7 +142,7 @@ const EditQuotation: React.FC = () => {
         </div>
         <div className="flex items-center space-x-4">
           <button
-            onClick={() => setShowPreview(!showPreview)}
+            onClick={togglePreview}
             className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500"
           >
             {showPreview ? <EyeOff className="h-4 w-4 mr-2" /> : <Eye className="h-4 w-4 mr-2" />}

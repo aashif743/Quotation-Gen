@@ -9,6 +9,8 @@ import ClientPicker from '../components/Quotation/ClientPicker';
 import { getServices, CatalogService } from '../services/servicesApi';
 import { formatCurrency } from '../utils/calculations';
 import { ArrowLeft, Save, Plus, Trash2, Tags } from 'lucide-react';
+import DocumentPreview, { PreviewColumn, PreviewToggleButton, usePreviewToggle } from '../components/Document/DocumentPreview';
+import JobCardDocument from '../components/JobCard/JobCardDocument';
 import { Link } from 'react-router-dom';
 
 /** Today as a local 'YYYY-MM-DD' (toISOString would use UTC). */
@@ -35,6 +37,7 @@ const JobCardForm: React.FC = () => {
   const [data, setData] = useState<Partial<JobCard>>({});
   const [initialLoading, setInitialLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [showPreview, togglePreview] = usePreviewToggle();
   const [error, setError] = useState('');
   // The company's services & prices: picking one fills in the price.
   const [catalog, setCatalog] = useState<CatalogService[]>([]);
@@ -229,7 +232,7 @@ const JobCardForm: React.FC = () => {
     'w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500';
 
   return (
-    <div className="max-w-5xl mx-auto">
+    <div className={showPreview ? 'max-w-[1700px] mx-auto' : 'max-w-5xl mx-auto'}>
       <div className="mb-8 flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <button
@@ -246,6 +249,8 @@ const JobCardForm: React.FC = () => {
             </p>
           </div>
         </div>
+        <div className="flex items-center gap-3">
+        <PreviewToggleButton show={showPreview} onToggle={togglePreview} />
         <button
           onClick={handleSubmit}
           disabled={saving}
@@ -263,8 +268,10 @@ const JobCardForm: React.FC = () => {
             </>
           )}
         </button>
+        </div>
       </div>
 
+      <div className={showPreview ? 'grid grid-cols-1 xl:grid-cols-2 gap-8 items-start' : ''}>
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Job card details */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -605,6 +612,26 @@ const JobCardForm: React.FC = () => {
           />
         </div>
       </form>
+        {showPreview && selectedCompany && (
+          <PreviewColumn>
+            <DocumentPreview watch={[data, selectedCompany]}>
+              <JobCardDocument
+                data={data as any}
+                company={{
+                  name: selectedCompany.name,
+                  address: selectedCompany.address,
+                  tpin: selectedCompany.tpin,
+                  logo_url: selectedCompany.quote_logo_url || selectedCompany.logo_url,
+                  primary_color: selectedCompany.primary_color,
+                  secondary_color: selectedCompany.secondary_color,
+                  template: selectedCompany.template,
+                  letterhead: selectedCompany.letterhead,
+                }}
+              />
+            </DocumentPreview>
+          </PreviewColumn>
+        )}
+      </div>
     </div>
   );
 };

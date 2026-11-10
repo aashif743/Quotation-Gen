@@ -7,6 +7,8 @@ import {
 } from '../services/api';
 import ClientPicker from '../components/Quotation/ClientPicker';
 import { ArrowLeft, Save, Plus, Trash2 } from 'lucide-react';
+import DocumentPreview, { PreviewColumn, PreviewToggleButton, usePreviewToggle } from '../components/Document/DocumentPreview';
+import DeliveryNoteDocument from '../components/Delivery/DeliveryNoteDocument';
 
 /** Today as a local 'YYYY-MM-DD' (toISOString would use UTC). */
 const localToday = () => {
@@ -31,6 +33,7 @@ const EditDeliveryNote: React.FC = () => {
   const [data, setData] = useState<Partial<DeliveryNote>>({});
   const [initialLoading, setInitialLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [showPreview, togglePreview] = usePreviewToggle();
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -173,7 +176,7 @@ const EditDeliveryNote: React.FC = () => {
   }
 
   return (
-    <div className="max-w-5xl mx-auto">
+    <div className={showPreview ? 'max-w-[1700px] mx-auto' : 'max-w-5xl mx-auto'}>
       <div className="mb-8 flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <button
@@ -190,6 +193,8 @@ const EditDeliveryNote: React.FC = () => {
             </p>
           </div>
         </div>
+        <div className="flex items-center gap-3">
+        <PreviewToggleButton show={showPreview} onToggle={togglePreview} />
         <button
           onClick={handleSubmit}
           disabled={saving}
@@ -207,8 +212,10 @@ const EditDeliveryNote: React.FC = () => {
             </>
           )}
         </button>
+        </div>
       </div>
 
+      <div className={showPreview ? 'grid grid-cols-1 xl:grid-cols-2 gap-8 items-start' : ''}>
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Delivery Note details */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -361,6 +368,35 @@ const EditDeliveryNote: React.FC = () => {
           </div>
         </div>
       </form>
+        {showPreview && selectedCompany && (
+          <PreviewColumn>
+            <DocumentPreview watch={[data, selectedCompany]}>
+              <DeliveryNoteDocument
+                data={{
+                  delivery_note_number: data.delivery_note_number,
+                  client_name: data.client_name,
+                  client_address: data.client_address,
+                  client_email: data.client_email,
+                  client_phone: data.client_phone,
+                  date: data.date,
+                  items: (data.items || []).map((it) => ({ description: it.description, quantity: Number(it.quantity) || 0 })),
+                  invoice_number: (data as any).invoice_number || null,
+                }}
+                company={{
+                  name: selectedCompany.name,
+                  address: selectedCompany.address,
+                  tpin: selectedCompany.tpin,
+                  logo_url: selectedCompany.quote_logo_url || selectedCompany.logo_url,
+                  primary_color: selectedCompany.primary_color,
+                  secondary_color: selectedCompany.secondary_color,
+                  template: selectedCompany.template,
+                  letterhead: selectedCompany.letterhead,
+                }}
+              />
+            </DocumentPreview>
+          </PreviewColumn>
+        )}
+      </div>
     </div>
   );
 };

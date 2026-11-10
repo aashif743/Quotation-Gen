@@ -6,7 +6,7 @@ import { createDeliveryNoteFromInvoice } from '../services/jobCardsApi';
 import RecordPaymentModal from '../components/Payment/RecordPaymentModal';
 import { useAuth } from '../context/AuthContext';
 import { Invoice, Payment } from '../types';
-import { formatCurrency, formatNumber, documentVatRate } from '../utils/calculations';
+import { formatCurrency } from '../utils/calculations';
 import { generateInvoicePDF } from '../utils/pdfGenerator';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { brandColorFor } from '../utils/colors';
@@ -27,9 +27,7 @@ import {
   Copy,
 } from 'lucide-react';
 import DuplicateInvoiceModal from '../components/Invoice/DuplicateInvoiceModal';
-import SupremeDocument from '../components/Letterhead/SupremeDocument';
-import BrandDocument from '../components/Document/BrandDocument';
-import { PRICED_COLUMNS, pricedTotals } from '../components/Quotation/QuotationDocument';
+import InvoiceDocument from '../components/Invoice/InvoiceDocument';
 
 const InvoiceView: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -143,13 +141,6 @@ const InvoiceView: React.FC = () => {
   };
 
   const colors = getCompanyColors();
-
-  const getDueDate = () => {
-    if (!invoice?.date || !invoice?.due_days) return 'N/A';
-    const date = new Date(invoice.date);
-    date.setDate(date.getDate() + invoice.due_days);
-    return date.toLocaleDateString();
-  };
 
   if (loading) {
     return (
@@ -301,60 +292,22 @@ const InvoiceView: React.FC = () => {
       </div>
       )}
 
-      {invoice.company_template === 'supreme' ? (
-        // Client-specific letterhead design (same look as the quotation).
-        <SupremeDocument
-          kind="invoice"
-          rootClassName="invoice-document shadow-lg"
-          data={{ ...invoice, number: invoice.invoice_number }}
-          company={{
-            name: invoice.company_name || '',
-            tpin: invoice.company_tpin,
-            bank_details: invoice.company_bank_details,
-            logo_url: invoice.company_quote_logo || invoice.company_logo,
-            primary_color: invoice.primary_color,
-            secondary_color: invoice.secondary_color,
-            letterhead: invoice.company_letterhead,
-          }}
-        />
-      ) : (
-        <BrandDocument
-          template={invoice.company_template}
-          kind="invoice"
-          rootClassName="invoice-document shadow-lg rounded-lg"
-          company={{
-            name: invoice.company_name || '',
-            address: invoice.company_address,
-            tpin: invoice.company_tpin,
-            bank_details: invoice.company_bank_details,
-            // Same bundled brand logo as the quotation.
-            logo_url: invoice.company_quote_logo || invoice.company_logo,
-            primary_color: invoice.primary_color,
-            secondary_color: invoice.secondary_color,
-          }}
-          title="Invoice"
-          number={invoice.invoice_number}
-          meta={[
-            { l: 'Date', v: new Date(invoice.date).toLocaleDateString() },
-            { l: 'Due Date', v: getDueDate() },
-          ]}
-          party={{ label: 'Bill To', name: invoice.client_name, lines: [invoice.client_address, invoice.client_email, invoice.client_phone] }}
-          columns={PRICED_COLUMNS}
-          rows={invoice.items.map((item) => [
-            item.description, formatNumber(item.quantity), formatCurrency(item.unit_price), formatCurrency(item.total),
-          ])}
-          // Back-calculate the rates from the stored amounts so the saved
-          // invoice shows "VAT (X%)" / "PPDA (X%)" like the live preview did.
-          totals={pricedTotals(
-            invoice,
-            documentVatRate(invoice),
-            invoice.subtotal ? (invoice.ppda_amount || 0) / ((invoice.subtotal - (Number(invoice.discount_amount) || 0)) || 1) : null,
-          )}
-          showBank
-          notes={invoice.notes}
-          terms={invoice.terms_conditions}
-        />
-      )}
+      <InvoiceDocument
+        rootClassName={invoice.company_template === 'supreme' ? 'invoice-document shadow-lg' : 'invoice-document shadow-lg rounded-lg'}
+        data={invoice}
+        company={{
+          name: invoice.company_name || '',
+          address: invoice.company_address,
+          tpin: invoice.company_tpin,
+          bank_details: invoice.company_bank_details,
+          // Same bundled brand logo as the quotation.
+          logo_url: invoice.company_quote_logo || invoice.company_logo,
+          primary_color: invoice.primary_color,
+          secondary_color: invoice.secondary_color,
+          template: invoice.company_template,
+          letterhead: invoice.company_letterhead,
+        }}
+      />
 
       {showDuplicate && invoice.id && (
         <DuplicateInvoiceModal

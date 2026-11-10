@@ -10,11 +10,13 @@ import {
   getPurchaseOrder, getNextLpoNumber, createPurchaseOrder, updatePurchaseOrder, getJobCardOptions,
 } from '../services/purchaseOrdersApi';
 import { Vendor, Quotation } from '../types';
-import { PurchaseOrderInput } from '../types/purchaseOrders';
+import { PurchaseOrder, PurchaseOrderInput } from '../types/purchaseOrders';
 import VendorPicker from '../components/Vendor/VendorPicker';
 import CurrencyInput from '../components/common/CurrencyInput';
 import { localToday } from '../components/PurchaseOrder/poUtils';
 import { ArrowLeft, Plus, Trash2, Save, Loader2 } from 'lucide-react';
+import DocumentPreview, { PreviewColumn, PreviewToggleButton, usePreviewToggle } from '../components/Document/DocumentPreview';
+import PurchaseOrderDocument from '../components/PurchaseOrder/PurchaseOrderDocument';
 
 interface Row { description: string; quantity: string; unit_cost: number; }
 
@@ -60,6 +62,7 @@ const PurchaseOrderForm: React.FC = () => {
   const [loadError, setLoadError] = useState('');
   const [lockedReceived, setLockedReceived] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showPreview, togglePreview] = usePreviewToggle();
   const [error, setError] = useState('');
 
   // Initial load: new → company defaults + next number; edit → existing LPO.
@@ -213,16 +216,37 @@ const PurchaseOrderForm: React.FC = () => {
     );
   }
 
+  // What the printed LPO will look like, from the form as it is now.
+  const previewPo: PurchaseOrder = {
+    id: 0, company_id: companyId || selectedCompany?.id || 0, lpo_number: lpoNumber || 'LPO-0000',
+    vendor_name: vendorName, vendor_address: vendorAddress, vendor_email: vendorEmail, vendor_phone: vendorPhone,
+    date, delivery_date: deliveryDate || null, delivery_address: deliveryAddress, payment_terms: paymentTerms,
+    subtotal, vat_amount: vatAmount, grand_total: grandTotal, status: 'draft', notes, terms_conditions: terms,
+    items: rows.filter((r) => r.description.trim()).map((r) => ({
+      description: r.description, quantity: Number(r.quantity) || 0, unit_cost: Number(r.unit_cost) || 0,
+      total: round2((Number(r.quantity) || 0) * (Number(r.unit_cost) || 0)),
+    })),
+    company_name: selectedCompany?.name, company_address: selectedCompany?.address, company_tpin: selectedCompany?.tpin,
+    company_logo: selectedCompany?.logo_url, company_quote_logo: selectedCompany?.quote_logo_url,
+    primary_color: selectedCompany?.primary_color, secondary_color: selectedCompany?.secondary_color, company_vat_rate: vatRate,
+  };
+
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className={showPreview ? 'max-w-[1700px] mx-auto space-y-6' : 'max-w-4xl mx-auto space-y-6'}>
       <button onClick={() => navigate(-1)} className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900">
         <ArrowLeft className="h-4 w-4 mr-1.5" /> Back
       </button>
 
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">{isNew ? 'New LPO' : `Edit ${lpoNumber}`}</h1>
-        <p className="text-gray-600 mt-2">Order goods or services from a supplier. Convert it to a purchase when they arrive.</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">{isNew ? 'New LPO' : `Edit ${lpoNumber}`}</h1>
+          <p className="text-gray-600 mt-2">Order goods or services from a supplier. Convert it to a purchase when they arrive.</p>
+        </div>
+        <PreviewToggleButton show={showPreview} onToggle={togglePreview} />
       </div>
+
+      <div className={showPreview ? 'grid grid-cols-1 xl:grid-cols-2 gap-8 items-start' : ''}>
+      <div className="space-y-6">
 
       {lockedReceived && (
         <div className="p-4 rounded-lg bg-amber-50 text-amber-800 text-sm">
@@ -391,6 +415,15 @@ const PurchaseOrderForm: React.FC = () => {
           {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
           {saving ? 'Saving...' : isNew ? 'Create LPO' : 'Save Changes'}
         </button>
+      </div>
+      </div>
+        {showPreview && (
+          <PreviewColumn>
+            <DocumentPreview watch={[rows, vendorName, vendorAddress, notes, terms, includeVat, paymentTerms, deliveryAddress]}>
+              <PurchaseOrderDocument po={previewPo} />
+            </DocumentPreview>
+          </PreviewColumn>
+        )}
       </div>
     </div>
   );

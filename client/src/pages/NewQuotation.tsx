@@ -7,6 +7,7 @@ import { createQuotation, getNextQuoteNumber, getClient } from '../services/api'
 import { computeTotals, defaultVatRate } from '../utils/calculations';
 import QuotationForm from '../components/Quotation/QuotationForm';
 import QuotationPreview from '../components/Quotation/QuotationPreview';
+import { usePreviewToggle } from '../components/Document/DocumentPreview';
 import { brandColorFor } from '../utils/colors';
 import { useTheme } from '../context/ThemeContext';
 import { Save, Eye, EyeOff, Trash2 } from 'lucide-react';
@@ -34,7 +35,7 @@ const NewQuotation: React.FC = () => {
   const { selectedCompany } = useCompany();
   const { user } = useAuth();
   const { theme } = useTheme();
-  const [showPreview, setShowPreview] = useState(true);
+  const [showPreview, togglePreview] = usePreviewToggle();
   const [loading, setLoading] = useState(false);
   const [quotationData, setQuotationData] = useState<Partial<Quotation>>(blankForm);
   // Suppress the auto-save effect until after the initial draft/defaults
@@ -276,7 +277,7 @@ const NewQuotation: React.FC = () => {
             Clear
           </button>
           <button
-            onClick={() => setShowPreview(!showPreview)}
+            onClick={togglePreview}
             className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500"
           >
             {showPreview ? <EyeOff className="h-4 w-4 mr-2" /> : <Eye className="h-4 w-4 mr-2" />}

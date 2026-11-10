@@ -19,6 +19,8 @@ import CurrencyInput from '../components/common/CurrencyInput';
 import { brandColorFor } from '../utils/colors';
 import { useTheme } from '../context/ThemeContext';
 import { Save, ArrowLeft, Plus, Trash2, Calculator } from 'lucide-react';
+import DocumentPreview, { PreviewColumn, PreviewToggleButton, usePreviewToggle } from '../components/Document/DocumentPreview';
+import InvoiceDocument from '../components/Invoice/InvoiceDocument';
 
 const blankForm = (): Partial<Invoice> => ({
   client_name: '',
@@ -46,6 +48,7 @@ const NewInvoice: React.FC = () => {
   const { user } = useAuth();
   const { theme } = useTheme();
   const [loading, setLoading] = useState(false);
+  const [showPreview, togglePreview] = usePreviewToggle();
   const [invoiceData, setInvoiceData] = useState<Partial<Invoice>>(blankForm);
   // Tax rates are stored on the form so we can recompute totals and offer the
   // same admin-controlled defaults a quotation would use. They're not part of
@@ -312,7 +315,7 @@ const NewInvoice: React.FC = () => {
   const items = invoiceData.items || [];
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className={showPreview ? 'max-w-[1700px] mx-auto' : 'max-w-4xl mx-auto'}>
       <div className="mb-8 flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <button
@@ -338,6 +341,7 @@ const NewInvoice: React.FC = () => {
             <Trash2 className="h-4 w-4 mr-1.5" />
             Clear
           </button>
+          <PreviewToggleButton show={showPreview} onToggle={togglePreview} />
           <button
             onClick={handleSubmit}
             disabled={loading || !items.length}
@@ -359,6 +363,7 @@ const NewInvoice: React.FC = () => {
         </div>
       </div>
 
+      <div className={showPreview ? 'grid grid-cols-1 xl:grid-cols-2 gap-8 items-start' : ''}>
       <div className="space-y-6">
         {/* Invoice Details */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -695,6 +700,28 @@ const NewInvoice: React.FC = () => {
             </div>
           </div>
         </div>
+      </div>
+        {showPreview && (
+          <PreviewColumn>
+            <DocumentPreview watch={[invoiceData, vatRate, selectedCompany]}>
+              <InvoiceDocument
+                data={{ ...invoiceData, vat_rate: vatRate }}
+                company={{
+                  name: selectedCompany?.name || '',
+                  address: selectedCompany?.address,
+                  tpin: selectedCompany?.tpin,
+                  bank_details: selectedCompany?.bank_details,
+                  logo_url: selectedCompany?.quote_logo_url || selectedCompany?.logo_url,
+                  primary_color: selectedCompany?.primary_color,
+                  secondary_color: selectedCompany?.secondary_color,
+                  template: selectedCompany?.template,
+                  letterhead: selectedCompany?.letterhead,
+                  currency: selectedCompany?.currency,
+                }}
+              />
+            </DocumentPreview>
+          </PreviewColumn>
+        )}
       </div>
     </div>
   );
