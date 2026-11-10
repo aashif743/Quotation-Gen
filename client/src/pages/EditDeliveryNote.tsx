@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useCompany } from '../context/CompanyContext';
-import { Client, DeliveryNote, DeliveryNoteItem } from '../types';
+import { Client, DeliveryNote } from '../types';
 import {
   getDeliveryNote, updateDeliveryNote, createDeliveryNote, getNextDeliveryNoteNumber,
 } from '../services/api';
