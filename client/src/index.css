@@ -291,6 +291,30 @@ code {
    print/download bars and the payment / signed-copy / "prepared by" lines
    are tagged inside each view page).
 */
+/* Horizontal scrollbar pinned to the bottom of the window for wide tables
+   (see FloatingScrollbar.tsx). Styled so it is always visible, also where
+   the system hides idle scrollbars (macOS). */
+.floating-scrollbar {
+  position: fixed;
+  bottom: 0;
+  height: 18px;
+  overflow-x: scroll;
+  overflow-y: hidden;
+  z-index: 40;
+  background: rgba(255, 255, 255, 0.92);
+  border-top: 1px solid #e5e7eb;
+  border-radius: 6px 6px 0 0;
+  box-shadow: 0 -2px 8px rgba(15, 23, 42, 0.08);
+  scrollbar-width: auto;
+  scrollbar-color: #9ca3af transparent;
+}
+.floating-scrollbar::-webkit-scrollbar { height: 12px; }
+.floating-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.floating-scrollbar::-webkit-scrollbar-thumb { background: #9ca3af; border-radius: 6px; border: 2px solid transparent; background-clip: padding-box; }
+.floating-scrollbar::-webkit-scrollbar-thumb:hover { background: #6b7280; background-clip: padding-box; border: 2px solid transparent; }
+.dark .floating-scrollbar { background: rgba(30, 30, 30, 0.92); border-top-color: #2e2e2e; scrollbar-color: #6b7280 transparent; }
+.dark .floating-scrollbar::-webkit-scrollbar-thumb { background: #6b7280; background-clip: padding-box; border: 2px solid transparent; }
+
 /* Account statement: kept off-screen on the page (it is only for printing
    and the PDF), shown in place when printing. */
 .account-print {

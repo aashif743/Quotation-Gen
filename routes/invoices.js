@@ -24,6 +24,7 @@ router.get('/', async (req, res) => {
     const { company_id } = req.query;
     let query = `
       SELECT i.*, c.name as company_name, u.name as created_by_name,
+             (SELECT COUNT(*) FROM invoice_items ii WHERE ii.invoice_id = i.id) AS item_count,
              IFNULL(p.paid, 0) AS amount_paid,
              (i.grand_total - IFNULL(p.paid, 0)) AS balance_due,
              CASE

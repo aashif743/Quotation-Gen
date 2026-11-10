@@ -41,6 +41,7 @@ import {
   Sun,
   Moon,
 } from 'lucide-react';
+import FloatingScrollbar from './FloatingScrollbar';
 
 // Banner-style header logo with cascading fallback so a broken/404 image
 // never leaves a blank gap in the header:
@@ -492,6 +493,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           <main className="p-6 text-gray-900 dark:text-gray-100 transition-colors">
             {children}
           </main>
+          <FloatingScrollbar />
         </div>
       </div>
     </div>

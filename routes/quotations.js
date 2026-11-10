@@ -20,7 +20,8 @@ router.get('/', async (req, res) => {
   try {
     const { company_id } = req.query;
     let query = `
-      SELECT q.*, c.name as company_name, u.name as created_by_name
+      SELECT q.*, c.name as company_name, u.name as created_by_name,
+             (SELECT COUNT(*) FROM quotation_items qi WHERE qi.quotation_id = q.id) AS item_count
       FROM quotations q
       JOIN companies c ON q.company_id = c.id
       LEFT JOIN users u ON q.created_by = u.id

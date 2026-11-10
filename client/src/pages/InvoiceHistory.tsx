@@ -189,7 +189,7 @@ const InvoiceHistory: React.FC = () => {
   });
 
   const getStats = () => {
-    const totalValue = filteredInvoices.reduce((sum, i) => sum + i.grand_total, 0);
+    const totalValue = filteredInvoices.reduce((sum, i) => sum + (Number(i.grand_total) || 0), 0);
     const averageValue = filteredInvoices.length > 0 ? totalValue / filteredInvoices.length : 0;
 
     return {
@@ -362,7 +362,7 @@ const InvoiceHistory: React.FC = () => {
                             {invoice.invoice_number}
                           </div>
                           <div className="text-sm text-gray-500">
-                            {invoice.items?.length || 0} items
+                            {(() => { const n = Number((invoice as any).item_count ?? invoice.items?.length ?? 0); return `${n} item${n === 1 ? '' : 's'}`; })()}
                           </div>
                         </div>
                       </div>

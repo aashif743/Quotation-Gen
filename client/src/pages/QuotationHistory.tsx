@@ -146,7 +146,7 @@ const QuotationHistory: React.FC = () => {
   });
 
   const getStats = () => {
-    const totalValue = filteredQuotations.reduce((sum, q) => sum + q.grand_total, 0);
+    const totalValue = filteredQuotations.reduce((sum, q) => sum + (Number(q.grand_total) || 0), 0);
     const averageValue = filteredQuotations.length > 0 ? totalValue / filteredQuotations.length : 0;
     
     return {
@@ -316,7 +316,7 @@ const QuotationHistory: React.FC = () => {
                             {quotation.quote_number}
                           </div>
                           <div className="text-sm text-gray-500">
-                            {quotation.items?.length || 0} items
+                            {(() => { const n = Number((quotation as any).item_count ?? quotation.items?.length ?? 0); return `${n} item${n === 1 ? '' : 's'}`; })()}
                           </div>
                         </div>
                       </div>
