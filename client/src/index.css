@@ -378,6 +378,13 @@ html.dark .li-label { color: #9ca3af; }
 .jc-wide { grid-column: 1 / -1; }
 @container (min-width: 30rem) { .jc-wide { grid-column: span 2; } }
 
+/* Sidebar collapse handle (Layout.tsx): fills with the brand colour on hover. */
+html .sidebar-toggle:hover {
+  background-color: var(--toggle-accent, #4f46e5) !important;
+  border-color: var(--toggle-accent, #4f46e5) !important;
+  color: #fff !important;
+}
+
 /* Horizontal scrollbar pinned to the bottom of the window for wide tables
    (see FloatingScrollbar.tsx). Styled so it is always visible, also where
    the system hides idle scrollbars (macOS). */

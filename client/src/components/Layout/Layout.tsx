@@ -23,8 +23,8 @@ import {
   ArchiveRestore,
   Users,
   ShieldCheck,
-  PanelLeftClose,
-  PanelLeftOpen,
+  ChevronLeft,
+  ChevronRight,
   Truck,
   Briefcase,
   Store,
@@ -317,12 +317,26 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     <div className="min-h-screen bg-gray-50 dark:bg-[#121212] transition-colors">
       <div className="flex">
         <div
-          className={`${collapsed ? 'w-20' : 'w-64'} sticky top-0 h-screen self-start shrink-0 border-r border-gray-200 dark:border-[#2e2e2e] bg-white dark:bg-[#1e1e1e] transition-all duration-300 no-print`}
+          className={`${collapsed ? 'w-20' : 'w-64'} relative z-30 sticky top-0 h-screen self-start shrink-0 border-r border-gray-200 dark:border-[#2e2e2e] bg-white dark:bg-[#1e1e1e] transition-all duration-300 no-print`}
         >
+          {/* Collapse / expand: round handle centred on the sidebar's edge */}
+          <button
+            type="button"
+            onClick={toggleCollapsed}
+            className="sidebar-toggle group absolute top-1/2 -right-3.5 -translate-y-1/2 h-7 w-7 rounded-full border border-gray-200 dark:border-[#4a4a4a] bg-white dark:bg-[#2c2c2c] text-gray-500 dark:text-gray-100 shadow-md flex items-center justify-center transition-all hover:scale-110 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+            style={{ ['--toggle-accent' as any]: accentColor }}
+            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-expanded={!collapsed}
+          >
+            {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+          </button>
           <div className={`flex flex-col h-full ${collapsed ? 'p-3' : 'px-4 py-6'}`}>
-            {/* Brand + collapse toggle */}
-            <div className={`flex items-center mb-6 ${collapsed ? 'justify-center' : 'justify-between px-1'}`}>
-              {!collapsed && (
+            {/* Brand */}
+            <div className={`flex items-center mb-6 ${collapsed ? 'justify-center' : 'px-1'}`}>
+              {collapsed ? (
+                <QuoteFlowMark size={36} />
+              ) : (
                 <div className="flex items-center space-x-2.5 min-w-0">
                   <QuoteFlowMark size={36} />
                   <div className="min-w-0">
@@ -333,14 +347,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   </div>
                 </div>
               )}
-              <button
-                onClick={toggleCollapsed}
-                className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors flex-shrink-0"
-                title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-                aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-              >
-                {collapsed ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
-              </button>
             </div>
 
             {!platformMode && <CompanySelector collapsed={collapsed} />}
