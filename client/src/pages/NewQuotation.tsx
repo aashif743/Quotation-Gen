@@ -4,7 +4,7 @@ import { useCompany } from '../context/CompanyContext';
 import { useAuth } from '../context/AuthContext';
 import { QuotationItem, Quotation, Client } from '../types';
 import { createQuotation, getNextQuoteNumber, getClient } from '../services/api';
-import { computeTotals } from '../utils/calculations';
+import { computeTotals, defaultVatRate } from '../utils/calculations';
 import QuotationForm from '../components/Quotation/QuotationForm';
 import QuotationPreview from '../components/Quotation/QuotationPreview';
 import { brandColorFor } from '../utils/colors';
@@ -63,7 +63,7 @@ const NewQuotation: React.FC = () => {
           if (!draft.terms_conditions && selectedCompany.default_terms_conditions) {
             draft.terms_conditions = selectedCompany.default_terms_conditions;
           }
-          if (draft.vat_rate == null) draft.vat_rate = selectedCompany.vat_rate ?? 0.165;
+          if (draft.vat_rate == null) draft.vat_rate = defaultVatRate(selectedCompany);
           if (draft.ppda_rate == null) draft.ppda_rate = selectedCompany.ppda_rate ?? 0.01;
           if (!cancelled) {
             setQuotationData(draft);
@@ -79,7 +79,7 @@ const NewQuotation: React.FC = () => {
       const defaults: Partial<Quotation> = {
         ...blankForm(),
         company_id: selectedCompany.id,
-        vat_rate: selectedCompany.vat_rate ?? 0.165,
+        vat_rate: defaultVatRate(selectedCompany),
         ppda_rate: selectedCompany.ppda_rate ?? 0.01,
         terms_conditions: selectedCompany.default_terms_conditions || '',
       };
@@ -195,7 +195,7 @@ const NewQuotation: React.FC = () => {
       const defaults: Partial<Quotation> = {
         ...blankForm(),
         company_id: selectedCompany.id,
-        vat_rate: selectedCompany.vat_rate ?? 0.165,
+        vat_rate: defaultVatRate(selectedCompany),
         ppda_rate: selectedCompany.ppda_rate ?? 0.01,
         terms_conditions: selectedCompany.default_terms_conditions || '',
       };

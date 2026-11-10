@@ -110,3 +110,35 @@ export const formatNumber = (num: number, decimals: number = 2): string => {
     maximumFractionDigits: decimals,
   }).format(num);
 };
+/**
+ * VAT rate a new quotation / invoice starts with: the company's rate, or 0
+ * when the company has chosen "without VAT" as its default.
+ */
+export const defaultVatRate = (company?: { vat_rate?: number | string | null; vat_by_default?: number | boolean | null } | null): number => {
+  if (!company) return 0.165;
+  if (company.vat_by_default === 0 || company.vat_by_default === false) return 0;
+  const r = Number(company.vat_rate);
+  return Number.isFinite(r) && company.vat_rate != null ? r : 0.165;
+};
+
+/** A document's VAT rate: the stored one, else worked out from its amounts. */
+export const documentVatRate = (d: {
+  vat_rate?: number | string | null; vat_amount?: number | string | null; subtotal?: number | string | null; discount_amount?: number | string | null;
+}): number => {
+  if (d.vat_rate != null && d.vat_rate !== '') return Number(d.vat_rate) || 0;
+  const base = (Number(d.subtotal) || 0) - (Number(d.discount_amount) || 0);
+  return base > 0 ? (Number(d.vat_amount) || 0) / base : 0;
+};
+
+/**
+ * A date from the API (either "2026-11-10" or a full timestamp such as
+ * "2026-11-09T22:00:00.000Z") as the YYYY-MM-DD a date input needs, in local
+ * time. Anything else comes back as ''.
+ */
+export const toDateInput = (v?: string | null): string => {
+  if (!v) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+  const d = new Date(v);
+  if (isNaN(d.getTime())) return '';
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};

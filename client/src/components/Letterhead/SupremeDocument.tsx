@@ -32,6 +32,8 @@ export interface SupremeDocData {
   subtotal?: number;
   discount_amount?: number | string | null;
   vat_amount?: number;
+  /** The document's VAT rate; 0 = made without VAT (no VAT row). */
+  vat_rate?: number | string | null;
   ppda_amount?: number;
   grand_total?: number;
   notes?: string | null;
@@ -120,6 +122,9 @@ const SupremeDocument: React.FC<Props> = ({ kind, data, company, rootClassName =
   const taxable = sub - disc;
   const vatPct = vat > 0 && taxable > 0 ? (vat / taxable) * 100 : Number(company.vat_rate || 0) * 100;
   const vatLabel = vatPct > 0 ? `${formatNumber(vatPct, vatPct % 1 ? 1 : 0)}% VAT` : 'VAT';
+  // Made without VAT on purpose: leave the VAT row out. (Older documents with
+  // no VAT amount still show "Incl." as before.)
+  const noVat = vat === 0 && data.vat_rate != null && data.vat_rate !== '' && Number(data.vat_rate) === 0;
 
   const contactBlue: React.CSSProperties = { color: blue, fontFamily: sans, fontSize: 14, lineHeight: 1.3, margin: 0 };
   const fieldRow = (label: string, value: React.ReactNode) => (
@@ -289,7 +294,7 @@ const SupremeDocument: React.FC<Props> = ({ kind, data, company, rootClassName =
               {[
                 ['TOTAL', formatNumber(sub)],
                 ...(disc > 0 ? [['DISCOUNT', `- ${formatNumber(disc)}`]] : []),
-                [vatLabel, vat > 0 ? formatNumber(vat) : 'Incl.'],
+                ...(noVat ? [] : [[vatLabel, vat > 0 ? formatNumber(vat) : 'Incl.']]),
                 ...(ppda > 0 ? [['PPDA', formatNumber(ppda)]] : []),
                 ['GRAND TOTAL', formatCurrency(Number(data.grand_total || 0), company.currency || undefined)],
               ].map(([label, value], i, arr) => (

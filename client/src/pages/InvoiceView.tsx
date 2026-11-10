@@ -6,7 +6,7 @@ import { createDeliveryNoteFromInvoice } from '../services/jobCardsApi';
 import RecordPaymentModal from '../components/Payment/RecordPaymentModal';
 import { useAuth } from '../context/AuthContext';
 import { Invoice, Payment } from '../types';
-import { formatCurrency, formatNumber } from '../utils/calculations';
+import { formatCurrency, formatNumber, documentVatRate } from '../utils/calculations';
 import { generateInvoicePDF } from '../utils/pdfGenerator';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { brandColorFor } from '../utils/colors';
@@ -347,7 +347,7 @@ const InvoiceView: React.FC = () => {
           // invoice shows "VAT (X%)" / "PPDA (X%)" like the live preview did.
           totals={pricedTotals(
             invoice,
-            invoice.subtotal ? (invoice.vat_amount || 0) / ((invoice.subtotal - (Number(invoice.discount_amount) || 0)) || 1) : null,
+            documentVatRate(invoice),
             invoice.subtotal ? (invoice.ppda_amount || 0) / ((invoice.subtotal - (Number(invoice.discount_amount) || 0)) || 1) : null,
           )}
           showBank

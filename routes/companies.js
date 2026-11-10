@@ -115,7 +115,8 @@ router.put('/:id', isAdmin, upload.single('logo'), async (req, res) => {
       primary_color,
       secondary_color,
       template,
-      default_terms_conditions
+      default_terms_conditions,
+      vat_by_default
     } = req.body;
 
     let updateQuery = `
@@ -140,6 +141,12 @@ router.put('/:id', isAdmin, upload.single('logo'), async (req, res) => {
       try { JSON.parse(lh || '{}'); } catch { return res.status(400).json({ error: 'Invalid letterhead details.' }); }
       updateQuery += ', letterhead = ?';
       queryParams.push(lh || null);
+    }
+
+    // New quotations / invoices start with VAT on (1) or off (0).
+    if (vat_by_default !== undefined) {
+      updateQuery += ', vat_by_default = ?';
+      queryParams.push(vat_by_default === false || vat_by_default === 0 || vat_by_default === '0' || vat_by_default === 'false' ? 0 : 1);
     }
 
     if (req.file) {

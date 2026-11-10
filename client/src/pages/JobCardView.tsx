@@ -2,6 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { useCompany } from '../context/CompanyContext';
+import { getQuotation } from '../services/api';
+import { defaultVatRate, documentVatRate, formatCurrency } from '../utils/calculations';
+import VatControl from '../components/common/VatControl';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { brandColorFor } from '../utils/colors';
 import { generateDocumentPDF, pdfFileSegment } from '../utils/pdfGenerator';
@@ -31,6 +35,9 @@ const JobCardView: React.FC = () => {
   const [generating, setGenerating] = useState(false);
   const [generatingInvoice, setGeneratingInvoice] = useState(false);
   const [statusSaving, setStatusSaving] = useState<JobCardStatus | null>(null);
+  const { selectedCompany } = useCompany();
+  // "Generate invoice" asks whether to add VAT first (null = dialog closed).
+  const [invoiceVat, setInvoiceVat] = useState<number | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -88,9 +95,19 @@ const JobCardView: React.FC = () => {
     if (!hasPrices && !window.confirm('No item on this job card has a price, so the invoice will total 0. Continue?')) {
       return;
     }
+    // Start the VAT choice from the linked quotation, else the company default.
+    let rate = defaultVatRate(selectedCompany);
+    if (jc.quotation_id) {
+      try { rate = documentVatRate(await getQuotation(jc.quotation_id)); } catch { /* keep the company default */ }
+    }
+    setInvoiceVat(rate);
+  };
+
+  const createInvoice = async () => {
+    if (!jc?.id || invoiceVat == null) return;
     setGeneratingInvoice(true);
     try {
-      const invoice = await createInvoiceFromJobCard(jc.id);
+      const invoice = await createInvoiceFromJobCard(jc.id, invoiceVat);
       navigate(`/invoice/${invoice.id}`);
     } catch (error: any) {
       console.error('Error generating invoice:', error);
@@ -266,6 +283,38 @@ const JobCardView: React.FC = () => {
           letterhead: jc.company_letterhead,
         }}
       />
+
+      {invoiceVat != null && (() => {
+        const itemsTotal = (jc.items || []).reduce((sum, it) => sum + (Number(it.quantity) || 0) * (Number(it.unit_price) || 0), 0);
+        return (
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-gray-900/60 no-print" onClick={() => !generatingInvoice && setInvoiceVat(null)}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+              <div className="px-5 py-4 border-b border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-900">Create invoice</h3>
+                <p className="text-sm text-gray-500">From job card {jc.job_card_number}</p>
+              </div>
+              <div className="px-5 py-4 space-y-4">
+                <VatControl rate={invoiceVat} onChange={setInvoiceVat} defaultRate={Number(selectedCompany?.vat_rate) || 0.165} />
+                <div className="rounded-lg bg-gray-50 px-3 py-2 text-sm space-y-1">
+                  <div className="flex justify-between"><span className="text-gray-600">Items total</span><span className="font-medium tabular-nums">{formatCurrency(itemsTotal)}</span></div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">VAT</span>
+                    <span className="tabular-nums">{invoiceVat > 0 ? `${+(invoiceVat * 100).toFixed(2)}% added on the invoice` : 'Not added'}</span>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500">You can still change VAT, items and prices afterwards with Edit on the invoice.</p>
+              </div>
+              <div className="px-5 py-3 border-t border-gray-200 bg-gray-50 rounded-b-2xl flex justify-end gap-2">
+                <button onClick={() => setInvoiceVat(null)} disabled={generatingInvoice} className="px-4 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-200">Cancel</button>
+                <button onClick={createInvoice} disabled={generatingInvoice}
+                  className="inline-flex items-center px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50" style={{ backgroundColor: primary }}>
+                  {generatingInvoice ? 'Creating…' : 'Create invoice'}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };

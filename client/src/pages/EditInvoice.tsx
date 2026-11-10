@@ -7,8 +7,11 @@ import { getInvoice, updateInvoice } from '../services/api';
 import {
   computeTotals,
   formatCurrency,
-  formatNumber
+  formatNumber,
+  documentVatRate,
+  toDateInput,
 } from '../utils/calculations';
+import VatControl from '../components/common/VatControl';
 import { Save, ArrowLeft, Plus, Trash2, Calculator } from 'lucide-react';
 import CurrencyInput from '../components/common/CurrencyInput';
 import { brandColorFor } from '../utils/colors';
@@ -22,6 +25,10 @@ const EditInvoice: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [invoiceData, setInvoiceData] = useState<Partial<Invoice>>({});
+  // The invoice's own tax rates (as saved), not the company's current ones,
+  // so editing never adds or changes VAT by itself.
+  const [vatRate, setVatRate] = useState(0);
+  const [ppdaRate, setPpdaRate] = useState(0);
 
   useEffect(() => {
     const loadInvoice = async () => {
@@ -29,7 +36,10 @@ const EditInvoice: React.FC = () => {
 
       try {
         const data = await getInvoice(parseInt(id));
-        setInvoiceData(data);
+        setInvoiceData({ ...data, date: toDateInput(data.date) });
+        setVatRate(documentVatRate(data));
+        const base = (Number(data.subtotal) || 0) - (Number(data.discount_amount) || 0);
+        setPpdaRate(base > 0 ? (Number(data.ppda_amount) || 0) / base : 0);
       } catch (error) {
         console.error('Error loading invoice:', error);
         alert('Failed to load invoice');
@@ -60,7 +70,7 @@ const EditInvoice: React.FC = () => {
     setInvoiceData(prev => ({
       ...prev,
       items: updatedItems,
-      ...computeTotals(updatedItems, selectedCompany.vat_rate, selectedCompany.ppda_rate, prev.discount_type, prev.discount_value),
+      ...computeTotals(updatedItems, vatRate, ppdaRate, prev.discount_type, prev.discount_value),
     }));
   };
 
@@ -70,7 +80,15 @@ const EditInvoice: React.FC = () => {
       ...prev,
       discount_type: t,
       discount_value: value,
-      ...computeTotals(prev.items || [], selectedCompany.vat_rate, selectedCompany.ppda_rate, t, value),
+      ...computeTotals(prev.items || [], vatRate, ppdaRate, t, value),
+    }));
+  };
+
+  const handleVatChange = (rate: number) => {
+    setVatRate(rate);
+    setInvoiceData(prev => ({
+      ...prev,
+      ...computeTotals(prev.items || [], rate, ppdaRate, prev.discount_type, prev.discount_value),
     }));
   };
 
@@ -111,7 +129,7 @@ const EditInvoice: React.FC = () => {
 
     setLoading(true);
     try {
-      await updateInvoice(parseInt(id), invoiceData as Partial<Invoice>);
+      await updateInvoice(parseInt(id), { ...invoiceData, vat_rate: vatRate } as Partial<Invoice>);
       navigate(`/invoice/${id}`);
     } catch (error: any) {
       console.error('Error updating invoice:', error);
@@ -247,6 +265,7 @@ const EditInvoice: React.FC = () => {
               />
             </div>
 
+            <VatControl rate={vatRate} onChange={handleVatChange} defaultRate={Number(selectedCompany?.vat_rate) || 0.165} />
             <DiscountInput className="md:col-span-2" type={invoiceData.discount_type} value={invoiceData.discount_value} onChange={handleDiscountChange} />
 
             {selectedCompany?.template === 'supreme' && (
@@ -430,14 +449,23 @@ const EditInvoice: React.FC = () => {
                     <span className="font-medium">− {formatCurrency(Number(invoiceData.discount_amount))}</span>
                   </div>
                 )}
-                <div className="flex justify-between text-sm">
-                  <span>VAT ({formatNumber((selectedCompany?.vat_rate || 0) * 100, 1)}%):</span>
-                  <span className="font-medium">{formatCurrency(invoiceData.vat_amount || 0)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span>PPDA ({formatNumber((selectedCompany?.ppda_rate || 0) * 100, 1)}%):</span>
-                  <span className="font-medium">{formatCurrency(invoiceData.ppda_amount || 0)}</span>
-                </div>
+                {vatRate > 0 ? (
+                  <div className="flex justify-between text-sm">
+                    <span>VAT ({formatNumber(vatRate * 100, 1)}%):</span>
+                    <span className="font-medium">{formatCurrency(invoiceData.vat_amount || 0)}</span>
+                  </div>
+                ) : (
+                  <div className="flex justify-between text-sm text-gray-500">
+                    <span>VAT:</span>
+                    <span>Not added</span>
+                  </div>
+                )}
+                {Number(invoiceData.ppda_amount) > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span>PPDA ({formatNumber(ppdaRate * 100, 1)}%):</span>
+                    <span className="font-medium">{formatCurrency(invoiceData.ppda_amount || 0)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-lg font-bold border-t pt-2" style={getTextStyle()}>
                   <span>Grand Total:</span>
                   <span>{formatCurrency(invoiceData.grand_total || 0)}</span>

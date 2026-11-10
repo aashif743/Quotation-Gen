@@ -8,6 +8,7 @@ import { generatePDF } from '../utils/pdfGenerator';
 import QuotationDocument from '../components/Quotation/QuotationDocument';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { brandColorFor } from '../utils/colors';
+import { documentVatRate } from '../utils/calculations';
 import { useTheme } from '../context/ThemeContext';
 import { Download, Edit2, ArrowLeft, Printer, FileText, Truck, ClipboardList } from 'lucide-react';
 
@@ -279,8 +280,7 @@ const QuotationView: React.FC = () => {
           // Back-calculate the rates from the stored amounts so the saved
           // document shows the same "VAT (X%)" / "PPDA (X%)" labels as the
           // live preview did.
-          vat_rate: quotation.vat_rate
-            ?? (quotation.subtotal ? (quotation.vat_amount || 0) / ((quotation.subtotal - (Number(quotation.discount_amount) || 0)) || 1) : undefined),
+          vat_rate: documentVatRate(quotation),
           ppda_rate: quotation.ppda_rate
             ?? (quotation.subtotal ? (quotation.ppda_amount || 0) / ((quotation.subtotal - (Number(quotation.discount_amount) || 0)) || 1) : undefined),
           letterhead: quotation.company_letterhead,

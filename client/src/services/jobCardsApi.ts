@@ -53,8 +53,9 @@ export const createJobCardFromQuotation = async (quotationId: number): Promise<J
 };
 
 // Workflow conversions that live on other resources' routers.
-export const createInvoiceFromJobCard = async (jobCardId: number): Promise<Invoice> => {
-  const response = await api.post(`/invoices/from-job-card/${jobCardId}`);
+/** `vatRate`: VAT for the new invoice as a fraction (0 = without VAT). */
+export const createInvoiceFromJobCard = async (jobCardId: number, vatRate?: number): Promise<Invoice> => {
+  const response = await api.post(`/invoices/from-job-card/${jobCardId}`, vatRate == null ? {} : { vat_rate: vatRate });
   return response.data;
 };
 

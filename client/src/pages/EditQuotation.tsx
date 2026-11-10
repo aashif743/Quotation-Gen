@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useCompany } from '../context/CompanyContext';
 import { QuotationItem, Quotation, Client } from '../types';
 import { getQuotation, updateQuotation } from '../services/api';
-import { computeTotals } from '../utils/calculations';
+import { computeTotals, documentVatRate, toDateInput } from '../utils/calculations';
 import QuotationForm from '../components/Quotation/QuotationForm';
 import QuotationPreview from '../components/Quotation/QuotationPreview';
 import { Save, Eye, EyeOff, ArrowLeft } from 'lucide-react';
@@ -29,9 +29,8 @@ const EditQuotation: React.FC = () => {
         // Back-fill the tax rates from the stored amounts if the quotation
         // pre-dates the per-quotation rate fields.
         const filled: Partial<Quotation> = { ...data };
-        if (filled.vat_rate == null) {
-          filled.vat_rate = filled.subtotal ? (filled.vat_amount || 0) / (filled.subtotal - (Number(filled.discount_amount) || 0) || 1) : 0;
-        }
+        filled.vat_rate = documentVatRate(filled);
+        filled.date = toDateInput(filled.date);
         if (filled.ppda_rate == null) {
           filled.ppda_rate = filled.subtotal ? (filled.ppda_amount || 0) / (filled.subtotal - (Number(filled.discount_amount) || 0) || 1) : 0;
         }

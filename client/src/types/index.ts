@@ -231,6 +231,8 @@ export interface Company {
   bank_details: string;
   vat_rate: number;
   ppda_rate: number;
+  /** 1 = new quotations / invoices start with VAT on; 0 = off. */
+  vat_by_default?: number | boolean;
   currency?: string;
   primary_color: string;
   secondary_color: string;
@@ -333,6 +335,8 @@ export interface Invoice {
   vat_amount: number;
   ppda_amount: number;
   grand_total: number;
+  /** VAT rate it was made with (0 = without VAT); null on older invoices. */
+  vat_rate?: number | string | null;
   // Optional document discount, applied before VAT / PPDA.
   discount_type?: DiscountType | null;
   discount_value?: number;

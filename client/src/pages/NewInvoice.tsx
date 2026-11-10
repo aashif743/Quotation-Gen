@@ -11,8 +11,9 @@ import {
 } from '../services/api';
 import {
   computeTotals,
-  formatCurrency,
+  formatCurrency, defaultVatRate,
 } from '../utils/calculations';
+import VatControl from '../components/common/VatControl';
 import ClientPicker from '../components/Quotation/ClientPicker';
 import CurrencyInput from '../components/common/CurrencyInput';
 import { brandColorFor } from '../utils/colors';
@@ -80,7 +81,7 @@ const NewInvoice: React.FC = () => {
           if (!draft.invoice.terms_conditions && selectedCompany.default_terms_conditions) {
             draft.invoice.terms_conditions = selectedCompany.default_terms_conditions;
           }
-          const v = draft.vatRate ?? selectedCompany.vat_rate ?? 0.165;
+          const v = draft.vatRate ?? defaultVatRate(selectedCompany);
           const p = draft.ppdaRate ?? selectedCompany.ppda_rate ?? 0.01;
           if (!cancelled) {
             setInvoiceData(draft.invoice);
@@ -100,7 +101,7 @@ const NewInvoice: React.FC = () => {
         company_id: selectedCompany.id,
         terms_conditions: selectedCompany.default_terms_conditions || '',
       };
-      const v = selectedCompany.vat_rate ?? 0.165;
+      const v = defaultVatRate(selectedCompany);
       const p = selectedCompany.ppda_rate ?? 0.01;
 
       try {
@@ -222,8 +223,7 @@ const NewInvoice: React.FC = () => {
     handleItemsChange(next);
   };
 
-  const handleVatChange = (raw: string) => {
-    const v = raw === '' ? 0 : parseFloat(raw) / 100;
+  const handleVatChange = (v: number) => {
     setVatRate(v);
     setInvoiceData((prev) => ({
       ...prev,
@@ -260,7 +260,7 @@ const NewInvoice: React.FC = () => {
         defaults.invoice_number = invoiceNumber;
       } catch {}
       setInvoiceData(defaults);
-      setVatRate(selectedCompany.vat_rate ?? 0.165);
+      setVatRate(defaultVatRate(selectedCompany));
       setPpdaRate(selectedCompany.ppda_rate ?? 0.01);
       draftReady.current = true;
     })();
@@ -281,7 +281,7 @@ const NewInvoice: React.FC = () => {
 
     setLoading(true);
     try {
-      const created = await createInvoice(invoiceData as Omit<Invoice, 'id'>);
+      const created = await createInvoice({ ...invoiceData, vat_rate: vatRate } as Omit<Invoice, 'id'>);
       // Clear the saved draft so the next visit starts fresh.
       if (user?.id) {
         try {
@@ -425,22 +425,11 @@ const NewInvoice: React.FC = () => {
               </div>
             )}
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                VAT Rate (%)
-              </label>
-              <input
-                type="number"
-                value={+(vatRate * 100).toFixed(4)}
-                onChange={(e) => handleVatChange(e.target.value)}
-                onWheel={(e) => e.currentTarget.blur()}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                step="0.1"
-                min="0"
-                max="100"
-                placeholder="16.5"
-              />
-            </div>
+            <VatControl
+              rate={vatRate}
+              onChange={handleVatChange}
+              defaultRate={Number(selectedCompany?.vat_rate) || 0.165}
+            />
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -641,10 +630,10 @@ const NewInvoice: React.FC = () => {
                     )}
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600">
-                        VAT ({(vatRate * 100).toFixed(1)}%)
+                        {vatRate > 0 ? `VAT (${(vatRate * 100).toFixed(1)}%)` : 'VAT'}
                       </span>
-                      <span className="font-medium tabular-nums">
-                        {formatCurrency(invoiceData.vat_amount || 0)}
+                      <span className={`tabular-nums ${vatRate > 0 ? 'font-medium' : 'text-gray-500'}`}>
+                        {vatRate > 0 ? formatCurrency(invoiceData.vat_amount || 0) : 'Not added'}
                       </span>
                     </div>
                     <div className="flex justify-between text-sm">

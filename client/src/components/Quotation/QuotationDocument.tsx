@@ -73,7 +73,10 @@ export const pricedTotals = (
           v: `− ${formatCurrency(Number(d.discount_amount))}`,
         }]
       : []),
-    { l: vatRate != null ? `VAT (${formatNumber(vatRate * 100, 1)}%)` : 'VAT', v: formatCurrency(Number(d.vat_amount) || 0) },
+    // No VAT line on a document made without VAT.
+    ...(Number(d.vat_amount) > 0
+      ? [{ l: vatRate != null ? `VAT (${formatNumber(Number(vatRate) * 100, 1)}%)` : 'VAT', v: formatCurrency(Number(d.vat_amount) || 0) }]
+      : []),
     ...(Number(d.ppda_amount) > 0
       ? [{ l: ppdaRate != null ? `PPDA (${formatNumber(ppdaRate * 100, 1)}%)` : 'PPDA', v: formatCurrency(Number(d.ppda_amount) || 0) }]
       : []),

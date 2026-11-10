@@ -3,6 +3,7 @@ const db = require('../config/database');
 const { isAuthenticated, isAdmin } = require('../middleware/auth');
 const { moveToRecycleBin } = require('../utils/recycleBin');
 const { discountOf, pushDiscountFields, SET_DISCOUNT_SQL } = require('../utils/discount');
+const { vatRateOf, SET_VAT_RATE_SQL } = require('../utils/vat');
 const { requireCompanyAccess, companyTableParamGuard } = require("../utils/tenancy");
 const { getCompanyPrefix } = require('../utils/quotePrefix');
 const { resolveClientId } = require('../utils/clientResolver');
@@ -185,6 +186,7 @@ router.post('/', async (req, res) => {
     if (invTitle) await connection.execute('UPDATE invoices SET title = ? WHERE id = ?', [invTitle, invoiceId]);
     const iDisc = discountOf(req.body);
     if (iDisc[2] > 0) await connection.execute(SET_DISCOUNT_SQL('invoices'), [...iDisc, invoiceId]);
+    if (vatRateOf(req.body.vat_rate) != null) await connection.execute(SET_VAT_RATE_SQL('invoices'), [vatRateOf(req.body.vat_rate), invoiceId]);
 
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
@@ -297,6 +299,7 @@ router.post('/from-quotation/:quotationId', async (req, res) => {
     if (quotation.title) await connection.execute('UPDATE invoices SET title = ? WHERE id = ?', [quotation.title, invoiceId]);
     const qDisc = discountOf(quotation);
     if (qDisc[2] > 0) await connection.execute(SET_DISCOUNT_SQL('invoices'), [...qDisc, invoiceId]);
+    if (vatRateOf(quotation.vat_rate) != null) await connection.execute(SET_VAT_RATE_SQL('invoices'), [vatRateOf(quotation.vat_rate), invoiceId]);
 
     // Copy quotation items to invoice items
     for (let i = 0; i < quotationItems.length; i++) {
@@ -340,7 +343,8 @@ router.post('/from-job-card/:jobCardId', async (req, res) => {
     const { jobCardId } = req.params;
 
     const [jobCards] = await connection.execute(`
-      SELECT jc.*, c.name as company_name, c.vat_rate as company_vat_rate, c.ppda_rate as company_ppda_rate
+      SELECT jc.*, c.name as company_name, c.vat_rate as company_vat_rate, c.ppda_rate as company_ppda_rate,
+             c.vat_by_default as company_vat_by_default
       FROM job_cards jc
       JOIN companies c ON jc.company_id = c.id
       WHERE jc.id = ?
@@ -364,14 +368,16 @@ router.post('/from-job-card/:jobCardId', async (req, res) => {
       [jobCardId]
     );
 
-    let vatRate = Number(jobCard.company_vat_rate) || 0;
+    // VAT: the rate chosen when generating (body.vat_rate, 0 = without VAT),
+    // else the linked quotation's, else the company default.
+    let vatRate = Number(jobCard.company_vat_by_default) === 0 ? 0 : Number(jobCard.company_vat_rate) || 0;
     let ppdaRate = Number(jobCard.company_ppda_rate) || 0;
     let dueDays = 30;
     let quotationId = null;
     let qDiscount = null; // the source quotation's discount, re-applied to the job card total
     if (jobCard.quotation_id) {
       const [quotations] = await connection.execute(
-        'SELECT id, subtotal, vat_amount, ppda_amount, expiry_days, discount_type, discount_value, discount_amount FROM quotations WHERE id = ?',
+        'SELECT id, subtotal, vat_amount, vat_rate, ppda_amount, expiry_days, discount_type, discount_value, discount_amount FROM quotations WHERE id = ?',
         [jobCard.quotation_id]
       );
       if (quotations.length > 0) {
@@ -383,10 +389,14 @@ router.post('/from-job-card/:jobCardId', async (req, res) => {
           vatRate = (Number(q.vat_amount) || 0) / qSubtotal;
           ppdaRate = (Number(q.ppda_amount) || 0) / qSubtotal;
         }
+        if (q.vat_rate != null) vatRate = Number(q.vat_rate);
         if (Number(q.discount_amount) > 0) qDiscount = q;
         if (q.expiry_days != null && Number(q.expiry_days) > 0) dueDays = Number(q.expiry_days);
       }
     }
+
+    const chosenVat = vatRateOf(req.body && req.body.vat_rate);
+    if (chosenVat != null) vatRate = chosenVat;
 
     const round2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
     const items = jobCardItems.map((it) => {
@@ -447,6 +457,7 @@ router.post('/from-job-card/:jobCardId', async (req, res) => {
     ]);
 
     const invoiceId = invoiceResult.insertId;
+    await connection.execute(SET_VAT_RATE_SQL('invoices'), [Math.round(vatRate * 10000) / 10000, invoiceId]);
     if (discountAmount > 0) {
       await connection.execute(SET_DISCOUNT_SQL('invoices'),
         [qDiscount.discount_type === 'percent' ? 'percent' : 'amount', Number(qDiscount.discount_value) || 0, discountAmount, invoiceId]);
@@ -559,6 +570,7 @@ router.post('/:id/duplicate', async (req, res) => {
     if (source.title) await connection.execute('UPDATE invoices SET title = ? WHERE id = ?', [source.title, newId]);
     const sDisc = discountOf(source);
     if (sDisc[2] > 0) await connection.execute(SET_DISCOUNT_SQL('invoices'), [...sDisc, newId]);
+    if (vatRateOf(source.vat_rate) != null) await connection.execute(SET_VAT_RATE_SQL('invoices'), [vatRateOf(source.vat_rate), newId]);
 
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
@@ -641,6 +653,7 @@ router.put('/:id', async (req, res) => {
     if (terms_conditions != null) { fields.push('terms_conditions = ?'); values.push(terms_conditions); }
     if (req.body.title !== undefined) { fields.push('title = ?'); values.push((req.body.title && String(req.body.title).trim()) || null); }
     pushDiscountFields(req.body, fields, values);
+    if (vatRateOf(req.body.vat_rate) != null) { fields.push('vat_rate = ?'); values.push(vatRateOf(req.body.vat_rate)); }
     values.push(id);
 
     const [updateResult] = await connection.execute(

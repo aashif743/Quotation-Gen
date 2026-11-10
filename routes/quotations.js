@@ -3,6 +3,7 @@ const db = require('../config/database');
 const { isAuthenticated, isAdmin } = require('../middleware/auth');
 const { moveToRecycleBin } = require('../utils/recycleBin');
 const { discountOf, pushDiscountFields, SET_DISCOUNT_SQL } = require('../utils/discount');
+const { vatRateOf, SET_VAT_RATE_SQL } = require('../utils/vat');
 const { requireCompanyAccess, companyTableParamGuard } = require("../utils/tenancy");
 const { resolveClientId } = require('../utils/clientResolver');
 
@@ -145,6 +146,7 @@ router.post('/', async (req, res) => {
     const quotationId = quotationResult.insertId;
     const qDisc = discountOf(req.body);
     if (qDisc[2] > 0) await connection.execute(SET_DISCOUNT_SQL('quotations'), [...qDisc, quotationId]);
+    if (vatRateOf(vat_rate) != null) await connection.execute(SET_VAT_RATE_SQL('quotations'), [vatRateOf(vat_rate), quotationId]);
 
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
@@ -157,14 +159,16 @@ router.post('/', async (req, res) => {
 
     // Persist the rates the user typed back to the company so the next
     // quotation pre-fills with their last entered values. Skip if the
-    // caller didn't send rates.
-    if (vat_rate != null || ppda_rate != null) {
+    // caller didn't send rates. A quotation made without VAT (rate 0) leaves
+    // the company's VAT rate alone, so the next document with VAT still gets it.
+    const keepVat = Number(vat_rate) > 0 ? vat_rate : null;
+    if (keepVat != null || ppda_rate != null) {
       await connection.execute(
         `UPDATE companies
             SET vat_rate = COALESCE(?, vat_rate),
                 ppda_rate = COALESCE(?, ppda_rate)
           WHERE id = ?`,
-        [vat_rate ?? null, ppda_rate ?? null, company_id]
+        [keepVat, ppda_rate ?? null, company_id]
       );
     }
 
@@ -246,6 +250,7 @@ router.put('/:id', async (req, res) => {
     if (terms_conditions != null) { fields.push('terms_conditions = ?'); values.push(terms_conditions); }
     if (req.body.title !== undefined) { fields.push('title = ?'); values.push((req.body.title && String(req.body.title).trim()) || null); }
     pushDiscountFields(req.body, fields, values);
+    if (vatRateOf(req.body.vat_rate) != null) { fields.push('vat_rate = ?'); values.push(vatRateOf(req.body.vat_rate)); }
     values.push(id);
 
     const [updateResult] = await connection.execute(

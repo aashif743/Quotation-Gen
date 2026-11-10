@@ -6,6 +6,7 @@ import { formatCurrency, formatNumber } from '../../utils/calculations';
 import ClientPicker from './ClientPicker';
 import CurrencyInput from '../common/CurrencyInput';
 import DiscountInput from '../common/DiscountInput';
+import VatControl from '../common/VatControl';
 
 interface QuotationFormProps {
   quotationData: Partial<Quotation>;
@@ -136,32 +137,11 @@ const QuotationForm: React.FC<QuotationFormProps> = ({
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              VAT Rate (%)
-            </label>
-            <input
-              type="number"
-              value={
-                quotationData.vat_rate != null
-                  ? +(quotationData.vat_rate * 100).toFixed(4)
-                  : ''
-              }
-              onChange={(e) => {
-                const raw = e.target.value;
-                onInputChange('vat_rate', raw === '' ? 0 : parseFloat(raw) / 100);
-              }}
-              onWheel={(e) => e.currentTarget.blur()}
-              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              step="0.1"
-              min="0"
-              max="100"
-              placeholder="16.5"
-            />
-            <p className="mt-1 text-xs text-gray-500">
-              Auto-filled from the last quotation. Edit if needed.
-            </p>
-          </div>
+          <VatControl
+            rate={Number(quotationData.vat_rate) || 0}
+            onChange={(r) => onInputChange('vat_rate', r)}
+            defaultRate={Number(selectedCompany?.vat_rate) || 0.165}
+          />
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -410,10 +390,17 @@ const QuotationForm: React.FC<QuotationFormProps> = ({
                   <span className="font-medium">− {formatCurrency(Number(quotationData.discount_amount))}</span>
                 </div>
               )}
-              <div className="flex justify-between text-sm">
-                <span>VAT ({formatNumber((quotationData.vat_rate ?? selectedCompany?.vat_rate ?? 0) * 100, 1)}%):</span>
-                <span className="font-medium">{formatCurrency(quotationData.vat_amount || 0)}</span>
-              </div>
+              {Number(quotationData.vat_rate) > 0 ? (
+                <div className="flex justify-between text-sm">
+                  <span>VAT ({formatNumber(Number(quotationData.vat_rate) * 100, 1)}%):</span>
+                  <span className="font-medium">{formatCurrency(quotationData.vat_amount || 0)}</span>
+                </div>
+              ) : (
+                <div className="flex justify-between text-sm text-gray-500">
+                  <span>VAT:</span>
+                  <span>Not added</span>
+                </div>
+              )}
               <div className="flex justify-between text-sm">
                 <span>PPDA ({formatNumber((quotationData.ppda_rate ?? selectedCompany?.ppda_rate ?? 0) * 100, 1)}%):</span>
                 <span className="font-medium">{formatCurrency(quotationData.ppda_amount || 0)}</span>

@@ -3,6 +3,7 @@ import { useCompany } from '../context/CompanyContext';
 import { Upload, Save, AlertCircle, Plus, Trash2, Edit, X, Image as ImageIcon } from 'lucide-react';
 import { Company } from '../types';
 import { LETTERHEAD_FIELDS, Letterhead, parseLetterhead } from '../utils/letterhead';
+import VatControl from '../components/common/VatControl';
 
 // The client-specific 'supreme' letterhead design is offered only to a company
 // that already has it (set up by the platform admin), never to others.
@@ -44,7 +45,8 @@ const Settings: React.FC = () => {
         address: selectedCompany.address || '',
         tpin: selectedCompany.tpin || '',
         bank_details: selectedCompany.bank_details || '',
-        vat_rate: selectedCompany.vat_rate || 0.165,
+        vat_rate: selectedCompany.vat_rate != null ? Number(selectedCompany.vat_rate) : 0.165,
+        vat_by_default: selectedCompany.vat_by_default === 0 || selectedCompany.vat_by_default === false ? 0 : 1,
         ppda_rate: selectedCompany.ppda_rate || 0.01,
         currency: selectedCompany.currency || 'MWK',
         primary_color: selectedCompany.primary_color || '#000000',
@@ -305,6 +307,18 @@ const Settings: React.FC = () => {
                   <option value="INR">INR — Indian Rupee</option>
                 </select>
                 <p className="text-xs text-gray-500 mt-1">Used for all amounts in this company's quotations, invoices and reports.</p>
+              </div>
+              <div>
+                <VatControl
+                  rate={formData.vat_by_default === 0 ? 0 : Number(formData.vat_rate) || 0}
+                  defaultRate={Number(formData.vat_rate) || 0.165}
+                  onChange={(r) => setFormData((prev) => (r > 0 ? { ...prev, vat_by_default: 1, vat_rate: r } : { ...prev, vat_by_default: 0 }))}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  {formData.vat_by_default === 0
+                    ? 'New quotations and invoices start without VAT. Switch VAT on for a single document when you need it.'
+                    : 'New quotations and invoices start with VAT. Switch it off on any document that should have no VAT.'}
+                </p>
               </div>
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-2">Address</label>

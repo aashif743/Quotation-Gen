@@ -1343,6 +1343,22 @@ async function migrate() {
     }
   }
 
+  // 3zb. Optional VAT (added 2026-11). Each quotation / invoice keeps the VAT
+  //     rate it was made with (0 = made without VAT on purpose; NULL = older
+  //     document, rate worked out from the amounts). companies.vat_by_default
+  //     decides whether new documents start with VAT switched on.
+  //     Additive only.
+  for (const table of ['quotations', 'invoices']) {
+    if (!(await columnExists(table, 'vat_rate'))) {
+      console.log(`  • Adding \`vat_rate\` to ${table}...`);
+      await db.query(`ALTER TABLE \`${table}\` ADD COLUMN \`vat_rate\` DECIMAL(7,4) NULL`);
+    } else { console.log(`  • ${table}.vat_rate already present, skipping.`); }
+  }
+  if (!(await columnExists('companies', 'vat_by_default'))) {
+    console.log('  • Adding `vat_by_default` to companies...');
+    await db.query('ALTER TABLE `companies` ADD COLUMN `vat_by_default` TINYINT(1) NOT NULL DEFAULT 1');
+  } else { console.log('  • companies.vat_by_default already present, skipping.'); }
+
   // 4. Backfill created_by from each row's company owner so existing records
   //    are attributed to the user who originally owned the company.
   const [qBackfill] = await db.query(
