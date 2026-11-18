@@ -10,6 +10,7 @@ import {
   Landmark, Smartphone, Banknote, Wallet, Plus, ArrowLeftRight, Loader2, AlertCircle, Pencil, Trash2,
   FileText, Lock, Unlock, ArrowDownLeft, ArrowUpRight,
 } from 'lucide-react';
+import FitText from '../components/common/FitText';
 
 export const ACCOUNT_ICON: Record<AccountType, typeof Landmark> = {
   bank: Landmark, mobile: Smartphone, cash: Banknote, petty_cash: Wallet,
@@ -85,7 +86,7 @@ const Accounts: React.FC = () => {
           </div>
           {!a.is_active && <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">Closed</span>}
         </div>
-        <div className={`mt-4 text-2xl font-bold tabular-nums ${a.balance < -0.004 ? 'text-red-600' : 'text-gray-900'}`}>{formatCurrency(a.balance)}</div>
+        <FitText className={`mt-4 text-2xl font-bold tabular-nums ${a.balance < -0.004 ? 'text-red-600' : 'text-gray-900'}`}>{formatCurrency(a.balance)}</FitText>
         <div className="mt-1 flex gap-4 text-xs text-gray-500">
           <span className="inline-flex items-center gap-1"><ArrowDownLeft className="h-3.5 w-3.5 text-emerald-600" /> {formatCurrency(a.total_in)}</span>
           <span className="inline-flex items-center gap-1"><ArrowUpRight className="h-3.5 w-3.5 text-red-500" /> {formatCurrency(a.total_out)}</span>
@@ -152,9 +153,9 @@ const Accounts: React.FC = () => {
             ].map(([label, val, main]) => (
               <div key={label as string} className="bg-white rounded-xl border border-gray-200 p-4" style={main ? { borderColor: primary } : undefined}>
                 <div className="text-xs font-medium text-gray-500 uppercase tracking-wider">{label as string}</div>
-                <div className={`mt-1 text-xl font-bold tabular-nums ${(val as number) < -0.004 ? 'text-red-600' : 'text-gray-900'}`} style={main ? { color: primary } : undefined}>
+                <FitText className={`mt-1 text-xl font-bold tabular-nums ${(val as number) < -0.004 ? 'text-red-600' : 'text-gray-900'}`} style={main ? { color: primary } : undefined}>
                   {formatCurrency(val as number)}
-                </div>
+                </FitText>
               </div>
             ))}
           </div>

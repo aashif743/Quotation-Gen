@@ -20,6 +20,7 @@ import {
   AlertCircle,
   DollarSign,
 } from 'lucide-react';
+import FitText from '../components/common/FitText';
 
 const Clients: React.FC = () => {
   const { selectedCompany } = useCompany();
@@ -355,12 +356,7 @@ const SummaryCard: React.FC<{
     </div>
     <div className="ml-4 min-w-0 flex-1">
       <p className="text-sm font-medium text-gray-600">{label}</p>
-      <p
-        className={`text-2xl font-bold text-gray-900 ${truncate ? 'truncate text-xl' : ''}`}
-        title={value}
-      >
-        {value}
-      </p>
+      <FitText className={`${truncate ? 'text-xl' : 'text-2xl'} font-bold text-gray-900 tabular-nums`} title={value}>{value}</FitText>
     </div>
   </div>
 );

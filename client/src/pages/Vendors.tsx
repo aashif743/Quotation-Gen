@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useCompany } from '../context/CompanyContext';
 import { useAuth } from '../context/AuthContext';
 import { getVendors, createVendor, deleteVendor } from '../services/api';
@@ -17,7 +17,9 @@ import {
   X,
   AlertCircle,
   DollarSign,
+  ArrowUpDown,
 } from 'lucide-react';
+import FitText from '../components/common/FitText';
 
 const Vendors: React.FC = () => {
   const { selectedCompany } = useCompany();
@@ -27,6 +29,16 @@ const Vendors: React.FC = () => {
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  // Filter / sort live in the URL (?show=outstanding&sort=owed) so a filtered
+  // list can be bookmarked or opened again with Back.
+  const [params, setParams] = useSearchParams();
+  const show: VendorFilter = (FILTERS.some((f) => f.key === params.get('show')) ? params.get('show') : 'all') as VendorFilter;
+  const sort: VendorSort = (SORTS.some((o) => o.key === params.get('sort')) ? params.get('sort') : 'name') as VendorSort;
+  const setParam = (key: string, value: string, fallback: string) => {
+    const next = new URLSearchParams(params);
+    if (value === fallback) next.delete(key); else next.set(key, value);
+    setParams(next, { replace: true });
+  };
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -57,13 +69,35 @@ const Vendors: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCompany]);
 
+  const counts = useMemo(() => {
+    const c: Record<VendorFilter, number> = { all: vendors.length, outstanding: 0, settled: 0, none: 0 };
+    vendors.forEach((v) => { c[vendorStatus(v)] += 1; });
+    return c;
+  }, [vendors]);
+
   const filtered = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
-    if (!term) return vendors;
-    return vendors.filter((v) =>
-      [v.name, v.contact_person, v.email, v.phone].some((f) => (f || '').toLowerCase().includes(term))
+    const list = vendors.filter((v) =>
+      (show === 'all' || vendorStatus(v) === show) &&
+      (!term || [v.name, v.contact_person, v.email, v.phone].some((f) => (f || '').toLowerCase().includes(term)))
     );
-  }, [vendors, searchTerm]);
+    const owed = (v: Vendor) => Number(v.balance_payable || 0);
+    const bought = (v: Vendor) => Number(v.total_purchased || 0);
+    const last = (v: Vendor) => (v.last_activity ? new Date(v.last_activity).getTime() : 0);
+    const byName = (a: Vendor, b: Vendor) => (a.name || '').localeCompare(b.name || '');
+    return list.sort((a, b) =>
+      sort === 'owed' ? owed(b) - owed(a) || byName(a, b)
+        : sort === 'purchased' ? bought(b) - bought(a) || byName(a, b)
+        : sort === 'recent' ? last(b) - last(a) || byName(a, b)
+        : byName(a, b)
+    );
+  }, [vendors, searchTerm, show, sort]);
+
+  const shownTotals = useMemo(() => ({
+    purchased: filtered.reduce((s, v) => s + Number(v.total_purchased || 0), 0),
+    owed: filtered.reduce((s, v) => s + Number(v.balance_payable || 0), 0),
+  }), [filtered]);
+  const filteringActive = show !== 'all' || !!searchTerm.trim();
 
   const stats = useMemo(() => ({
     total: vendors.length,
@@ -119,24 +153,24 @@ const Vendors: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
           <h1 className="text-3xl font-bold text-gray-900">Vendors</h1>
           <p className="text-gray-600 mt-2">
             Every supplier {selectedCompany.name} buys from — their purchases and what you still owe them, in one place.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0">
           <button
             onClick={() => navigate('/new-purchase')}
-            className="inline-flex items-center px-4 py-2 rounded-lg text-gray-700 bg-white border border-gray-300 shadow-sm hover:bg-gray-50"
+            className="inline-flex items-center whitespace-nowrap px-4 py-2 rounded-lg text-gray-700 bg-white border border-gray-300 shadow-sm hover:bg-gray-50"
           >
             <ShoppingCart className="h-5 w-5 mr-2" />
             New Purchase
           </button>
           <button
             onClick={openCreate}
-            className="inline-flex items-center px-4 py-2 rounded-lg text-white shadow-sm hover:opacity-90"
+            className="inline-flex items-center whitespace-nowrap px-4 py-2 rounded-lg text-white shadow-sm hover:opacity-90"
             style={{ backgroundColor: primary }}
           >
             <Plus className="h-5 w-5 mr-2" />
@@ -157,20 +191,65 @@ const Vendors: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
         <SummaryCard label="Total Vendors" value={stats.total.toString()} icon={Store} />
         <SummaryCard label="Total Purchased" value={formatCurrency(stats.totalPurchased)} icon={ShoppingCart} truncate />
-        <SummaryCard label="Outstanding Payable" value={formatCurrency(stats.outstanding)} icon={DollarSign} truncate />
+        <SummaryCard
+          label="Outstanding Payable"
+          value={formatCurrency(stats.outstanding)}
+          icon={DollarSign}
+          truncate
+          sub={counts.outstanding ? `Owed to ${counts.outstanding} vendor${counts.outstanding === 1 ? '' : 's'} · view` : undefined}
+          onClick={counts.outstanding ? () => setParam('show', 'outstanding', 'all') : undefined}
+        />
       </div>
 
       <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <div className="relative max-w-lg">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search by name, contact, email or phone..."
-              className="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
+        <div className="px-6 py-4 border-b border-gray-200 space-y-3">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1 min-w-0">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search by name, contact, email or phone..."
+                className="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <label className="relative sm:w-56 flex-shrink-0">
+              <span className="sr-only">Sort vendors</span>
+              <ArrowUpDown className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4 pointer-events-none" />
+              <select
+                value={sort}
+                onChange={(e) => setParam('sort', e.target.value, 'name')}
+                className="w-full pl-9 pr-8 py-2 border rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                {SORTS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
+              </select>
+            </label>
+          </div>
+          <div className="flex flex-wrap gap-2" role="tablist" aria-label="Filter vendors">
+            {FILTERS.map((f) => {
+              const active = show === f.key;
+              return (
+                <button
+                  key={f.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setParam('show', f.key, 'all')}
+                  title={f.hint}
+                  className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors ${
+                    active ? 'text-white border-transparent shadow-sm' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                  }`}
+                  style={active ? { backgroundColor: primary } : undefined}
+                >
+                  {f.dot && <span className={`h-2 w-2 rounded-full ${f.dot}`} />}
+                  {f.label}
+                  <span className={`rounded-full px-1.5 text-xs tabular-nums ${active ? 'bg-white/25 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                    {counts[f.key]}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -179,6 +258,21 @@ const Vendors: React.FC = () => {
             <div className="p-12 text-center">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-300 mx-auto" />
               <p className="text-gray-600 mt-2">Loading vendors...</p>
+            </div>
+          ) : filtered.length === 0 && vendors.length > 0 ? (
+            <div className="p-12 text-center">
+              <Search className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+              <h3 className="text-lg font-medium text-gray-900 mb-1">No vendors match</h3>
+              <p className="text-gray-600 mb-5">
+                {show === 'outstanding' ? 'Nothing is owed to any vendor right now.' : 'Try another filter or search.'}
+              </p>
+              <button
+                onClick={() => { setSearchTerm(''); setParam('show', 'all', 'all'); }}
+                className="inline-flex items-center px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
+              >
+                <X className="h-4 w-4 mr-2" />
+                Show all vendors
+              </button>
             </div>
           ) : filtered.length === 0 ? (
             <div className="p-12 text-center">
@@ -258,6 +352,18 @@ const Vendors: React.FC = () => {
                   </tr>
                 ))}
               </tbody>
+              {filteringActive && (
+                <tfoot className="bg-gray-50 border-t-2 border-gray-200">
+                  <tr>
+                    <td className="px-6 py-3 text-sm font-semibold text-gray-700" colSpan={3}>
+                      {filtered.length} of {vendors.length} vendor{vendors.length === 1 ? '' : 's'} shown
+                    </td>
+                    <td className="px-6 py-3 text-right text-sm font-bold text-gray-900 tabular-nums">{formatCurrency(shownTotals.purchased)}</td>
+                    <td className={`px-6 py-3 text-right text-sm font-bold tabular-nums ${shownTotals.owed > 0 ? 'text-amber-600' : 'text-gray-500'}`}>{formatCurrency(shownTotals.owed)}</td>
+                    <td colSpan={2} />
+                  </tr>
+                </tfoot>
+              )}
             </table>
           )}
         </div>
@@ -303,21 +409,50 @@ const Vendors: React.FC = () => {
   );
 };
 
+type VendorFilter = 'all' | 'outstanding' | 'settled' | 'none';
+type VendorSort = 'name' | 'owed' | 'purchased' | 'recent';
+
+const FILTERS: { key: VendorFilter; label: string; hint: string; dot?: string }[] = [
+  { key: 'all', label: 'All vendors', hint: 'Every vendor' },
+  { key: 'outstanding', label: 'Outstanding', hint: 'Vendors you still owe money to', dot: 'bg-amber-500' },
+  { key: 'settled', label: 'Fully paid', hint: 'Vendors with purchases that are all paid', dot: 'bg-emerald-500' },
+  { key: 'none', label: 'No purchases yet', hint: 'Vendors with no purchases recorded', dot: 'bg-gray-400' },
+];
+
+const SORTS: { key: VendorSort; label: string }[] = [
+  { key: 'name', label: 'Name (A–Z)' },
+  { key: 'owed', label: 'Highest outstanding' },
+  { key: 'purchased', label: 'Most purchased' },
+  { key: 'recent', label: 'Latest activity' },
+];
+
+const vendorStatus = (v: Vendor): Exclude<VendorFilter, 'all'> =>
+  Number(v.balance_payable || 0) > 0.004 ? 'outstanding'
+    : Number(v.purchase_count || 0) > 0 || Number(v.total_purchased || 0) > 0 ? 'settled'
+    : 'none';
+
 const SummaryCard: React.FC<{
   label: string;
   value: string;
   icon: React.ComponentType<{ className?: string }>;
   truncate?: boolean;
-}> = ({ label, value, icon: Icon, truncate }) => (
-  <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 flex items-center">
+  sub?: string;
+  onClick?: () => void;
+}> = ({ label, value, icon: Icon, truncate, sub, onClick }) => (
+  <div
+    className={`bg-white rounded-lg shadow-sm border border-gray-200 p-6 flex items-center ${onClick ? 'cursor-pointer hover:border-gray-300 hover:shadow' : ''}`}
+    onClick={onClick}
+    role={onClick ? 'button' : undefined}
+    tabIndex={onClick ? 0 : undefined}
+    onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } } : undefined}
+  >
     <div className="p-3 rounded-lg brand-halo flex-shrink-0">
       <Icon className="h-6 w-6 brand-icon" />
     </div>
     <div className="ml-4 min-w-0 flex-1">
       <p className="text-sm font-medium text-gray-600">{label}</p>
-      <p className={`text-2xl font-bold text-gray-900 ${truncate ? 'truncate text-xl' : ''}`} title={value}>
-        {value}
-      </p>
+      <FitText className={`${truncate ? 'text-xl' : 'text-2xl'} font-bold text-gray-900 tabular-nums`} title={value}>{value}</FitText>
+      {sub && <p className="text-xs text-amber-700 mt-0.5">{sub}</p>}
     </div>
   </div>
 );

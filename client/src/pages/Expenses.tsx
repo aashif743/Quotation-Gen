@@ -16,6 +16,7 @@ import {
   Paperclip, ExternalLink, Loader2, Download,
 } from 'lucide-react';
 import MoneyInput from '../components/common/MoneyInput';
+import FitText from '../components/common/FitText';
 
 const CATEGORIES = [
   'Rent', 'Salaries', 'Transport', 'Fuel', 'Utilities', 'Office Supplies',
@@ -470,7 +471,7 @@ const SummaryCard: React.FC<{ label: string; value: string; icon: React.Componen
     <div className="p-3 rounded-lg brand-halo flex-shrink-0"><Icon className="h-6 w-6 brand-icon" /></div>
     <div className="ml-4 min-w-0 flex-1">
       <p className="text-sm font-medium text-gray-600">{label}</p>
-      <p className={`text-2xl font-bold text-gray-900 ${truncate ? 'truncate text-xl' : ''}`} title={value}>{value}</p>
+      <FitText className={`${truncate ? 'text-xl' : 'text-2xl'} font-bold text-gray-900 tabular-nums`} title={value}>{value}</FitText>
     </div>
   </div>
 );

@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import AccountSelect from '../components/common/AccountSelect';
 import MoneyInput, { UnitInput } from '../components/common/MoneyInput';
+import FitText from '../components/common/FitText';
 
 type Tab = 'payslips' | 'staff' | 'settings';
 
@@ -248,7 +249,7 @@ const PayslipsTab: React.FC<{
         ] as const).map(([label, value]) => (
           <div key={label} className={`${card} px-4 py-3`}>
             <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">{label}</div>
-            <div className="text-lg font-bold text-gray-900 dark:text-gray-100 truncate" title={value}>{value}</div>
+            <FitText className="text-lg font-bold text-gray-900 dark:text-gray-100 tabular-nums" title={value}>{value}</FitText>
           </div>
         ))}
       </div>

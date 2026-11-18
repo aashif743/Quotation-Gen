@@ -11,6 +11,7 @@ import AccountSelect from '../components/common/AccountSelect';
 import { Purchase } from '../types';
 import { ArrowLeft, Trash2, Plus, Loader2, TrendingUp, Link as LinkIcon, X } from 'lucide-react';
 import MoneyInput from '../components/common/MoneyInput';
+import FitText from '../components/common/FitText';
 
 const statusPill = (s?: string) => {
   const map: Record<string, string> = {
@@ -259,7 +260,7 @@ const PurchaseView: React.FC = () => {
 const Metric: React.FC<{ label: string; value: string; valueClass?: string }> = ({ label, value, valueClass }) => (
   <div>
     <p className="text-xs text-gray-500 uppercase tracking-wider">{label}</p>
-    <p className={`text-xl font-bold tabular-nums ${valueClass || 'text-gray-900'}`}>{value}</p>
+    <FitText className={`text-xl font-bold tabular-nums ${valueClass || 'text-gray-900'}`}>{value}</FitText>
   </div>
 );
 

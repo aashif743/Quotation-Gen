@@ -14,6 +14,7 @@ import {
   FileText, Receipt, DollarSign, TrendingUp, TrendingDown, Wallet, Plus,
   ArrowUpRight, Users, Banknote, Truck, Landmark, Smartphone,
 } from 'lucide-react';
+import FitText from '../components/common/FitText';
 
 // Animate a number from 0 → target on mount.
 const useCountUp = (target: number, duration = 900): number => {
@@ -384,7 +385,7 @@ const StatCard: React.FC<{
           </span>
         )}
       </div>
-      <p className="text-2xl font-bold text-gray-900 dark:text-white mt-4 tabular-nums truncate" title={full}>{display}</p>
+      <FitText className="text-2xl font-bold text-gray-900 dark:text-white mt-4 tabular-nums" title={full}>{display}</FitText>
       <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{label}</p>
       {sub && <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{sub}</p>}
     </div>
@@ -398,8 +399,8 @@ const MiniStat: React.FC<{ i: number; label: string; value: number; money?: bool
       <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: hexToRgba(accent, 0.14), color: accent }}>
         <Icon className="h-5 w-5" />
       </div>
-      <div className="min-w-0">
-        <p className="text-lg font-bold text-gray-900 dark:text-white tabular-nums truncate" title={money ? formatCurrency(value) : undefined}>{money ? formatCompactCurrency(v) : Math.round(v).toLocaleString()}</p>
+      <div className="min-w-0 flex-1">
+        <FitText className="text-lg font-bold text-gray-900 dark:text-white tabular-nums" title={money ? formatCurrency(value) : undefined}>{money ? formatCompactCurrency(v) : Math.round(v).toLocaleString()}</FitText>
         <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{label}</p>
       </div>
     </div>

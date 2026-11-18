@@ -11,6 +11,7 @@ import {
 } from '../types/donations';
 import { toCsv, downloadCsv } from '../utils/csv';
 import { HeartHandshake, Plus, Search, Download, Paperclip, Loader2, Gift, Users, Clock, CheckCircle2 } from 'lucide-react';
+import FitText from '../components/common/FitText';
 
 const fmtDate = (d?: string) => (d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
 
@@ -99,7 +100,7 @@ const Donations: React.FC = () => {
         {cards.map((c) => (
           <div key={c.label} className="bg-white rounded-xl border border-gray-200 p-4">
             <div className={`inline-flex h-8 w-8 items-center justify-center rounded-lg ${c.tone}`}><c.icon className="h-4 w-4" /></div>
-            <div className="mt-2 text-2xl font-bold text-gray-900">{c.value}</div>
+            <FitText className="mt-2 text-2xl font-bold text-gray-900">{c.value}</FitText>
             <div className="text-xs text-gray-500">{c.label}</div>
             {c.sub && <div className="text-xs text-amber-700 mt-0.5">{c.sub}</div>}
           </div>

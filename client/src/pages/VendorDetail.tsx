@@ -10,6 +10,7 @@ import { Vendor, PurchaseDocSummary } from '../types';
 import {
   ArrowLeft, Edit2, Save, X, Plus, ShoppingCart, DollarSign, Calendar, Loader2,
 } from 'lucide-react';
+import FitText from '../components/common/FitText';
 
 const statusPill = (s?: string) => ({
   paid: 'bg-green-100 text-green-800',
@@ -202,9 +203,9 @@ const Stat: React.FC<{ label: string; value: string; icon: React.ComponentType<{
     <div className={`p-3 rounded-lg flex-shrink-0 ${amber ? 'bg-amber-100' : 'brand-halo'}`}>
       <Icon className={`h-5 w-5 ${amber ? 'text-amber-700' : 'brand-icon'}`} />
     </div>
-    <div className="ml-4 min-w-0">
+    <div className="ml-4 min-w-0 flex-1">
       <p className="text-sm font-medium text-gray-600">{label}</p>
-      <p className={`text-xl font-bold ${amber ? 'text-amber-700' : 'text-gray-900'} tabular-nums truncate`} title={value}>{value}</p>
+      <FitText className={`text-xl font-bold ${amber ? 'text-amber-700' : 'text-gray-900'} tabular-nums`} title={value}>{value}</FitText>
     </div>
   </div>
 );

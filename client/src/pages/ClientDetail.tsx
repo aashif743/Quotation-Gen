@@ -33,6 +33,7 @@ import {
   Clock,
   AlertCircle,
 } from 'lucide-react';
+import FitText from '../components/common/FitText';
 
 type Tab = 'quotations' | 'invoices' | 'delivery-notes';
 
@@ -516,12 +517,9 @@ const MiniStat: React.FC<{
         {label}
       </p>
     </div>
-    <p
-      className="text-sm font-bold text-gray-900 truncate tabular-nums mt-0.5"
-      title={value}
-    >
+    <FitText className="text-sm font-bold text-gray-900 tabular-nums mt-0.5" title={value}>
       {value}
-    </p>
+    </FitText>
   </div>
 );
 

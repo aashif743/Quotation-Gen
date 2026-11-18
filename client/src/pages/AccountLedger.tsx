@@ -12,6 +12,7 @@ import {
 import AccountStatementDocument, { fmtLedgerDate } from '../components/Accounts/AccountStatementDocument';
 import { TransactionModal, TxnDraft } from '../components/Accounts/AccountModals';
 import { ArrowLeft, Printer, Download, Loader2, Pencil, Trash2, ArrowLeftRight, ExternalLink } from 'lucide-react';
+import FitText from '../components/common/FitText';
 
 type Preset = 'month' | 'last_month' | '3mo' | 'year' | 'all' | 'custom';
 const PRESETS: { id: Preset; label: string }[] = [
@@ -178,7 +179,7 @@ const AccountLedgerPage: React.FC = () => {
             ].map(([label, val, cls]) => (
               <div key={label as string} className="bg-white rounded-xl border border-gray-200 p-4">
                 <div className="text-xs font-medium text-gray-500 uppercase tracking-wider">{label as string}</div>
-                <div className={`mt-1 text-lg font-bold tabular-nums ${cls}`}>{formatCurrency(val as number)}</div>
+                <FitText className={`mt-1 text-lg font-bold tabular-nums ${cls}`}>{formatCurrency(val as number)}</FitText>
               </div>
             ))}
           </div>

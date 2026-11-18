@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import DuplicateInvoiceModal from '../components/Invoice/DuplicateInvoiceModal';
 import InvoiceDocument from '../components/Invoice/InvoiceDocument';
+import FitText from '../components/common/FitText';
 
 const InvoiceView: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -420,20 +421,20 @@ const PaymentPanel: React.FC<{
       <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-gray-200">
         <div className="px-5 py-3">
           <p className="text-[11px] uppercase tracking-wide text-gray-500">Total invoiced</p>
-          <p className="text-lg font-bold text-gray-900 tabular-nums">{formatCurrency(total)}</p>
+          <FitText className="text-lg font-bold text-gray-900 tabular-nums">{formatCurrency(total)}</FitText>
         </div>
         <div className="px-5 py-3">
           <p className="text-[11px] uppercase tracking-wide text-gray-500">Amount paid</p>
-          <p className="text-lg font-bold text-green-700 tabular-nums">{formatCurrency(cashPaid)}</p>
+          <FitText className="text-lg font-bold text-green-700 tabular-nums">{formatCurrency(cashPaid)}</FitText>
           {discounts > 0 && (
             <p className="text-xs text-amber-700 tabular-nums">+ {formatCurrency(discounts)} discount allowed</p>
           )}
         </div>
         <div className="px-5 py-3">
           <p className="text-[11px] uppercase tracking-wide text-gray-500">Balance due</p>
-          <p className={`text-lg font-bold tabular-nums ${balance > 0 ? 'text-red-600' : 'text-gray-900'}`}>
+          <FitText className={`text-lg font-bold tabular-nums ${balance > 0 ? 'text-red-600' : 'text-gray-900'}`}>
             {formatCurrency(balance)}
-          </p>
+          </FitText>
         </div>
       </div>
 

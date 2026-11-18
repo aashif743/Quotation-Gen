@@ -7,6 +7,7 @@ import AccountSelect from '../common/AccountSelect';
 import { useCompany } from '../../context/CompanyContext';
 import { Payment } from '../../types';
 import { X, CreditCard, CheckCircle2, BadgePercent } from 'lucide-react';
+import FitText from '../common/FitText';
 
 const METHODS = [
   'Cash',
@@ -465,12 +466,12 @@ const SummaryStat: React.FC<{
 }> = ({ label, value, color = 'text-gray-900', bold }) => (
   <div className="min-w-0 flex-1">
     <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">{label}</p>
-    <p
-      className={`${bold ? 'font-bold text-sm' : 'font-semibold text-xs'} ${color} truncate tabular-nums`}
+    <FitText
+      className={`${bold ? 'font-bold text-sm' : 'font-semibold text-xs'} ${color} tabular-nums`}
       title={formatCurrency(value)}
     >
       {formatCurrency(value)}
-    </p>
+    </FitText>
   </div>
 );
 

@@ -15,6 +15,7 @@ import {
   ArrowDownCircle, ArrowUpCircle, Paperclip, ExternalLink, Loader2, Wallet,
 } from 'lucide-react';
 import MoneyInput from '../components/common/MoneyInput';
+import FitText from '../components/common/FitText';
 
 const OUT_CATEGORIES = [
   'Transport', 'Tea & Refreshments', 'Stationery', 'Postage', 'Cleaning',
@@ -222,13 +223,13 @@ const PettyCash: React.FC = () => {
       )}
 
       {/* Balance + summary */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="md:col-span-2 rounded-xl shadow-sm border p-6 flex items-center justify-between text-white" style={{ backgroundColor: primary }}>
-          <div>
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+        <div className="md:col-span-2 rounded-xl shadow-sm border p-6 flex items-center justify-between gap-4 text-white" style={{ backgroundColor: primary }}>
+          <div className="min-w-0 flex-1">
             <p className="text-sm font-medium opacity-90">Current balance in hand</p>
-            <p className="text-4xl font-bold mt-1 tabular-nums">{formatCurrency(balance)}</p>
+            <FitText className="text-4xl font-bold mt-1 tabular-nums" title={formatCurrency(balance)}>{formatCurrency(balance)}</FitText>
           </div>
-          <Wallet className="h-12 w-12 opacity-80" />
+          <Wallet className="h-12 w-12 opacity-80 flex-shrink-0" />
         </div>
         <SummaryCard label="Total in" value={formatCurrency(summary?.total_in || 0)} icon={ArrowDownCircle} tone="emerald" />
         <SummaryCard label="Total out" value={formatCurrency(summary?.total_out || 0)} icon={ArrowUpCircle} tone="rose" sub={`${formatCurrency(thisMonthOut)} this month`} />
@@ -425,7 +426,7 @@ const SummaryCard: React.FC<{ label: string; value: string; icon: React.Componen
     </div>
     <div className="ml-4 min-w-0 flex-1">
       <p className="text-sm font-medium text-gray-600">{label}</p>
-      <p className="text-xl font-bold text-gray-900 truncate" title={value}>{value}</p>
+      <FitText className="text-xl font-bold text-gray-900 tabular-nums" title={value}>{value}</FitText>
       {sub && <p className="text-xs text-gray-500 truncate">{sub}</p>}
     </div>
   </div>

@@ -20,6 +20,7 @@ import {
   Copy
 } from 'lucide-react';
 import DuplicateInvoiceModal from '../components/Invoice/DuplicateInvoiceModal';
+import FitText from '../components/common/FitText';
 
 const InvoiceHistory: React.FC = () => {
   const { selectedCompany } = useCompany();
@@ -244,9 +245,9 @@ const InvoiceHistory: React.FC = () => {
             <div className="p-3 rounded-lg" style={getIconBgStyle()}>
               <Calendar className="h-6 w-6" style={getTextStyle()} />
             </div>
-            <div className="ml-4">
+            <div className="ml-4 min-w-0 flex-1">
               <p className="text-sm font-medium text-gray-600">Total Value</p>
-              <p className="text-2xl font-bold text-gray-900">{formatCurrency(stats.totalValue)}</p>
+              <FitText className="text-2xl font-bold text-gray-900">{formatCurrency(stats.totalValue)}</FitText>
             </div>
           </div>
         </div>
@@ -256,9 +257,9 @@ const InvoiceHistory: React.FC = () => {
             <div className="p-3 rounded-lg" style={getIconBgStyle()}>
               <User className="h-6 w-6" style={getTextStyle()} />
             </div>
-            <div className="ml-4">
+            <div className="ml-4 min-w-0 flex-1">
               <p className="text-sm font-medium text-gray-600">Average Value</p>
-              <p className="text-2xl font-bold text-gray-900">{formatCurrency(stats.averageValue)}</p>
+              <FitText className="text-2xl font-bold text-gray-900">{formatCurrency(stats.averageValue)}</FitText>
             </div>
           </div>
         </div>
