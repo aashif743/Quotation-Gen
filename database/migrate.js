@@ -1406,7 +1406,8 @@ async function migrate() {
             seq += 1;
             await conn.query('UPDATE payments SET receipt_number = ? WHERE id = ? AND receipt_number IS NULL', [`${prefix}-${String(seq).padStart(4, '0')}`, id]);
           }
-          await conn.query('UPDATE companies SET receipt_seq = ? WHERE id = ?', [seq, companyId]);
+          // Keep the company's "last updated" time: only the counter changes.
+          await conn.query('UPDATE companies SET receipt_seq = ?, updated_at = updated_at WHERE id = ?', [seq, companyId]);
           await conn.commit();
         } catch (e) {
           await conn.rollback();
