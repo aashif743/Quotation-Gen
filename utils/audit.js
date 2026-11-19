@@ -31,6 +31,7 @@ const ENTITIES = {
   'petty-cash':      { type: 'petty_cash',    table: 'petty_cash',      label: 'entry_number' },
   payments:          { type: 'payment',       table: 'payments',        label: null },
   'cash-sales':      { type: 'cash_sale',     table: 'invoices',        label: 'invoice_number' },
+  letters:           { type: 'letter',        table: 'letters',         label: 'letter_number' },
   users:             { type: 'user',          table: 'users',           label: 'name' },
   companies:         { type: 'company',       table: 'companies',       label: 'name' },
   organizations:     { type: 'organization',  table: 'organizations',   label: 'name' },

@@ -3,6 +3,7 @@ import { useCompany } from '../context/CompanyContext';
 import { Upload, Save, AlertCircle, Plus, Trash2, Edit, X, Image as ImageIcon } from 'lucide-react';
 import { Company } from '../types';
 import { LETTERHEAD_FIELDS, Letterhead, parseLetterhead } from '../utils/letterhead';
+import { LetterDetails, parseLetterDetails } from '../components/Letter/LetterDocument';
 import VatControl from '../components/common/VatControl';
 
 // The client-specific 'supreme' letterhead design is offered only to a company
@@ -53,6 +54,8 @@ const Settings: React.FC = () => {
         secondary_color: selectedCompany.secondary_color || '#ffffff',
         template: selectedCompany.template || 'classic',
         default_terms_conditions: selectedCompany.default_terms_conditions || '',
+        // Phone / email / website printed on letters (other designs).
+        letter_details: selectedCompany.letter_details || '',
         // Letterhead details travel with the form only for a company that has
         // the client-specific 'supreme' design, so other companies never send it.
         ...(hasSupremeDesign(selectedCompany) ? { letterhead: selectedCompany.letterhead || '{}' } : {}),
@@ -592,6 +595,41 @@ const Settings: React.FC = () => {
                       <label className="block text-sm font-medium text-gray-700 mb-1.5">{f.label}</label>
                       {f.multiline ? (
                         <textarea value={value} onChange={(e) => set(e.target.value)} rows={3} placeholder={f.placeholder}
+                          className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
+                      ) : (
+                        <input value={value} onChange={(e) => set(e.target.value)} placeholder={f.placeholder}
+                          className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {formData.template !== 'supreme' && (
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <h2 className="text-xl font-semibold mb-2">Letterhead Contact Details</h2>
+              <p className="text-sm text-gray-500 mb-6">
+                Printed on the company's letters with the logo, address and TPIN above. Leave a field blank to hide it.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {([
+                  { key: 'phone', label: 'Phone numbers', placeholder: '+265 999 123 456\n+265 888 123 456', multiline: true },
+                  { key: 'email', label: 'Email', placeholder: 'info@example.com' },
+                  { key: 'website', label: 'Website', placeholder: 'www.example.com' },
+                  { key: 'footer_note', label: 'Footer note', placeholder: 'e.g. Registered in Malawi, Reg. No. 12345' },
+                ] as { key: keyof LetterDetails; label: string; placeholder: string; multiline?: boolean }[]).map((f) => {
+                  const value = String(parseLetterDetails(formData.letter_details)[f.key] ?? '');
+                  const set = (v: string) => {
+                    const next: LetterDetails = { ...parseLetterDetails(formData.letter_details), [f.key]: v };
+                    setFormData((prev) => ({ ...prev, letter_details: JSON.stringify(next) }));
+                  };
+                  return (
+                    <div key={f.key} className={f.multiline ? 'md:row-span-2' : ''}>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">{f.label}</label>
+                      {f.multiline ? (
+                        <textarea value={value} onChange={(e) => set(e.target.value)} rows={4} placeholder={f.placeholder.replace('\\n', '\n')}
                           className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
                       ) : (
                         <input value={value} onChange={(e) => set(e.target.value)} placeholder={f.placeholder}

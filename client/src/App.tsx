@@ -52,6 +52,9 @@ import CashSales from './pages/CashSales';
 import CashSaleForm from './pages/CashSaleForm';
 import CashSaleView from './pages/CashSaleView';
 import ReceiptView from './pages/ReceiptView';
+import Letters from './pages/Letters';
+import LetterForm from './pages/LetterForm';
+import LetterView from './pages/LetterView';
 import Organizations from './pages/Organizations';
 import UserManagement from './pages/UserManagement';
 import Login from './pages/Login';
@@ -215,6 +218,10 @@ function AppRoutes() {
                   <Route path="/cash-sales/:id" element={<PaymentsRoute><CashSaleView /></PaymentsRoute>} />
                   <Route path="/cash-sales/:id/edit" element={<PaymentsRoute><CashSaleForm /></PaymentsRoute>} />
                   <Route path="/receipts/:paymentId" element={<PaymentsRoute><ReceiptView /></PaymentsRoute>} />
+                  <Route path="/letters" element={<Letters />} />
+                  <Route path="/letters/new" element={<LetterForm />} />
+                  <Route path="/letters/:id" element={<LetterView />} />
+                  <Route path="/letters/:id/edit" element={<LetterForm />} />
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/quotation/:id" element={<QuotationView />} />
                   <Route path="/invoice/:id" element={<InvoiceView />} />

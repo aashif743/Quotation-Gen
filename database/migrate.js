@@ -1419,6 +1419,62 @@ async function migrate() {
     } else { console.log('  • All payments already have receipt numbers.'); }
   }
 
+  // 3zd. Letters (added 2026-11). Additive only.
+  //   - letters: business letters on the company letterhead.
+  //   - users.job_title / users.signature_url: the signature a user signs
+  //     letters with (uploaded once in My Profile). A letter keeps its own copy
+  //     of the signature path, so later changes never alter old letters.
+  //   - companies.letter_details: JSON contact lines (phone, email, website)
+  //     for the letterhead of companies without the Supreme design.
+  if (!(await tableExists('letters'))) {
+    console.log('  • Creating `letters` table...');
+    await db.query(`
+      CREATE TABLE letters (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        company_id INT NOT NULL,
+        created_by INT NULL,
+        letter_number VARCHAR(50) NOT NULL,
+        date DATE NOT NULL,
+        reference VARCHAR(150) NULL,
+        recipient_name VARCHAR(255) NULL,
+        recipient_title VARCHAR(255) NULL,
+        recipient_company VARCHAR(255) NULL,
+        recipient_address TEXT NULL,
+        subject VARCHAR(500) NULL,
+        salutation VARCHAR(255) NULL,
+        body MEDIUMTEXT NULL,
+        closing VARCHAR(255) NULL,
+        signer_user_id INT NULL,
+        signer_name VARCHAR(255) NULL,
+        signer_title VARCHAR(255) NULL,
+        signature_url VARCHAR(255) NULL,
+        show_signature TINYINT(1) NOT NULL DEFAULT 1,
+        cc TEXT NULL,
+        enclosures TEXT NULL,
+        created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_letter_number (company_id, letter_number),
+        KEY idx_letters_company_date (company_id, date),
+        CONSTRAINT fk_letters_company FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
+        CONSTRAINT fk_letters_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+        CONSTRAINT fk_letters_signer FOREIGN KEY (signer_user_id) REFERENCES users(id) ON DELETE SET NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+  } else { console.log('  • letters table already present, skipping.'); }
+  for (const [col, sql] of [
+    ['job_title', 'ALTER TABLE `users` ADD COLUMN `job_title` VARCHAR(150) NULL'],
+    ['signature_url', 'ALTER TABLE `users` ADD COLUMN `signature_url` VARCHAR(255) NULL'],
+  ]) {
+    if (!(await columnExists('users', col))) {
+      console.log(`  • Adding \`${col}\` to users...`);
+      await db.query(sql);
+    } else { console.log(`  • users.${col} already present, skipping.`); }
+  }
+  if (!(await columnExists('companies', 'letter_details'))) {
+    console.log('  • Adding `letter_details` to companies...');
+    await db.query('ALTER TABLE `companies` ADD COLUMN `letter_details` TEXT NULL');
+  } else { console.log('  • companies.letter_details already present, skipping.'); }
+
   // 4. Backfill created_by from each row's company owner so existing records
   //    are attributed to the user who originally owned the company.
   const [qBackfill] = await db.query(

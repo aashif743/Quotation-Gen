@@ -41,6 +41,7 @@ import {
   Sun,
   Moon,
   ShoppingBag,
+  Mail,
 } from 'lucide-react';
 import FloatingScrollbar from './FloatingScrollbar';
 
@@ -211,6 +212,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       ...(canHandlePayments ? [{ to: '/cash-sales/new', icon: ShoppingBag, label: 'New Cash Sale' }] : []),
       ...(canUseDeliveryNotes ? [{ to: '/new-delivery-note', icon: Truck, label: 'New Delivery Note' }] : []),
       { to: '/lpos/new', icon: PackageCheck, label: 'New LPO' },
+      { to: '/letters/new', icon: Mail, label: 'New Letter' },
     ]},
     { label: 'Records', items: [
       { to: '/history', icon: History, label: 'Quotation History' },
@@ -220,6 +222,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       ...(canHandlePayments ? [{ to: '/cash-sales', icon: ShoppingBag, label: 'Cash Sales' }] : []),
       ...(canUseDeliveryNotes ? [{ to: '/delivery-history', icon: Truck, label: 'Delivery Notes' }] : []),
       { to: '/contracts', icon: FileSignature, label: 'Contracts' },
+      { to: '/letters', icon: Mail, label: 'Letters' },
     ]},
     { label: 'Contacts', items: [
       { to: '/clients', icon: Briefcase, label: 'Clients' },

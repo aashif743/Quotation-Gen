@@ -4,6 +4,7 @@ import { useCompany } from '../context/CompanyContext';
 import { useTheme } from '../context/ThemeContext';
 import { brandColorFor } from '../utils/colors';
 import { updateMyProfile } from '../services/api';
+import SignatureCard from '../components/Letter/SignatureCard';
 import { UserCog, Save, KeyRound, Eye, EyeOff, Loader2, CheckCircle2, AlertCircle, ShieldCheck } from 'lucide-react';
 
 type Notice = { kind: 'ok' | 'err'; text: string } | null;
@@ -112,7 +113,7 @@ const Profile: React.FC = () => {
         <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
           <UserCog className="h-7 w-7" style={{ color: primary }} /> My Profile
         </h1>
-        <p className="text-gray-600 mt-1">Change your name, the email you sign in with, and your password.</p>
+        <p className="text-gray-600 mt-1">Change your name, the email you sign in with, your signature for letters and your password.</p>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
@@ -151,6 +152,8 @@ const Profile: React.FC = () => {
           </div>
         </form>
       </div>
+
+      <SignatureCard primary={primary} />
 
       <div className="bg-white rounded-xl border border-gray-200 p-6">
         <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2"><KeyRound className="h-5 w-5 text-gray-500" /> {hasPassword ? 'Change password' : 'Set a password'}</h2>

@@ -241,6 +241,8 @@ export interface Company {
   template?: QuotationTemplate;
   /** JSON letterhead details for the 'supreme' design (see utils/letterhead). */
   letterhead?: string | null;
+  /** JSON phone / email / website for letters (other designs). */
+  letter_details?: string | null;
   default_terms_conditions?: string | null;
   created_at: string;
   updated_at: string;

@@ -49,6 +49,7 @@ const SPECS = {
     children: [{ table: 'donation_items', fk: 'donation_id' }],
   },
   contract: { table: 'contracts', label: 'contract_number', name: 'Contract' },
+  letter: { table: 'letters', label: 'letter_number', name: 'Letter' },
   client: {
     table: 'clients', label: 'name', name: 'Client',
     refs: [['quotations', 'client_id'], ['invoices', 'client_id'], ['delivery_notes', 'client_id'], ['job_cards', 'client_id'], ['contracts', 'client_id']],
@@ -96,6 +97,8 @@ function describe(type, row, parentRow) {
       return [row.recipient_name, money(row.amount)].filter(Boolean).join(' · ');
     case 'contract':
       return [row.client_name, row.title].filter(Boolean).join(' · ');
+    case 'letter':
+      return [row.recipient_company || row.recipient_name, row.subject].filter(Boolean).join(' · ');
     case 'client':
     case 'vendor':
       return [row.contact_person, row.phone || row.email].filter(Boolean).join(' · ');

@@ -135,6 +135,15 @@ router.put('/:id', isAdmin, upload.single('logo'), async (req, res) => {
     // Letterhead details (contact lines, services, tagline…) used by the
     // 'supreme' design. Only touched when the form sends them, so saving a
     // company that doesn't use that design leaves the column as it was.
+    // Letterhead contact lines for letters (phone, email, website) — JSON.
+    if (req.body.letter_details !== undefined) {
+      let ld = req.body.letter_details;
+      if (typeof ld !== 'string') ld = JSON.stringify(ld || {});
+      try { JSON.parse(ld || '{}'); } catch { return res.status(400).json({ error: 'Invalid letterhead contact details.' }); }
+      updateQuery += ', letter_details = ?';
+      queryParams.push(ld && ld !== '{}' ? ld.slice(0, 5000) : null);
+    }
+
     if (req.body.letterhead !== undefined) {
       let lh = req.body.letterhead;
       if (typeof lh !== 'string') lh = JSON.stringify(lh || {});
