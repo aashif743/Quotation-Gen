@@ -31,7 +31,8 @@ interface InvoiceSummary {
 interface RecordPaymentModalProps {
   invoice: InvoiceSummary;
   onClose: () => void;
-  onRecorded?: () => void;
+  /** Called after saving; a newly recorded money payment is passed so its receipt can be offered. */
+  onRecorded?: (payment?: Payment) => void;
   /**
    * When provided, the modal switches to edit mode: it pre-fills with the
    * payment's existing values and PUTs to /api/payments/:id on save instead
@@ -144,6 +145,7 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
     setError('');
     try {
       let paymentId: number;
+      let newPayment: Payment | undefined;
       if (isEdit) {
         paymentId = existingPayment!.id;
         await updatePayment(existingPayment!.id, {
@@ -166,6 +168,7 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
           account_id: amount > 0 ? accountId : null,
         });
         paymentId = created.id;
+        if (amount > 0) newPayment = created;
       }
       if (proofFile && canAttachProof) {
         try {
@@ -179,7 +182,7 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
           );
         }
       }
-      if (onRecorded) onRecorded();
+      if (onRecorded) onRecorded(newPayment);
       onClose();
     } catch (err: any) {
       setError(

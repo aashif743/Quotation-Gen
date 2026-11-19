@@ -30,6 +30,7 @@ const ENTITIES = {
   expenses:          { type: 'expense',       table: 'expenses',        label: 'expense_number' },
   'petty-cash':      { type: 'petty_cash',    table: 'petty_cash',      label: 'entry_number' },
   payments:          { type: 'payment',       table: 'payments',        label: null },
+  'cash-sales':      { type: 'cash_sale',     table: 'invoices',        label: 'invoice_number' },
   users:             { type: 'user',          table: 'users',           label: 'name' },
   companies:         { type: 'company',       table: 'companies',       label: 'name' },
   organizations:     { type: 'organization',  table: 'organizations',   label: 'name' },

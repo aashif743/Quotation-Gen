@@ -82,7 +82,7 @@ function describe(type, row, parentRow) {
   switch (type) {
     case 'quotation':
     case 'invoice':
-      return [row.client_name, row.grand_total != null ? money(row.grand_total) : null].filter(Boolean).join(' · ');
+      return [row.doc_type === 'cash_sale' ? 'Cash sale' : null, row.client_name, row.grand_total != null ? money(row.grand_total) : null].filter(Boolean).join(' · ');
     case 'delivery_note':
     case 'job_card':
       return row.client_name || '';

@@ -40,6 +40,7 @@ import {
   HeartHandshake,
   Sun,
   Moon,
+  ShoppingBag,
 } from 'lucide-react';
 import FloatingScrollbar from './FloatingScrollbar';
 
@@ -207,6 +208,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       { to: '/new-quotation', icon: FileText, label: 'New Quotation' },
       { to: '/job-cards/new', icon: ClipboardList, label: 'New Job Card' },
       { to: '/new-invoice', icon: Receipt, label: 'New Invoice' },
+      ...(canHandlePayments ? [{ to: '/cash-sales/new', icon: ShoppingBag, label: 'New Cash Sale' }] : []),
       ...(canUseDeliveryNotes ? [{ to: '/new-delivery-note', icon: Truck, label: 'New Delivery Note' }] : []),
       { to: '/lpos/new', icon: PackageCheck, label: 'New LPO' },
     ]},
@@ -215,6 +217,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       { to: '/job-cards', icon: ClipboardList, label: 'Job Cards' },
       { to: '/services', icon: Tags, label: 'Services & Prices' },
       { to: '/invoice-history', icon: Receipt, label: 'Invoice History' },
+      ...(canHandlePayments ? [{ to: '/cash-sales', icon: ShoppingBag, label: 'Cash Sales' }] : []),
       ...(canUseDeliveryNotes ? [{ to: '/delivery-history', icon: Truck, label: 'Delivery Notes' }] : []),
       { to: '/contracts', icon: FileSignature, label: 'Contracts' },
     ]},

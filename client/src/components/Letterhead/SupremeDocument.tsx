@@ -13,7 +13,7 @@ import { Letterhead, lines, parseLetterhead } from '../../utils/letterhead';
  * Inline styles (not Tailwind) so html2canvas captures it exactly for the PDF.
  */
 
-export type SupremeKind = 'quotation' | 'invoice' | 'delivery';
+export type SupremeKind = 'quotation' | 'invoice' | 'delivery' | 'cash_sale';
 
 export interface SupremeDocData {
   number?: string;
@@ -28,6 +28,8 @@ export interface SupremeDocData {
   due_days?: number | null;
   /** Delivery note: reference (invoice / quotation number). */
   reference?: string | null;
+  /** Cash sale: how it was paid, e.g. "Cash" or "Bank Transfer · Ref 1234". */
+  paid_by?: string | null;
   items?: { description: string; quantity: number; unit_price?: number; total?: number }[];
   subtotal?: number;
   discount_amount?: number | string | null;
@@ -108,7 +110,8 @@ const SupremeDocument: React.FC<Props> = ({ kind, data, company, rootClassName =
   const sans = "'Segoe UI', Helvetica, Arial, sans-serif";
 
   const isDelivery = kind === 'delivery';
-  const docLabel = kind === 'quotation' ? 'QUOTATION NO:' : kind === 'invoice' ? 'INVOICE NO:' : 'DELIVERY NOTE NO:';
+  const docLabel = kind === 'quotation' ? 'QUOTATION NO:' : kind === 'invoice' ? 'INVOICE NO:' : kind === 'cash_sale' ? 'CASH SALE NO:' : 'DELIVERY NOTE NO:';
+  const isCashSale = kind === 'cash_sale';
   const items = data.items || [];
   const fillers = Math.max(0, MIN_ROWS - items.length);
   const itemTotal = (it: { quantity: number; unit_price?: number; total?: number }) =>
@@ -155,7 +158,9 @@ const SupremeDocument: React.FC<Props> = ({ kind, data, company, rootClassName =
     ? `This Quotation is Valid for ${data.expiry_days || 30} Days from the date of issue.`
     : kind === 'invoice'
       ? (data.due_days ? `Payment is due within ${data.due_days} days of the invoice date.` : 'Payment is due on receipt of this invoice.')
-      : 'Goods received in good order and condition.';
+      : kind === 'cash_sale'
+        ? 'Paid in full. Thank you for your business.'
+        : 'Goods received in good order and condition.';
 
   return (
     <div
@@ -210,6 +215,7 @@ const SupremeDocument: React.FC<Props> = ({ kind, data, company, rootClassName =
             ? fieldRow('REF', data.reference || '')
             : fieldRow('TITLE', data.title || '')}
           {kind === 'invoice' && fieldRow('DUE', data.due_days ? addDays(data.date, Number(data.due_days)) : 'On receipt')}
+          {isCashSale && fieldRow('PAID BY', data.paid_by || 'Cash')}
         </div>
 
         {/* Items table */}
@@ -272,7 +278,7 @@ const SupremeDocument: React.FC<Props> = ({ kind, data, company, rootClassName =
             {data.terms_conditions && (
               <p style={{ margin: '4px 0 0', fontFamily: serif, fontSize: 12, color: '#444', whiteSpace: 'pre-wrap' }}>{data.terms_conditions}</p>
             )}
-            {!isDelivery && bankLines.length > 0 && (
+            {!isDelivery && !isCashSale && bankLines.length > 0 && (
               <div style={{ marginTop: 12, textAlign: 'center', paddingRight: 30 }}>
                 {bankLines.map((l, i) => (
                   <p key={i} style={{ margin: 0, fontFamily: serif, fontSize: 14.5, color: '#111', letterSpacing: 0.2 }}>{l}</p>
@@ -296,7 +302,7 @@ const SupremeDocument: React.FC<Props> = ({ kind, data, company, rootClassName =
                 ...(disc > 0 ? [['DISCOUNT', `- ${formatNumber(disc)}`]] : []),
                 ...(noVat ? [] : [[vatLabel, vat > 0 ? formatNumber(vat) : 'Incl.']]),
                 ...(ppda > 0 ? [['PPDA', formatNumber(ppda)]] : []),
-                ['GRAND TOTAL', formatCurrency(Number(data.grand_total || 0), company.currency || undefined)],
+                [isCashSale ? 'TOTAL PAID' : 'GRAND TOTAL', formatCurrency(Number(data.grand_total || 0), company.currency || undefined)],
               ].map(([label, value], i, arr) => (
                 <div key={label} style={{ display: 'flex', alignItems: 'stretch' }}>
                   <div style={{ flex: 1, textAlign: 'right', whiteSpace: 'nowrap', padding: '10px 18px 6px 0', fontFamily: sans, fontWeight: 700, fontSize: i === arr.length - 1 || label === vatLabel ? 17 : 16, color: '#111' }}>

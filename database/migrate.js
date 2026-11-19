@@ -1359,6 +1359,66 @@ async function migrate() {
     await db.query('ALTER TABLE `companies` ADD COLUMN `vat_by_default` TINYINT(1) NOT NULL DEFAULT 1');
   } else { console.log('  • companies.vat_by_default already present, skipping.'); }
 
+  // 3zc. Cash sales and payment receipts (added 2026-11). Additive only.
+  //   - invoices.doc_type: 'invoice' (default, every existing row) or
+  //     'cash_sale' (sold and paid on the spot; its payment is recorded with
+  //     it). Cash sales are invoices underneath, so revenue, client
+  //     statements and bank / cash balances include them automatically.
+  //   - payments.receipt_number: the receipt each money payment prints as.
+  //     companies.receipt_seq is the company's counter, so a number is never
+  //     reused (not even after a payment is deleted). Existing payments are
+  //     numbered once, in date order, per company.
+  if (!(await columnExists('invoices', 'doc_type'))) {
+    console.log('  • Adding `doc_type` to invoices...');
+    await db.query("ALTER TABLE `invoices` ADD COLUMN `doc_type` VARCHAR(20) NOT NULL DEFAULT 'invoice'");
+    await db.query('ALTER TABLE `invoices` ADD INDEX `idx_invoices_company_doc_type` (`company_id`, `doc_type`)');
+  } else { console.log('  • invoices.doc_type already present, skipping.'); }
+  if (!(await columnExists('payments', 'receipt_number'))) {
+    console.log('  • Adding `receipt_number` to payments...');
+    await db.query('ALTER TABLE `payments` ADD COLUMN `receipt_number` VARCHAR(50) NULL');
+  } else { console.log('  • payments.receipt_number already present, skipping.'); }
+  if (!(await columnExists('companies', 'receipt_seq'))) {
+    console.log('  • Adding `receipt_seq` to companies...');
+    await db.query('ALTER TABLE `companies` ADD COLUMN `receipt_seq` INT NOT NULL DEFAULT 0');
+  } else { console.log('  • companies.receipt_seq already present, skipping.'); }
+  {
+    const { receiptPrefix } = require('../utils/receipts');
+    const [unnumbered] = await db.query(
+      `SELECT p.id, i.company_id
+         FROM payments p JOIN invoices i ON i.id = p.invoice_id
+        WHERE p.receipt_number IS NULL AND p.is_discount = 0
+        ORDER BY i.company_id, p.payment_date, p.id`
+    );
+    if (unnumbered.length) {
+      const byCompany = new Map();
+      for (const r of unnumbered) {
+        if (!byCompany.has(r.company_id)) byCompany.set(r.company_id, []);
+        byCompany.get(r.company_id).push(r.id);
+      }
+      for (const [companyId, ids] of byCompany) {
+        const conn = await db.getConnection();
+        try {
+          await conn.beginTransaction();
+          const [[co]] = await conn.query('SELECT name, receipt_seq FROM companies WHERE id = ? FOR UPDATE', [companyId]);
+          const prefix = receiptPrefix(co.name);
+          let seq = Number(co.receipt_seq) || 0;
+          for (const id of ids) {
+            seq += 1;
+            await conn.query('UPDATE payments SET receipt_number = ? WHERE id = ? AND receipt_number IS NULL', [`${prefix}-${String(seq).padStart(4, '0')}`, id]);
+          }
+          await conn.query('UPDATE companies SET receipt_seq = ? WHERE id = ?', [seq, companyId]);
+          await conn.commit();
+        } catch (e) {
+          await conn.rollback();
+          throw e;
+        } finally {
+          conn.release();
+        }
+      }
+      console.log(`  • Numbered ${unnumbered.length} existing payment receipt(s) in ${byCompany.size} compan${byCompany.size === 1 ? 'y' : 'ies'}.`);
+    } else { console.log('  • All payments already have receipt numbers.'); }
+  }
+
   // 4. Backfill created_by from each row's company owner so existing records
   //    are attributed to the user who originally owned the company.
   const [qBackfill] = await db.query(

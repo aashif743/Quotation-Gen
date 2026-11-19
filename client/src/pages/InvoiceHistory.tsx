@@ -47,7 +47,7 @@ const InvoiceHistory: React.FC = () => {
   const reloadInvoices = async () => {
     if (!selectedCompany) return;
     try {
-      const data = await getInvoices(selectedCompany.id);
+      const data = await getInvoices(selectedCompany.id, 'invoice');
       setInvoices(data);
     } catch (err) {
       console.error('Error reloading invoices:', err);
@@ -79,7 +79,7 @@ const InvoiceHistory: React.FC = () => {
       if (!selectedCompany) return;
 
       try {
-        const data = await getInvoices(selectedCompany.id);
+        const data = await getInvoices(selectedCompany.id, 'invoice');
         setInvoices(data);
         setFilteredInvoices(data);
       } catch (error) {

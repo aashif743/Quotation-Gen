@@ -48,6 +48,10 @@ import Accounts from './pages/Accounts';
 import AccountLedger from './pages/AccountLedger';
 import DonationForm from './pages/DonationForm';
 import DonationView from './pages/DonationView';
+import CashSales from './pages/CashSales';
+import CashSaleForm from './pages/CashSaleForm';
+import CashSaleView from './pages/CashSaleView';
+import ReceiptView from './pages/ReceiptView';
 import Organizations from './pages/Organizations';
 import UserManagement from './pages/UserManagement';
 import Login from './pages/Login';
@@ -152,6 +156,13 @@ const DeliveryRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 };
 
 // Bank & Cash: admins who handle payments.
+// Cash sales and receipts: people who handle payments.
+const PaymentsRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { canHandlePayments } = useAuth();
+  if (!canHandlePayments) return <Navigate to="/" replace />;
+  return <>{children}</>;
+};
+
 const AccountsRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAdmin, canHandlePayments } = useAuth();
   if (!isAdmin || !canHandlePayments) return <Navigate to="/" replace />;
@@ -199,6 +210,11 @@ function AppRoutes() {
                   <Route path="/new-invoice" element={<NewInvoice />} />
                   <Route path="/history" element={<QuotationHistory />} />
                   <Route path="/invoice-history" element={<InvoiceHistory />} />
+                  <Route path="/cash-sales" element={<PaymentsRoute><CashSales /></PaymentsRoute>} />
+                  <Route path="/cash-sales/new" element={<PaymentsRoute><CashSaleForm /></PaymentsRoute>} />
+                  <Route path="/cash-sales/:id" element={<PaymentsRoute><CashSaleView /></PaymentsRoute>} />
+                  <Route path="/cash-sales/:id/edit" element={<PaymentsRoute><CashSaleForm /></PaymentsRoute>} />
+                  <Route path="/receipts/:paymentId" element={<PaymentsRoute><ReceiptView /></PaymentsRoute>} />
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/quotation/:id" element={<QuotationView />} />
                   <Route path="/invoice/:id" element={<InvoiceView />} />

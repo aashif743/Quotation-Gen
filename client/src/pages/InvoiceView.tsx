@@ -25,6 +25,8 @@ import {
   XCircle,
   Truck,
   Copy,
+  Receipt,
+  X,
 } from 'lucide-react';
 import DuplicateInvoiceModal from '../components/Invoice/DuplicateInvoiceModal';
 import InvoiceDocument from '../components/Invoice/InvoiceDocument';
@@ -47,6 +49,8 @@ const InvoiceView: React.FC = () => {
   // When set, the modal opens in edit mode for this payment.
   const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
   const [showDuplicate, setShowDuplicate] = useState(false);
+  // The payment just recorded — offers its receipt.
+  const [justRecorded, setJustRecorded] = useState<Payment | null>(null);
 
   // Reload both the invoice (to refresh status/balance) and the payment list.
   const loadAll = async (invoiceId: number) => {
@@ -54,6 +58,11 @@ const InvoiceView: React.FC = () => {
       getInvoice(invoiceId),
       canHandlePayments ? getPaymentsForInvoice(invoiceId).catch(() => [] as Payment[]) : Promise.resolve([] as Payment[]),
     ]);
+    // A cash sale is shown (and edited) on its own page.
+    if (inv.doc_type === 'cash_sale') {
+      navigate(`/cash-sales/${inv.id}`, { replace: true });
+      return;
+    }
     setInvoice(inv);
     setPayments(pays);
   };
@@ -269,6 +278,29 @@ const InvoiceView: React.FC = () => {
 
       {/* Payment tracking section — outside the .invoice-document so it
           doesn't appear in the PDF or print. */}
+      {canHandlePayments && justRecorded && (
+        <div className="mb-3 no-print flex flex-wrap items-center justify-between gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3">
+          <div className="flex items-center gap-2 text-sm text-green-800">
+            <CheckCircle2 className="h-5 w-5 flex-shrink-0" />
+            <span>
+              Payment of <span className="font-semibold">{formatCurrency(Number(justRecorded.amount))}</span> recorded.
+              {justRecorded.receipt_number ? <> Receipt <span className="font-semibold">{justRecorded.receipt_number}</span> is ready.</> : null}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Link
+              to={`/receipts/${justRecorded.id}`}
+              className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-medium text-white bg-green-600 hover:bg-green-700"
+            >
+              <Receipt className="h-4 w-4 mr-1.5" /> View receipt
+            </Link>
+            <button onClick={() => setJustRecorded(null)} className="p-1.5 rounded-lg text-green-700 hover:bg-green-100" title="Dismiss">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {canHandlePayments && (
       <div className="mb-6 no-print">
         <PaymentPanel
@@ -335,7 +367,7 @@ const InvoiceView: React.FC = () => {
             client_name: invoice.client_name,
           }}
           onClose={() => setShowPaymentForm(false)}
-          onRecorded={() => loadAll(invoice.id!)}
+          onRecorded={(p) => { setJustRecorded(p || null); loadAll(invoice.id!); }}
         />
       )}
 
@@ -458,6 +490,7 @@ const PaymentPanel: React.FC<{
                 <th className="px-5 py-2 text-right text-[11px] font-medium text-gray-500 uppercase tracking-wider">Amount</th>
                 <th className="px-5 py-2 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">Recorded by</th>
                 <th className="px-5 py-2 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">Proof</th>
+                <th className="px-5 py-2 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">Receipt</th>
                 <th className="px-5 py-2"></th>
               </tr>
             </thead>
@@ -496,6 +529,20 @@ const PaymentPanel: React.FC<{
                         onUpload={(file) => onUploadProof(p.id, file)}
                         onRemove={() => onRemoveProof(p.id)}
                       />
+                    </td>
+                    <td className="px-5 py-2 whitespace-nowrap">
+                      {p.is_discount ? (
+                        <span className="text-xs text-gray-400">—</span>
+                      ) : (
+                        <Link
+                          to={`/receipts/${p.id}`}
+                          className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                          title="Open, print or download the receipt"
+                        >
+                          <Receipt className="h-3.5 w-3.5" />
+                          {p.receipt_number || 'Receipt'}
+                        </Link>
+                      )}
                     </td>
                     <td className="px-5 py-2 text-right whitespace-nowrap">
                       {canAct && (

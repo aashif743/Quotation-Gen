@@ -48,6 +48,12 @@ router.get('/', async (req, res) => {
       conditions.push('i.company_id = ?');
       queryParams.push(company_id);
     }
+    // ?doc_type=invoice → invoices only (Invoice History); ?doc_type=cash_sale →
+    // cash sales only. Without it both are listed (each row says which).
+    if (req.query.doc_type === 'invoice' || req.query.doc_type === 'cash_sale') {
+      conditions.push('i.doc_type = ?');
+      queryParams.push(req.query.doc_type);
+    }
     // Always stay inside the caller's organization — also when no company_id
     // is given (otherwise the list would include other organizations' rows).
     conditions.push('i.company_id IN (SELECT id FROM companies WHERE organization_id = ?)');
@@ -602,11 +608,15 @@ router.post('/:id/duplicate', async (req, res) => {
 // remains admin-only.
 router.put('/:id', async (req, res) => {
   const [check] = await db.execute(
-    'SELECT created_by FROM invoices WHERE id = ?',
+    'SELECT created_by, doc_type FROM invoices WHERE id = ?',
     [req.params.id]
   );
   if (check.length === 0) {
     return res.status(404).json({ error: 'Invoice not found' });
+  }
+  // A cash sale's payment must follow its total, so it is edited from Cash Sales.
+  if (check[0].doc_type === 'cash_sale') {
+    return res.status(400).json({ error: 'This is a cash sale. Edit it from Cash Sales.' });
   }
   if (req.user.role !== 'admin' && check[0].created_by !== req.user.id) {
     return res.status(403).json({ error: 'You can only edit your own invoices.' });

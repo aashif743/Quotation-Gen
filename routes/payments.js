@@ -4,6 +4,7 @@ const { isAuthenticated, isAdmin, canHandlePayments } = require('../middleware/a
 const { moveToRecycleBin } = require('../utils/recycleBin');
 const { requireCompanyAccess } = require("../utils/tenancy");
 const { pickAccount, methodFor, AccountError } = require('../utils/accounts');
+const { nextReceiptNumber } = require('../utils/receipts');
 const {
   makeProofUpload, acceptProofFile, publicProofUrl, discardUploaded, deleteStoredProof, originalName,
 } = require('../utils/proofUpload');
@@ -81,6 +82,66 @@ router.get('/', async (req, res) => {
   }
 });
 
+// GET /api/payments/:id/receipt — everything the printed receipt shows: the
+// payment, the invoice / cash sale it was for (with what was paid before it and
+// the balance left after it) and the company's letterhead details.
+router.get('/:id/receipt', async (req, res) => {
+  try {
+    const [rows] = await db.execute(
+      `${PAYMENT_SELECT}
+        WHERE p.id = ?`,
+      [req.params.id]
+    );
+    const payment = rows[0];
+    if (!payment || payment.is_discount) return res.status(404).json({ error: 'Receipt not found' });
+    const invoice = await loadAccessibleInvoice(req, payment.invoice_id);
+    if (!invoice) return res.status(404).json({ error: 'Receipt not found' });
+
+    const [[doc]] = await db.execute(
+      `SELECT i.id, i.invoice_number, i.doc_type, i.date, i.title, i.client_id, i.client_name, i.client_address,
+              i.client_email, i.client_phone, i.grand_total,
+              c.name AS company_name, c.address AS company_address, c.tpin AS company_tpin,
+              c.logo_url AS company_logo, c.quote_logo_url AS company_quote_logo,
+              c.primary_color, c.secondary_color, c.currency AS company_currency, c.template AS company_template
+         FROM invoices i JOIN companies c ON c.id = i.company_id
+        WHERE i.id = ?`,
+      [payment.invoice_id]
+    );
+    // Settled before this payment (earlier date, or same date recorded earlier),
+    // discounts included — so the balance shown is what was left at that time.
+    // (Dates are compared in SQL, never through JavaScript Date objects.)
+    const [[before]] = await db.execute(
+      `SELECT IFNULL(SUM(o.amount), 0) AS settled
+         FROM payments o JOIN payments me ON me.id = ?
+        WHERE o.invoice_id = me.invoice_id AND o.id <> me.id
+          AND (o.payment_date < me.payment_date OR (o.payment_date = me.payment_date AND o.id < me.id))`,
+      [payment.id]
+    );
+    // A discount given together with this payment (same day, recorded right after it).
+    const [[withDisc]] = await db.execute(
+      `SELECT IFNULL(SUM(o.amount), 0) AS d
+         FROM payments o JOIN payments me ON me.id = ?
+        WHERE o.invoice_id = me.invoice_id AND o.is_discount = 1 AND o.payment_date = me.payment_date AND o.id > me.id
+          AND o.id < IFNULL((SELECT MIN(n.id) FROM payments n WHERE n.invoice_id = me.invoice_id AND n.is_discount = 0 AND n.id > me.id), 2147483647)`,
+      [payment.id]
+    );
+    const total = Number(doc.grand_total) || 0;
+    const settledBefore = Number(before.settled) || 0;
+    const discount = Number(withDisc.d) || 0;
+    const balanceAfter = Math.max(0, Math.round((total - settledBefore - Number(payment.amount) - discount) * 100) / 100);
+    res.json({
+      ...payment,
+      invoice: doc,
+      paid_before: settledBefore,
+      discount_with_payment: discount,
+      balance_after: balanceAfter,
+    });
+  } catch (error) {
+    console.error('Error loading receipt:', error);
+    res.status(500).json({ error: 'Failed to load the receipt' });
+  }
+});
+
 // POST /api/payments — record a payment (invoice_id in body). An optional
 // `discount` settles part of the balance without money changing hands
 // (e.g. "paid 950,000, we gave 50,000 off"): it is stored as its own payment
@@ -123,10 +184,11 @@ router.post('/', async (req, res) => {
     await conn.beginTransaction();
     const ids = [];
     if (amt > 0) {
+      const receiptNumber = await nextReceiptNumber(conn, invoice.company_id);
       const [r] = await conn.execute(
-        `INSERT INTO payments (invoice_id, amount, payment_date, method, reference, notes, recorded_by, is_discount, account_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)`,
-        [invoice.id, amt, payment_date, methodFor(acct.account, method) || null, reference || null, notes || null, req.user.id, acct.id ?? null]
+        `INSERT INTO payments (invoice_id, amount, payment_date, method, reference, notes, recorded_by, is_discount, account_id, receipt_number)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
+        [invoice.id, amt, payment_date, methodFor(acct.account, method) || null, reference || null, notes || null, req.user.id, acct.id ?? null, receiptNumber]
       );
       ids.push(r.insertId);
     }

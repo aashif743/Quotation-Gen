@@ -29,7 +29,12 @@ router.get('/', async (req, res) => {
 
     // ---- Headline totals ----
     const q  = await one(`SELECT COUNT(*) c, IFNULL(SUM(grand_total),0) t FROM quotations WHERE company_id=?${own}`, args());
-    const inv = await one(`SELECT COUNT(*) c, IFNULL(SUM(grand_total),0) t FROM invoices WHERE company_id=?${own}`, args());
+    // Money totals include cash sales (they are paid sales); the invoice
+    // count, status breakdown and recent list are invoices only.
+    const inv = await one(
+      `SELECT SUM(doc_type <> 'cash_sale') c, IFNULL(SUM(grand_total),0) t,
+              SUM(doc_type = 'cash_sale') cs_c, IFNULL(SUM(CASE WHEN doc_type = 'cash_sale' THEN grand_total ELSE 0 END),0) cs_t
+         FROM invoices WHERE company_id=?${own}`, args());
     const paid = await one(
       `SELECT IFNULL(SUM(p.amount),0) t, IFNULL(SUM(CASE WHEN p.is_discount = 1 THEN 0 ELSE p.amount END),0) cash
          FROM payments p JOIN invoices i ON p.invoice_id=i.id
@@ -98,7 +103,7 @@ router.get('/', async (req, res) => {
                    WHEN IFNULL(pp.paid,0) > 0 THEN 'partial' ELSE 'pending' END st, COUNT(*) c
          FROM invoices i
          LEFT JOIN (SELECT invoice_id, SUM(amount) paid FROM payments GROUP BY invoice_id) pp ON pp.invoice_id=i.id
-        WHERE i.company_id=?${ownAs('i')}
+        WHERE i.company_id=?${ownAs('i')} AND i.doc_type <> 'cash_sale'
         GROUP BY st`, args());
     const paymentStatus = { paid: 0, partial: 0, pending: 0 };
     statusRows.forEach((r) => { paymentStatus[r.st] = num(r.c); });
@@ -122,13 +127,14 @@ router.get('/', async (req, res) => {
                    WHEN IFNULL(pp.paid,0) > 0 THEN 'partial' ELSE 'pending' END payment_status
          FROM invoices i
          LEFT JOIN (SELECT invoice_id, SUM(amount) paid FROM payments GROUP BY invoice_id) pp ON pp.invoice_id=i.id
-        WHERE i.company_id=?${ownAs('i')}
+        WHERE i.company_id=?${ownAs('i')} AND i.doc_type <> 'cash_sale'
         ORDER BY i.created_at DESC LIMIT 6`, args());
 
     res.json({
       totals: {
         quotations: num(q.c), total_quoted: num(q.t),
         invoices: num(inv.c), total_invoiced: totalInvoiced,
+        cash_sales: num(inv.cs_c), total_cash_sales: num(inv.cs_t),
         total_paid: totalPaid, outstanding,
         expenses: num(exp.c), total_expenses: num(exp.t),
         purchases: num(pur.c), total_purchases: num(pur.t),

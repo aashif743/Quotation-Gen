@@ -586,11 +586,14 @@ const DocTable: React.FC<{
           {docs.map((d) => (
             <tr
               key={d.id}
-              onClick={() => navigate(`${detailPathPrefix}/${d.id}`)}
+              onClick={() => navigate(d.doc_type === 'cash_sale' ? `/cash-sales/${d.id}` : `${detailPathPrefix}/${d.id}`)}
               className="hover:bg-gray-50 cursor-pointer"
             >
               <td className="px-6 py-3">
                 <span className="text-sm font-medium text-indigo-700">{d.number}</span>
+                {d.doc_type === 'cash_sale' && (
+                  <span className="ml-2 inline-flex px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-100 text-emerald-700">Cash sale</span>
+                )}
               </td>
               <td className="px-6 py-3 text-sm text-gray-700">
                 <div className="inline-flex items-center">

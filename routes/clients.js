@@ -214,7 +214,7 @@ router.get('/:id/invoices', async (req, res) => {
     }
     const [rows] = await db.execute(
       `
-      SELECT d.id, d.invoice_number AS number, d.client_name, d.date, d.grand_total,
+      SELECT d.id, d.invoice_number AS number, d.doc_type, d.client_name, d.date, d.grand_total,
              d.created_at, d.created_by, u.name AS created_by_name,
              IFNULL(p.paid, 0) AS amount_paid,
              (d.grand_total - IFNULL(p.paid, 0)) AS balance_due,

@@ -19,7 +19,7 @@ type Tab = 'all' | 'auth' | 'changes' | 'people';
 const PAGE_SIZE = 50;
 
 const ENTITY_LABELS: Record<string, string> = {
-  quotation: 'Quotation', invoice: 'Invoice', delivery_note: 'Delivery note', job_card: 'Job card', lpo: 'LPO',
+  quotation: 'Quotation', invoice: 'Invoice', cash_sale: 'Cash sale', delivery_note: 'Delivery note', job_card: 'Job card', lpo: 'LPO',
   contract: 'Contract', client: 'Client', vendor: 'Vendor', purchase: 'Purchase', expense: 'Expense',
   petty_cash: 'Petty cash', payment: 'Payment', user: 'User', company: 'Company', organization: 'Organization',
   donation: 'Donation', payslip: 'Pay slip', employee_salary: 'Staff salary', payroll_settings: 'Payroll settings',
@@ -28,7 +28,7 @@ const ENTITY_LABELS: Record<string, string> = {
 };
 
 const ENTITY_ROUTES: Record<string, (id: number) => string> = {
-  quotation: (id) => `/quotation/${id}`, invoice: (id) => `/invoice/${id}`, delivery_note: (id) => `/delivery-note/${id}`,
+  quotation: (id) => `/quotation/${id}`, invoice: (id) => `/invoice/${id}`, cash_sale: (id) => `/cash-sales/${id}`, delivery_note: (id) => `/delivery-note/${id}`,
   job_card: (id) => `/job-cards/${id}`, lpo: (id) => `/lpos/${id}`, contract: (id) => `/contracts/${id}`,
   client: (id) => `/clients/${id}`, vendor: (id) => `/vendors/${id}`, purchase: (id) => `/purchase/${id}`,
   donation: (id) => `/donations/${id}`,

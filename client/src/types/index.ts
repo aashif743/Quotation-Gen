@@ -35,6 +35,8 @@ export interface ClientDocSummary {
   created_by?: number;
   created_by_name?: string;
   // Populated for invoices (used by the Client detail tab)
+  /** 'cash_sale' for a cash sale listed with the invoices. */
+  doc_type?: 'invoice' | 'cash_sale';
   amount_paid?: number;
   balance_due?: number;
   payment_status?: PaymentStatus;
@@ -320,6 +322,8 @@ export interface InvoiceItem {
 export interface Invoice {
   id?: number;
   company_id: number;
+  /** 'cash_sale' = sold and paid on the spot (made from Cash Sales). */
+  doc_type?: 'invoice' | 'cash_sale';
   client_id?: number | null;
   quotation_id?: number;
   job_card_id?: number | null;
@@ -392,6 +396,8 @@ export interface Payment {
   // The bank / mobile money / cash account the money went into.
   account_id?: number | null;
   account_name?: string | null;
+  // Printed receipt number (money payments only; discounts have none).
+  receipt_number?: string | null;
 }
 
 // ---------------------------------------------------------------------------

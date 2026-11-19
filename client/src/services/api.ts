@@ -208,8 +208,11 @@ export const getNextInvoiceNumber = async (companyId: number): Promise<{ invoice
   return response.data;
 };
 
-export const getInvoices = async (companyId?: number): Promise<Invoice[]> => {
-  const params = companyId ? { company_id: companyId } : {};
+/** docType 'invoice' leaves cash sales out; 'cash_sale' lists only them. */
+export const getInvoices = async (companyId?: number, docType?: 'invoice' | 'cash_sale'): Promise<Invoice[]> => {
+  const params: Record<string, string | number> = {};
+  if (companyId) params.company_id = companyId;
+  if (docType) params.doc_type = docType;
   const response = await api.get('/invoices', { params });
   return response.data;
 };
