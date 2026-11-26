@@ -1476,6 +1476,44 @@ async function migrate() {
     await db.query('ALTER TABLE `companies` ADD COLUMN `letter_details` TEXT NULL');
   } else { console.log('  • companies.letter_details already present, skipping.'); }
 
+  // 3ze. Shared AI service (added 2026-11). Additive only.
+  //   - organizations.ai_enabled: the platform owner can switch AI off for an
+  //     organization (on by default; AI also needs ANTHROPIC_API_KEY).
+  //   - organizations.ai_monthly_limit: AI requests allowed per month (NULL =
+  //     the default, AI_DEFAULT_MONTHLY_LIMIT or 500).
+  //   - ai_usage: one row per AI request (who, which feature, tokens, cost).
+  for (const [col, sql] of [
+    ['ai_enabled', 'ALTER TABLE `organizations` ADD COLUMN `ai_enabled` TINYINT(1) NOT NULL DEFAULT 1'],
+    ['ai_monthly_limit', 'ALTER TABLE `organizations` ADD COLUMN `ai_monthly_limit` INT NULL'],
+  ]) {
+    if (!(await columnExists('organizations', col))) {
+      console.log(`  • Adding \`${col}\` to organizations...`);
+      await db.query(sql);
+    } else { console.log(`  • organizations.${col} already present, skipping.`); }
+  }
+  if (!(await tableExists('ai_usage'))) {
+    console.log('  • Creating `ai_usage` table...');
+    await db.query(`
+      CREATE TABLE ai_usage (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        organization_id INT NULL,
+        company_id INT NULL,
+        user_id INT NULL,
+        feature VARCHAR(50) NOT NULL,
+        model VARCHAR(100) NULL,
+        input_tokens INT NOT NULL DEFAULT 0,
+        output_tokens INT NOT NULL DEFAULT 0,
+        cost_usd DECIMAL(12,6) NOT NULL DEFAULT 0,
+        status VARCHAR(20) NOT NULL DEFAULT 'ok',
+        error VARCHAR(255) NULL,
+        duration_ms INT NULL,
+        created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+        KEY idx_ai_usage_org_date (organization_id, created_at),
+        KEY idx_ai_usage_user_date (user_id, created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+  } else { console.log('  • ai_usage table already present, skipping.'); }
+
   // 4. Backfill created_by from each row's company owner so existing records
   //    are attributed to the user who originally owned the company.
   const [qBackfill] = await db.query(

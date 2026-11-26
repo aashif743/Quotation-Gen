@@ -55,6 +55,7 @@ import ReceiptView from './pages/ReceiptView';
 import Letters from './pages/Letters';
 import LetterForm from './pages/LetterForm';
 import LetterView from './pages/LetterView';
+import AiUsage from './pages/AiUsage';
 import Organizations from './pages/Organizations';
 import UserManagement from './pages/UserManagement';
 import Login from './pages/Login';
@@ -283,6 +284,14 @@ function AppRoutes() {
                     element={
                       <SuperAdminRoute>
                         <Organizations />
+                      </SuperAdminRoute>
+                    }
+                  />
+                  <Route
+                    path="/ai-usage"
+                    element={
+                      <SuperAdminRoute>
+                        <AiUsage />
                       </SuperAdminRoute>
                     }
                   />

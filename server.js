@@ -141,6 +141,7 @@ app.use('/api/delivery-notes', deliveryRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/cash-sales', require('./routes/cashSales'));
 app.use('/api/letters', require('./routes/letters'));
+app.use('/api/ai', require('./routes/ai'));
 app.use('/api/vendors', vendorRoutes);
 app.use('/api/purchases', purchaseRoutes);
 app.use('/api/expenses', expenseRoutes);

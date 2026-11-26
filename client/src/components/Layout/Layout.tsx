@@ -42,6 +42,7 @@ import {
   Moon,
   ShoppingBag,
   Mail,
+  Sparkles,
 } from 'lucide-react';
 import FloatingScrollbar from './FloatingScrollbar';
 
@@ -171,9 +172,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     root.style.setProperty('--brand-on', relativeLuminance(primaryColor) > 0.55 ? '#0f172a' : '#ffffff');
   }, [accentColor, primaryColor, isDark]);
 
-  // In platform mode the only destination is the Organizations page.
+  // In platform mode the only destinations are the platform pages.
   useEffect(() => {
-    if (platformMode && location.pathname !== '/organizations' && location.pathname !== '/audit-log') {
+    if (platformMode && !['/organizations', '/audit-log', '/ai-usage'].includes(location.pathname)) {
       navigate('/organizations', { replace: true });
     }
   }, [platformMode, location.pathname, navigate]);
@@ -202,6 +203,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { label: 'Platform', items: [
       { to: '/organizations', icon: Building2, label: 'Organizations' },
       { to: '/audit-log', icon: ScrollText, label: 'Audit Log' },
+      { to: '/ai-usage', icon: Sparkles, label: 'AI Usage' },
     ] },
   ] : [
     { items: [{ to: '/', icon: Home, label: 'Dashboard' }] },

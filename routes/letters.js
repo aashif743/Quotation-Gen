@@ -8,7 +8,8 @@ const { moveToRecycleBin } = require('../utils/recycleBin');
 const { requireCompanyAccess, companyTableParamGuard, companyInOrg } = require('../utils/tenancy');
 const { getCompanyPrefix } = require('../utils/quotePrefix');
 const { UPLOADS_ROOT } = require('../config/paths');
-const { aiEnabled, draftLetter, LetterAiError } = require('../utils/letterAi');
+const { draftLetter } = require('../utils/letterAi');
+const { aiStatus, AiError } = require('../utils/ai');
 
 // Business letters on the company letterhead.
 //
@@ -54,7 +55,8 @@ class LetterError extends Error {
 }
 
 const sendError = (res, error, fallback) => {
-  if (error instanceof LetterError || error instanceof LetterAiError) return res.status(error.status).json({ error: error.message });
+  if (error instanceof AiError) return res.status(error.status).json({ error: error.message, code: error.code });
+  if (error instanceof LetterError) return res.status(error.status).json({ error: error.message });
   if (error && error.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'That letter number is already used. Choose another number.' });
   console.error(fallback, error);
   return res.status(500).json({ error: fallback });
@@ -195,19 +197,16 @@ router.get('/options', async (req, res) => {
         [req.user.organization_id, req.user.id, req.user.id]
       )
       : await db.execute('SELECT id, name, job_title, signature_url FROM users WHERE id = ?', [req.user.id]);
-    res.json({ next_number: await nextLetterNumber(companyId), signers, ai_enabled: aiEnabled() });
+    const ai = await aiStatus(req.user);
+    res.json({ next_number: await nextLetterNumber(companyId), signers, ai_enabled: ai.available, ai });
   } catch (error) {
     sendError(res, error, 'Could not load letter options');
   }
 });
 
 // POST /api/letters/draft — write (or improve) a letter with AI.
-const recentDrafts = new Map(); // user id → timestamps (simple limit: 30 per hour)
 router.post('/draft', async (req, res) => {
   try {
-    const now = Date.now();
-    const times = (recentDrafts.get(req.user.id) || []).filter((t) => now - t < 3600_000);
-    if (times.length >= 30) throw new LetterError('You have used AI writing many times in the last hour. Please try again later.', 429);
     const b = req.body || {};
     let companyName = '';
     if (b.company_id) {
@@ -215,10 +214,8 @@ router.post('/draft', async (req, res) => {
       const [[co]] = await db.execute('SELECT name FROM companies WHERE id = ?', [b.company_id]);
       companyName = co ? co.name : '';
     }
-    times.push(now);
-    recentDrafts.set(req.user.id, times);
-    const letter = await draftLetter({
-      context: b.context, tone: b.tone,
+    const letter = await draftLetter(req, {
+      context: b.context, tone: b.tone, company_id: b.company_id || null,
       recipient_name: b.recipient_name, recipient_title: b.recipient_title, recipient_company: b.recipient_company,
       company_name: companyName, sender_name: b.signer_name || req.user.name, sender_title: b.signer_title,
       current: b.improve ? { subject: b.subject, body: b.body } : null,

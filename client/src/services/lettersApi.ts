@@ -1,4 +1,5 @@
 import { api } from './api';
+import { AiStatus } from './aiApi';
 
 export interface Letter {
   id: number;
@@ -64,7 +65,7 @@ export interface LetterInput {
 
 export interface Signer { id: number; name: string; job_title?: string | null; signature_url?: string | null }
 
-export interface LetterOptions { next_number: string; signers: Signer[]; ai_enabled: boolean }
+export interface LetterOptions { next_number: string; signers: Signer[]; ai_enabled: boolean; ai?: AiStatus }
 
 export type LetterTone = 'formal' | 'friendly' | 'firm' | 'apologetic';
 

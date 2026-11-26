@@ -4,6 +4,8 @@ import { Upload, Save, AlertCircle, Plus, Trash2, Edit, X, Image as ImageIcon } 
 import { Company } from '../types';
 import { LETTERHEAD_FIELDS, Letterhead, parseLetterhead } from '../utils/letterhead';
 import { LetterDetails, parseLetterDetails } from '../components/Letter/LetterDocument';
+import AiAssistantCard from '../components/AI/AiAssistantCard';
+import { useAuth } from '../context/AuthContext';
 import VatControl from '../components/common/VatControl';
 
 // The client-specific 'supreme' letterhead design is offered only to a company
@@ -11,6 +13,7 @@ import VatControl from '../components/common/VatControl';
 const hasSupremeDesign = (c: Company) => c.template === 'supreme' || !!c.letterhead;
 
 const Settings: React.FC = () => {
+  const { isAdmin } = useAuth();
   const {
     companies,
     selectedCompany,
@@ -784,6 +787,12 @@ const Settings: React.FC = () => {
       ) : (
         <div className="text-center py-12 border-2 border-dashed border-gray-300 rounded-lg">
           <p className="text-gray-500">Select a company to edit its settings or create a new one.</p>
+        </div>
+      )}
+
+      {isAdmin && (
+        <div className="mt-6">
+          <AiAssistantCard primary={primaryColor} />
         </div>
       )}
 

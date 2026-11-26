@@ -20,7 +20,7 @@ const PAGE_SIZE = 50;
 
 const ENTITY_LABELS: Record<string, string> = {
   quotation: 'Quotation', invoice: 'Invoice', cash_sale: 'Cash sale', delivery_note: 'Delivery note', job_card: 'Job card', lpo: 'LPO',
-  contract: 'Contract', letter: 'Letter', client: 'Client', vendor: 'Vendor', purchase: 'Purchase', expense: 'Expense',
+  contract: 'Contract', letter: 'Letter', ai_settings: 'AI settings', client: 'Client', vendor: 'Vendor', purchase: 'Purchase', expense: 'Expense',
   petty_cash: 'Petty cash', payment: 'Payment', user: 'User', company: 'Company', organization: 'Organization',
   donation: 'Donation', payslip: 'Pay slip', employee_salary: 'Staff salary', payroll_settings: 'Payroll settings',
   attendance_device: 'Attendance device', attendance_employee: 'Attendance staff', attendance_settings: 'Attendance settings',

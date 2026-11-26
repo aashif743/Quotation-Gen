@@ -12,6 +12,7 @@ import ClientPicker from '../components/Quotation/ClientPicker';
 import DocumentPreview, { PreviewColumn, PreviewToggleButton, usePreviewToggle } from '../components/Document/DocumentPreview';
 import LetterDocument, { LetterDocCompany } from '../components/Letter/LetterDocument';
 import { LETTER_TEMPLATES, placeholdersIn } from '../utils/letterTemplates';
+import { AiStatus, aiUnavailableText } from '../services/aiApi';
 import {
   createLetter, draftLetterWithAi, getLetter, getLetterOptions, LetterTone, Signer, updateLetter, uploadMySignature,
 } from '../services/lettersApi';
@@ -83,6 +84,7 @@ const LetterForm: React.FC = () => {
   const [signers, setSigners] = useState<Signer[]>([]);
   const [signatureUrl, setSignatureUrl] = useState<string | null>(null);
   const [aiEnabled, setAiEnabled] = useState(false);
+  const [aiStatus, setAiStatus] = useState<AiStatus | null>(null);
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -120,6 +122,7 @@ const LetterForm: React.FC = () => {
     const o = await getLetterOptions(coId);
     setSigners(o.signers);
     setAiEnabled(o.ai_enabled);
+    setAiStatus(o.ai || null);
     if (!keepSigner) {
       setForm((f) => ({ ...f, letter_number: f.letter_number || o.next_number }));
       applySigner(o.signers.find((s) => s.id === user?.id) || o.signers[0]);
@@ -395,9 +398,7 @@ const LetterForm: React.FC = () => {
               </>
             ) : (
               <p className="text-sm text-gray-500">
-                {isAdmin
-                  ? 'AI writing is not switched on yet. It needs an Anthropic API key in the server settings (ANTHROPIC_API_KEY). Until then, start from a template below.'
-                  : 'AI writing is not switched on. Start from a template below or type the letter.'}
+                {aiUnavailableText(aiStatus, isAdmin)} Start from a template below or type the letter.
               </p>
             )}
 

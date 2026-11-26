@@ -32,6 +32,11 @@ const ENTITIES = {
   payments:          { type: 'payment',       table: 'payments',        label: null },
   'cash-sales':      { type: 'cash_sale',     table: 'invoices',        label: 'invoice_number' },
   letters:           { type: 'letter',        table: 'letters',         label: 'letter_number' },
+  ai: {
+    nested: {
+      admin: { type: 'ai_settings' },
+    },
+  },
   users:             { type: 'user',          table: 'users',           label: 'name' },
   companies:         { type: 'company',       table: 'companies',       label: 'name' },
   organizations:     { type: 'organization',  table: 'organizations',   label: 'name' },
@@ -73,6 +78,8 @@ const SUB_VERBS = {
   generate:   { POST: 'Generated' },
   template:   { PUT: 'Saved default template for' },
   exit:       { POST: 'Left' },
+  draft:      { POST: 'Wrote with AI:' },
+  test:       { POST: 'Tested' },
 };
 
 const clientIp = (req) => {

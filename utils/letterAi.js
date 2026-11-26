@@ -1,22 +1,9 @@
-// Drafting business letters with Claude (Anthropic API).
-//
-// Switched on by setting ANTHROPIC_API_KEY in the server environment
-// (Hostinger → Environment variables). Without it the feature reports itself
-// as unavailable and the app only offers the ready-made templates.
-// LETTER_AI_MODEL can override the model.
+// Drafting business letters with the shared AI service (utils/ai.js).
 //
 // Only what the user typed for this letter (context, recipient, tone) and the
 // company's name / sender's name are sent — no other company data.
 
-const API_URL = 'https://api.anthropic.com/v1/messages';
-const DEFAULT_MODEL = 'claude-sonnet-5-5';
-const TIMEOUT_MS = 60_000;
-
-const aiEnabled = () => !!(process.env.ANTHROPIC_API_KEY && process.env.ANTHROPIC_API_KEY.trim());
-
-class LetterAiError extends Error {
-  constructor(message, status = 502) { super(message); this.status = status; }
-}
+const { runAi, AiError } = require('./ai');
 
 const TONES = {
   formal: 'formal and professional',
@@ -52,10 +39,9 @@ const clip = (s, n) => String(s || '').trim().slice(0, n);
  * recipient_company, company_name, sender_name, sender_title, current }
  * (`current` = the draft being improved, optional).
  */
-async function draftLetter(input) {
-  if (!aiEnabled()) throw new LetterAiError('AI writing is not switched on for this system.', 503);
+async function draftLetter(req, input) {
   const context = clip(input.context, 4000);
-  if (context.length < 5) throw new LetterAiError('Describe what the letter is about first.', 400);
+  if (context.length < 5) throw new AiError('Describe what the letter is about first.', 400, 'bad_request');
 
   const tone = TONES[input.tone] || TONES.formal;
   const recipient = [input.recipient_name, input.recipient_title, input.recipient_company].map((x) => clip(x, 200)).filter(Boolean).join(', ');
@@ -74,7 +60,7 @@ async function draftLetter(input) {
     'Use "Yours faithfully," when the salutation is "Dear Sir/Madam," and "Yours sincerely," when the person is named.',
   ].join(' ');
 
-  const user = [
+  const content = [
     `Company sending the letter: ${clip(input.company_name, 200) || 'our company'}.`,
     sender ? `Signed by: ${sender}.` : '',
     recipient ? `Recipient: ${recipient}.` : 'Recipient: not named.',
@@ -83,43 +69,11 @@ async function draftLetter(input) {
     current,
   ].filter(Boolean).join('\n');
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-  let res;
-  try {
-    res = await fetch(API_URL, {
-      method: 'POST',
-      signal: controller.signal,
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY.trim(),
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: (process.env.LETTER_AI_MODEL || DEFAULT_MODEL).trim(),
-        max_tokens: 2000,
-        system,
-        tools: [LETTER_TOOL],
-        tool_choice: { type: 'tool', name: LETTER_TOOL.name },
-        messages: [{ role: 'user', content: user }],
-      }),
-    });
-  } catch (e) {
-    throw new LetterAiError(e.name === 'AbortError' ? 'The AI took too long to answer. Please try again.' : 'Could not reach the AI service. Please try again.');
-  } finally {
-    clearTimeout(timer);
-  }
-
-  const data = await res.json().catch(() => null);
-  if (!res.ok) {
-    console.error('Letter AI error:', res.status, data && data.error);
-    if (res.status === 401 || res.status === 403) throw new LetterAiError('The AI key is not valid. Ask the system administrator to check it.', 503);
-    if (res.status === 429) throw new LetterAiError('The AI is busy right now. Please wait a moment and try again.', 429);
-    throw new LetterAiError('The AI could not write the letter. Please try again.');
-  }
-  const block = (data && data.content || []).find((b) => b.type === 'tool_use' && b.name === LETTER_TOOL.name);
-  const out = block && block.input;
-  if (!out || !out.body) throw new LetterAiError('The AI returned an empty letter. Please try again.');
+  const { result: out } = await runAi({
+    req, feature: input.current ? 'letter_improve' : 'letter_draft', tier: 'smart',
+    system, content, tool: LETTER_TOOL, maxTokens: 2000, companyId: input.company_id || null,
+  });
+  if (!out || !out.body) throw new AiError('The AI returned an empty letter. Please try again.');
   return {
     subject: clip(out.subject, 500).replace(/^re:\s*/i, ''),
     salutation: clip(out.salutation, 255),
@@ -128,4 +82,4 @@ async function draftLetter(input) {
   };
 }
 
-module.exports = { aiEnabled, draftLetter, LetterAiError, TONES };
+module.exports = { draftLetter, TONES };
