@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft, Loader2, AlertCircle, CheckCircle2, AlertTriangle, Sparkles, Download, Copy, Trash2, Clock,
-  ShieldCheck, Send, Trophy, XCircle, RotateCcw, Plus, RefreshCw, FileDown,
+  ShieldCheck, Send, Trophy, XCircle, RotateCcw, Plus, RefreshCw, FileDown, CalendarPlus, MessageSquareWarning,
 } from 'lucide-react';
 import { useCompany } from '../context/CompanyContext';
 import { useAuth } from '../context/AuthContext';
@@ -10,13 +10,14 @@ import { useTheme } from '../context/ThemeContext';
 import { brandColorFor } from '../utils/colors';
 import {
   Bid, BidData, BidDocument, BidProfile, BidStatus, Commission, DOC_TYPE_LABELS, FORM_LABELS, FORM_ORDER, STATUS_LABELS, STATUS_STYLE,
-  deleteBid, duplicateBid, getBid, getBidDocuments, getBidProfile, readBidAgain, saveBid, setBidStatus,
+  BidResult, bidCalendarUrl, bidTotals, deleteBid, duplicateBid, getBid, getBidDocuments, getBidProfile, readBidAgain, saveBid, setBidStatus,
 } from '../services/bidsApi';
 import { getLetterOptions, Signer } from '../services/lettersApi';
 import { ChecklistTab, OverviewTab, PricesTab, TechnicalTab, card, input, label, matchDocument } from '../components/Bid/BidTabs';
 import { BidFormContext, BidFormView, defaultCoverBody } from '../components/Bid/BidForms';
 import { checkBid } from '../utils/bidChecker';
 import WordFillCard from '../components/Bid/WordFillCard';
+import { ActivityTab, BrochureModal, ResultCard, ResultModal, StatusNoteModal } from '../components/Bid/BidActivity';
 import { buildBidPack, downloadPdf } from '../utils/bidPack';
 import { pdfFileSegment } from '../utils/pdfGenerator';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
@@ -28,6 +29,7 @@ const TABS = [
   { key: 'technical', label: 'Technical' },
   { key: 'forms', label: 'Forms' },
   { key: 'check', label: 'Check & download' },
+  { key: 'activity', label: 'Activity' },
 ] as const;
 type Tab = typeof TABS[number]['key'];
 
@@ -104,6 +106,8 @@ const BidWorkspace: React.FC = () => {
   const [busy, setBusy] = useState('');
   const [progress, setProgress] = useState('');
   const [packProblems, setPackProblems] = useState<string[]>([]);
+  const [dialog, setDialog] = useState<'' | 'review' | 'changes' | 'approved' | 'won' | 'lost' | 'brochure'>('');
+  const [activityKey, setActivityKey] = useState(0);
   const dirtyRef = useRef(false);
   const dataRef = useRef<BidData>({});
   dataRef.current = data;
@@ -199,10 +203,22 @@ const BidWorkspace: React.FC = () => {
     },
   };
 
-  const changeStatus = async (s: BidStatus) => {
+  const changeStatus = async (s: BidStatus, extra: { note?: string; result?: BidResult } = {}) => {
     setBusy(s);
-    try { setBid(await setBidStatus(bid.id, s)); } catch (e: any) { setError(e?.response?.data?.error || 'Could not change the status.'); } finally { setBusy(''); }
+    try {
+      const b = await setBidStatus(bid.id, s, extra);
+      setBid(b);
+      // The result is kept in the bid's data — keep the page's copy in step.
+      if (extra.result && b.data) setData((d) => ({ ...d, result: b.data.result }));
+      setActivityKey((k) => k + 1);
+      setDialog('');
+    } catch (e: any) {
+      setError(e?.response?.data?.error || 'Could not change the status.');
+    } finally {
+      setBusy('');
+    }
   };
+  const ourValue = bidTotals(data).grand;
   const reread = async () => {
     if (!window.confirm('Read the tender document again with AI? The details, checklist and specifications are replaced; your prices are kept.')) return;
     setBusy('reread');
@@ -261,6 +277,11 @@ const BidWorkspace: React.FC = () => {
                   <Clock className="h-3.5 w-3.5" /> {new Date(bid.deadline.replace(' ', 'T')).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })} · {timeLeftText(minutes)}
                 </span>
               )}
+              {bid.deadline && minutes != null && minutes > 0 && (
+                <a href={bidCalendarUrl(bid.id)} className="inline-flex items-center gap-1 text-xs underline hover:text-gray-700" title="Add the deadline to your phone or computer calendar, with reminders 3 days and 1 day before">
+                  <CalendarPlus className="h-3.5 w-3.5" /> Add to calendar
+                </a>
+              )}
             </div>
           </div>
         </div>
@@ -268,12 +289,13 @@ const BidWorkspace: React.FC = () => {
           <span className="text-xs text-gray-400 mr-1">
             {saveState === 'saving' ? 'Saving…' : saveState === 'dirty' ? 'Unsaved changes' : saveState === 'error' ? 'Not saved' : 'All changes saved'}
           </span>
-          {bid.status === 'draft' && <button onClick={() => changeStatus('review')} disabled={!!busy} className={outline}><Send className="h-4 w-4 mr-1.5" /> Ready for review</button>}
-          {isAdmin && (bid.status === 'draft' || bid.status === 'review') && <button onClick={() => changeStatus('approved')} disabled={!!busy} className={`${btn} text-white bg-blue-600 hover:bg-blue-700`}><ShieldCheck className="h-4 w-4 mr-1.5" /> Approve</button>}
+          {bid.status === 'draft' && <button onClick={() => setDialog('review')} disabled={!!busy} className={outline}><Send className="h-4 w-4 mr-1.5" /> Ready for review</button>}
+          {isAdmin && bid.status === 'review' && <button onClick={() => setDialog('changes')} disabled={!!busy} className={outline}><MessageSquareWarning className="h-4 w-4 mr-1.5" /> Request changes</button>}
+          {isAdmin && (bid.status === 'draft' || bid.status === 'review') && <button onClick={() => setDialog('approved')} disabled={!!busy} className={`${btn} text-white bg-blue-600 hover:bg-blue-700`}><ShieldCheck className="h-4 w-4 mr-1.5" /> Approve</button>}
           {['draft', 'review', 'approved'].includes(bid.status) && <button onClick={() => changeStatus('submitted')} disabled={!!busy} className={outline}><CheckCircle2 className="h-4 w-4 mr-1.5" /> Mark submitted</button>}
           {bid.status === 'submitted' && <>
-            <button onClick={() => changeStatus('won')} disabled={!!busy} className={`${btn} text-white bg-emerald-600 hover:bg-emerald-700`}><Trophy className="h-4 w-4 mr-1.5" /> Won</button>
-            <button onClick={() => changeStatus('lost')} disabled={!!busy} className={outline}><XCircle className="h-4 w-4 mr-1.5" /> Not won</button>
+            <button onClick={() => setDialog('won')} disabled={!!busy} className={`${btn} text-white bg-emerald-600 hover:bg-emerald-700`}><Trophy className="h-4 w-4 mr-1.5" /> Won</button>
+            <button onClick={() => setDialog('lost')} disabled={!!busy} className={outline}><XCircle className="h-4 w-4 mr-1.5" /> Not won</button>
           </>}
           {!['draft'].includes(bid.status) && <button onClick={() => changeStatus('draft')} disabled={!!busy} className={outline} title="Back to draft"><RotateCcw className="h-4 w-4" /></button>}
           {canEdit && <button onClick={copy} disabled={!!busy} className={outline} title="Start a similar bid from this one"><Copy className="h-4 w-4" /></button>}
@@ -282,6 +304,22 @@ const BidWorkspace: React.FC = () => {
       </div>
 
       {error && <div className="mb-4 px-4 py-3 rounded-lg text-sm flex items-center gap-2 bg-red-50 text-red-700"><AlertCircle size={16} /> {error}</div>}
+      {(bid.status === 'won' || bid.status === 'lost') && <div className="mb-4"><ResultCard status={bid.status} result={data.result} ourValue={ourValue} currency={currency} /></div>}
+
+      {dialog === 'review' && <StatusNoteModal title="Ready for review" hint="Tell the reviewer anything they should check (optional)." confirm="Send for review" primary={primary} onClose={() => setDialog('')} onConfirm={(note) => changeStatus('review', { note })} />}
+      {dialog === 'changes' && <StatusNoteModal title="Request changes" hint="The bid goes back to draft with your note, shown in its Activity tab." confirm="Send back" required primary={primary} onClose={() => setDialog('')} onConfirm={(note) => changeStatus('draft', { note })} />}
+      {dialog === 'approved' && <StatusNoteModal title="Approve bid" hint="Approve this bid for submission. Add a note if needed." confirm="Approve" primary="#2563eb" onClose={() => setDialog('')} onConfirm={(note) => changeStatus('approved', { note })} />}
+      {(dialog === 'won' || dialog === 'lost') && (
+        <ResultModal won={dialog === 'won'} ourValue={ourValue} currency={currency} primary={primary} onClose={() => setDialog('')}
+          onConfirm={(result, note) => changeStatus(dialog as BidStatus, { result, note })} />
+      )}
+      {dialog === 'brochure' && (
+        <BrochureModal bidId={bid.id} specs={data.specs || []} primary={primary} onClose={() => setDialog('')}
+          onApply={(picked) => {
+            update((d) => ({ ...d, specs: (d.specs || []).map((s, i) => { const p = picked.find((x) => x.index === i); return p ? { ...s, offered: p.offered, compliance: p.compliance === 'Not stated' ? s.compliance : p.compliance } : s; }) }));
+            setDialog('');
+          }} />
+      )}
 
       {bid.ai_status === 'reading' ? (
         <div className={`${card} text-center py-16`}>
@@ -327,7 +365,7 @@ const BidWorkspace: React.FC = () => {
             )}
             {tab === 'checklist' && <ChecklistTab data={data} update={update} docs={docs} isAdmin={isAdmin} />}
             {tab === 'prices' && <PricesTab data={data} update={update} currency={currency} />}
-            {tab === 'technical' && <TechnicalTab data={data} update={update} />}
+            {tab === 'technical' && <TechnicalTab data={data} update={update} onBrochure={canEdit ? () => setDialog('brochure') : undefined} />}
             {tab === 'forms' && (
               <div className="space-y-5">
                 <div className={card}>
@@ -399,6 +437,8 @@ const BidWorkspace: React.FC = () => {
               </div>
             )}
           </fieldset>
+
+          {tab === 'activity' && <ActivityTab bidId={bid.id} refreshKey={activityKey} primary={primary} />}
 
           {tab === 'check' && (
             <div className="space-y-5">

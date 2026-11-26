@@ -20,6 +20,7 @@ const FEATURE_NAMES = {
   receipt_scan: 'Receipt scanning',
   tender_read: 'Tender reading',
   tender_fill: 'Tender form filling',
+  tender_specs: 'Brochure comparison',
   test: 'Connection test',
 };
 

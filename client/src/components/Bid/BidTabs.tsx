@@ -317,7 +317,7 @@ export const PricesTab: React.FC<{ data: BidData; update: Update; currency: stri
 
 /* -------------------------------- Technical ------------------------------- */
 
-export const TechnicalTab: React.FC<{ data: BidData; update: Update }> = ({ data, update }) => {
+export const TechnicalTab: React.FC<{ data: BidData; update: Update; onBrochure?: () => void }> = ({ data, update, onBrochure }) => {
   const specs = data.specs || [];
   const setSpec = (i: number, patch: Partial<BidSpec>) => update((d) => ({ ...d, specs: (d.specs || []).map((s, n) => (n === i ? { ...s, ...patch } : s)) }));
   const forms = data.forms || [];
@@ -328,7 +328,12 @@ export const TechnicalTab: React.FC<{ data: BidData; update: Update }> = ({ data
           <h3 className="text-base font-semibold text-gray-900">Technical specifications & compliance</h3>
           <p className="text-sm text-gray-500">Each requirement is filled in as “Comply” with the same specification offered. Change only the lines where your product differs (e.g. the colour or the model offered).</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          {onBrochure && specs.length > 0 && (
+            <button type="button" onClick={onBrochure} className="inline-flex items-center px-3 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 text-sm text-indigo-700 hover:bg-indigo-100 whitespace-nowrap">
+              <Sparkles className="h-4 w-4 mr-1" /> Fill from a brochure
+            </button>
+          )}
           <button onClick={() => update((d) => ({ ...d, specs: (d.specs || []).map((s) => ({ ...s, compliance: 'Comply' })) }))} className="px-3 py-1.5 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50">All comply</button>
           <button onClick={() => update((d) => ({ ...d, specs: [...(d.specs || []), { item_no: String((d.specs || []).length + 1), section: '', requirement: '', mandatory: true, offered: '', compliance: 'Comply' }] }))}
             className="inline-flex items-center px-3 py-1.5 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50"><Plus className="h-4 w-4 mr-1" /> Add row</button>

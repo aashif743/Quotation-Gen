@@ -197,4 +197,57 @@ ${batch.map((b) => JSON.stringify({ id: b.id, blank: b.placeholder, sentence: St
   return out;
 }
 
-module.exports = { readTender, trimBoilerplate, fillBlanksWithAi, DOC_TYPES, FORMS };
+const SPEC_TOOL = {
+  name: 'compare_specs',
+  description: 'For each requirement, what the product offers according to the brochure.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      results: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            index: { type: 'integer', description: 'The requirement index given.' },
+            offered: { type: 'string', description: 'What the product offers for this requirement, in the style of a compliance sheet, using the brochure figures (e.g. "2,755 cc 4-cylinder turbo diesel, 4 in-line, direct injection").' },
+            compliance: { type: 'string', enum: ['Comply', 'Partly comply', 'Does not comply', 'Not stated'] },
+            evidence: { type: 'string', description: 'Short quote or figure from the brochure that supports it, or why it is not stated.' },
+          },
+          required: ['index', 'offered', 'compliance', 'evidence'],
+        },
+      },
+    },
+    required: ['results'],
+  },
+};
+
+/**
+ * Compare a product brochure / spec sheet with the tender's technical
+ * requirements. Returns [{ index, offered, compliance, evidence }].
+ */
+async function specsFromBrochure(req, file, specs, { companyId, product }) {
+  const isPdf = file.mimetype === 'application/pdf';
+  const media = isPdf
+    ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: file.buffer.toString('base64') } }
+    : { type: 'image', source: { type: 'base64', media_type: file.mimetype, data: file.buffer.toString('base64') } };
+  const list = specs.map((s, i) => ({ index: i, item: s.item_no, feature: s.section, requirement: String(s.requirement || '').slice(0, 1500) }));
+  const system = [
+    'You help a bidder complete a technical compliance sheet for a Malawian tender.',
+    'Compare the product in the brochure with each requirement. Base every answer ONLY on the brochure;',
+    'if the brochure does not say, use compliance "Not stated" and offered "" — never assume.',
+    '"Comply" only when the brochure clearly meets or exceeds the requirement; "Partly comply" when some parts are met;',
+    '"Does not comply" when the brochure clearly contradicts it. Keep "offered" factual and concise.',
+  ].join(' ');
+  const content = [media, { type: 'text', text: `${product ? `Product offered: ${product}\n` : ''}REQUIREMENTS:\n${JSON.stringify(list)}` }];
+  const { result } = await runAi({ req, feature: 'tender_specs', tier: 'smart', system, content, tool: SPEC_TOOL, maxTokens: 12000, companyId, timeoutMs: 240_000 });
+  return ((result && result.results) || [])
+    .filter((r) => Number.isInteger(r.index) && r.index >= 0 && r.index < specs.length)
+    .map((r) => ({
+      index: r.index,
+      offered: String(r.offered || '').trim(),
+      compliance: ['Comply', 'Partly comply', 'Does not comply', 'Not stated'].includes(r.compliance) ? r.compliance : 'Not stated',
+      evidence: String(r.evidence || '').trim().slice(0, 400),
+    }));
+}
+
+module.exports = { readTender, trimBoilerplate, fillBlanksWithAi, specsFromBrochure, DOC_TYPES, FORMS };

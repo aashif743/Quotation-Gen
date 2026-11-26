@@ -1597,6 +1597,26 @@ async function migrate() {
     }
   }
 
+  // 3zg. Bid activity (added 2026-11): status changes and review comments on a
+  //      bid, shown as its timeline. Additive only.
+  if (!(await tableExists('bid_events'))) {
+    console.log('  • Creating `bid_events` table...');
+    await db.query(`
+      CREATE TABLE bid_events (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        bid_id INT NOT NULL,
+        user_id INT NULL,
+        kind VARCHAR(20) NOT NULL,
+        status VARCHAR(20) NULL,
+        note TEXT NULL,
+        created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+        KEY idx_bid_events_bid (bid_id, id),
+        CONSTRAINT fk_bid_events_bid FOREIGN KEY (bid_id) REFERENCES bids(id) ON DELETE CASCADE,
+        CONSTRAINT fk_bid_events_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+  } else { console.log('  • bid_events table already present, skipping.'); }
+
   // 4. Backfill created_by from each row's company owner so existing records
   //    are attributed to the user who originally owned the company.
   const [qBackfill] = await db.query(

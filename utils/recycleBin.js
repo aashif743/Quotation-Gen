@@ -50,7 +50,7 @@ const SPECS = {
   },
   contract: { table: 'contracts', label: 'contract_number', name: 'Contract' },
   letter: { table: 'letters', label: 'letter_number', name: 'Letter' },
-  bid: { table: 'bids', label: 'bid_number', name: 'Bid' },
+  bid: { table: 'bids', label: 'bid_number', name: 'Bid', children: [{ table: 'bid_events', fk: 'bid_id' }] },
   bid_document: { table: 'bid_documents', label: 'title', name: 'Bid document' },
   client: {
     table: 'clients', label: 'name', name: 'Client',

@@ -9,7 +9,7 @@ const { requireCompanyAccess, companyInOrg, orgParamGuard } = require('../utils/
 const { getCompanyPrefix } = require('../utils/quotePrefix');
 const { UPLOADS_ROOT } = require('../config/paths');
 const { aiStatus, AiError } = require('../utils/ai');
-const { readTender, fillBlanksWithAi, DOC_TYPES } = require('../utils/tenderAi');
+const { readTender, fillBlanksWithAi, specsFromBrochure, DOC_TYPES } = require('../utils/tenderAi');
 const { fillDocx } = require('../utils/docxFill');
 const { buildFacts, factsForAi } = require('../utils/bidFacts');
 const { docxToText } = require('../utils/docxText');
@@ -326,6 +326,117 @@ router.get('/', async (req, res) => {
   }
 });
 
+const ACTIVE = ['draft', 'review', 'approved'];
+
+// GET /api/bids/summary?company_id=X — deadlines coming up and documents
+// running out (Dashboard card and the menu badge).
+router.get('/summary', async (req, res) => {
+  try {
+    await assertCompany(req, req.query.company_id);
+    const own = req.user.role !== 'admin' ? ' AND b.created_by = ?' : '';
+    const args = req.user.role !== 'admin' ? [req.query.company_id, req.user.id] : [req.query.company_id];
+    const [upcoming] = await db.execute(
+      `SELECT b.id, b.bid_number, b.kind, b.status, b.title, b.procuring_entity, DATE_FORMAT(b.deadline_at, '%Y-%m-%d %H:%i') AS deadline,
+              TIMESTAMPDIFF(MINUTE, NOW(), b.deadline_at) AS minutes_left
+         FROM bids b
+        WHERE b.company_id = ?${own} AND b.status IN ('draft', 'review', 'approved')
+          AND b.deadline_at IS NOT NULL AND b.deadline_at >= NOW() AND b.deadline_at < NOW() + INTERVAL 14 DAY
+        ORDER BY b.deadline_at LIMIT 8`,
+      args
+    );
+    const [[docs]] = await db.execute(
+      'SELECT SUM(expires_on < CURRENT_DATE) AS expired, SUM(expires_on >= CURRENT_DATE AND expires_on < CURRENT_DATE + INTERVAL 30 DAY) AS expiring FROM bid_documents WHERE company_id = ?',
+      [req.query.company_id]
+    );
+    const [[review]] = await db.execute(
+      `SELECT COUNT(*) AS n FROM bids b WHERE b.company_id = ?${own} AND b.status = 'review'`, args
+    );
+    res.json({
+      upcoming,
+      due_within_3_days: upcoming.filter((b) => Number(b.minutes_left) < 3 * 1440).length,
+      awaiting_review: Number(review.n) || 0,
+      documents_expired: Number(docs.expired) || 0,
+      documents_expiring: Number(docs.expiring) || 0,
+    });
+  } catch (error) {
+    sendError(res, error, 'Could not load the tender summary');
+  }
+});
+
+// GET /api/bids/reports?company_id=X&from=YYYY-MM-DD&to=YYYY-MM-DD — results and win rate.
+router.get('/reports', async (req, res) => {
+  try {
+    await assertCompany(req, req.query.company_id);
+    const where = ['b.company_id = ?'];
+    const args = [req.query.company_id];
+    if (req.user.role !== 'admin') { where.push('b.created_by = ?'); args.push(req.user.id); }
+    if (ymd(req.query.from)) { where.push('COALESCE(b.deadline_at, b.created_at) >= ?'); args.push(ymd(req.query.from)); }
+    if (ymd(req.query.to)) { where.push('COALESCE(b.deadline_at, b.created_at) < ? + INTERVAL 1 DAY'); args.push(ymd(req.query.to)); }
+    const [rows] = await db.execute(
+      `SELECT b.id, b.bid_number, b.kind, b.status, b.title, b.procuring_entity, b.data,
+              DATE_FORMAT(COALESCE(b.deadline_at, b.created_at), '%Y-%m') AS month
+         FROM bids b WHERE ${where.join(' AND ')}`,
+      args
+    );
+    const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+    const list = rows.map((r) => {
+      const d = parse(r.data);
+      const o = d.options || {};
+      const sub = (d.items || []).reduce((s, it) => s + r2((Number(it.quantity) || 0) * (Number(it.unit_price) || 0)), 0);
+      const value = o.tax_mode === 'separate' ? sub + r2(sub * (Number(o.vat_rate ?? 0.165) || 0)) + r2(sub * (Number(o.levy_rate ?? 0.01) || 0)) : sub;
+      return { ...r, data: undefined, value, result: d.result || null };
+    });
+    const decided = list.filter((b) => b.status === 'won' || b.status === 'lost');
+    const won = list.filter((b) => b.status === 'won');
+    const sum = (a, f) => a.reduce((s, x) => s + (Number(f(x)) || 0), 0);
+    const byEntity = new Map();
+    for (const b of list) {
+      const k = (b.procuring_entity || 'Unknown').trim();
+      const e = byEntity.get(k) || { entity: k, bids: 0, submitted: 0, won: 0, lost: 0, value_bid: 0, value_won: 0 };
+      e.bids += 1;
+      if (['submitted', 'won', 'lost'].includes(b.status)) { e.submitted += 1; e.value_bid += b.value; }
+      if (b.status === 'won') { e.won += 1; e.value_won += Number(b.result && b.result.awarded_amount) || b.value; }
+      if (b.status === 'lost') e.lost += 1;
+      byEntity.set(k, e);
+    }
+    const byMonth = new Map();
+    for (const b of list) {
+      const m = byMonth.get(b.month) || { month: b.month, submitted: 0, won: 0, lost: 0, value_won: 0 };
+      if (['submitted', 'won', 'lost'].includes(b.status)) m.submitted += 1;
+      if (b.status === 'won') { m.won += 1; m.value_won += Number(b.result && b.result.awarded_amount) || b.value; }
+      if (b.status === 'lost') m.lost += 1;
+      byMonth.set(b.month, m);
+    }
+    // How far above the winning price our lost bids were (when the winner's price was recorded).
+    const gaps = list.filter((b) => b.status === 'lost' && b.result && Number(b.result.winner_price) > 0 && b.value > 0)
+      .map((b) => ((b.value - Number(b.result.winner_price)) / Number(b.result.winner_price)) * 100);
+    const lostReasons = new Map();
+    for (const b of list.filter((x) => x.status === 'lost' && x.result && x.result.reason)) {
+      lostReasons.set(b.result.reason, (lostReasons.get(b.result.reason) || 0) + 1);
+    }
+    res.json({
+      totals: {
+        bids: list.length,
+        in_progress: list.filter((b) => ACTIVE.includes(b.status)).length,
+        submitted: list.filter((b) => ['submitted', 'won', 'lost'].includes(b.status)).length,
+        won: won.length,
+        lost: decided.length - won.length,
+        win_rate: decided.length ? Math.round((won.length / decided.length) * 100) : null,
+        value_bid: sum(list.filter((b) => ['submitted', 'won', 'lost'].includes(b.status)), (b) => b.value),
+        value_won: sum(won, (b) => (b.result && b.result.awarded_amount) || b.value),
+        avg_gap_percent: gaps.length ? Math.round((gaps.reduce((a, g) => a + g, 0) / gaps.length) * 10) / 10 : null,
+      },
+      by_entity: Array.from(byEntity.values()).sort((a, b) => b.bids - a.bids).slice(0, 15),
+      by_month: Array.from(byMonth.values()).sort((a, b) => a.month.localeCompare(b.month)).slice(-12),
+      lost_reasons: Array.from(lostReasons, ([reason, count]) => ({ reason, count })).sort((a, b) => b.count - a.count),
+      decided: decided.map((b) => ({ id: b.id, bid_number: b.bid_number, title: b.title, procuring_entity: b.procuring_entity, status: b.status, value: b.value, result: b.result }))
+        .slice(0, 50),
+    });
+  } catch (error) {
+    sendError(res, error, 'Could not load the tender reports');
+  }
+});
+
 // GET /api/bids/:id
 router.get('/:id', async (req, res) => {
   try {
@@ -399,7 +510,9 @@ router.put('/:id', async (req, res) => {
   try {
     const bid = await accessibleBid(req, req.params.id);
     if (bid.ai_status === 'reading') throw new BidError('Please wait until the document has been read.');
-    const data = req.body && req.body.data ? req.body.data : bid.data;
+    const data = req.body && req.body.data ? { ...req.body.data } : { ...bid.data };
+    // The award result is only set by the status route — keep the stored one.
+    if (bid.data && bid.data.result) data.result = bid.data.result; else delete data.result;
     const json = JSON.stringify(data);
     if (json.length > 3_000_000) throw new BidError('This bid is too large to save.');
     const t = data.tender || {};
@@ -462,6 +575,93 @@ router.post('/:id/fill-word', async (req, res) => {
   }
 });
 
+// GET /api/bids/:id/events — the bid's timeline (status changes and comments).
+router.get('/:id/events', async (req, res) => {
+  try {
+    const bid = await accessibleBid(req, req.params.id);
+    const [rows] = await db.execute(
+      `SELECT e.id, e.kind, e.status, e.note, e.created_at, e.user_id, u.name AS user_name
+         FROM bid_events e LEFT JOIN users u ON u.id = e.user_id WHERE e.bid_id = ? ORDER BY e.id DESC LIMIT 200`,
+      [bid.id]
+    );
+    res.json(rows);
+  } catch (error) {
+    sendError(res, error, 'Could not load the activity');
+  }
+});
+
+// POST /api/bids/:id/events — { note } add a comment.
+router.post('/:id/events', async (req, res) => {
+  try {
+    const bid = await accessibleBid(req, req.params.id);
+    const note = String((req.body && req.body.note) || '').trim();
+    if (!note) throw new BidError('Write a comment first.');
+    await db.execute('INSERT INTO bid_events (bid_id, user_id, kind, note) VALUES (?, ?, ?, ?)', [bid.id, req.user.id, 'comment', note.slice(0, 2000)]);
+    res.status(201).json({ ok: true });
+  } catch (error) {
+    sendError(res, error, 'Could not add the comment');
+  }
+});
+
+// GET /api/bids/:id/calendar.ics — the deadline as a calendar event with reminders.
+router.get('/:id/calendar.ics', async (req, res) => {
+  try {
+    const bid = await accessibleBid(req, req.params.id);
+    const [[row]] = await db.execute("SELECT DATE_FORMAT(deadline_at, '%Y%m%dT%H%i00') AS dl FROM bids WHERE id = ?", [bid.id]);
+    if (!row || !row.dl) throw new BidError('This bid has no deadline yet.');
+    const t = (bid.data && bid.data.tender) || {};
+    const icsText = (s) => String(s || '').replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
+    const fold = (line) => line.match(/.{1,73}/g).join('\r\n ');
+    const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z');
+    // Malawi time (CAT, UTC+2) — the deadline is stored as local wall-clock time.
+    const lines = [
+      'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//QuoteFlow//Tenders//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
+      'BEGIN:VTIMEZONE', 'TZID:Africa/Blantyre', 'BEGIN:STANDARD', 'DTSTART:19700101T000000', 'TZOFFSETFROM:+0200', 'TZOFFSETTO:+0200', 'TZNAME:CAT', 'END:STANDARD', 'END:VTIMEZONE',
+      'BEGIN:VEVENT',
+      `UID:bid-${bid.id}@quoteflow`,
+      `DTSTAMP:${stamp}`,
+      `DTSTART;TZID=Africa/Blantyre:${row.dl}`,
+      `DTEND;TZID=Africa/Blantyre:${row.dl}`,
+      fold(`SUMMARY:${icsText(`Bid deadline: ${t.title || bid.title || bid.bid_number}`)}`),
+      fold(`DESCRIPTION:${icsText([`${bid.bid_number}${t.reference_number ? ` · ${t.reference_number}` : ''}`, t.procuring_entity, t.submission_place ? `Submit at: ${t.submission_place}` : '', t.copies_required ? `Copies: ${t.copies_required}` : ''].filter(Boolean).join('\n'))}`),
+      ...(t.submission_place ? [fold(`LOCATION:${icsText(t.submission_place)}`)] : []),
+      'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:Bid deadline in 3 days', 'TRIGGER:-P3D', 'END:VALARM',
+      'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:Bid deadline tomorrow', 'TRIGGER:-P1D', 'END:VALARM',
+      'END:VEVENT', 'END:VCALENDAR',
+    ];
+    res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${bid.bid_number}-deadline.ics"`);
+    res.send(lines.join('\r\n'));
+  } catch (error) {
+    sendError(res, error, 'Could not make the calendar event');
+  }
+});
+
+// POST /api/bids/:id/specs-from-brochure — multipart "file" (PDF or photo of a
+// brochure / spec sheet): AI suggests the offered specification and compliance
+// for each requirement. Nothing is saved — the page shows the suggestions.
+const brochureUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => (file.mimetype === 'application/pdf' || /^image\/(jpeg|png|webp)$/.test(file.mimetype) ? cb(null, true) : cb(new BidError('Upload the brochure as a PDF or a photo.'))),
+}).single('file');
+router.post('/:id/specs-from-brochure', async (req, res) => {
+  try {
+    await run(brochureUpload, req, res);
+    const bid = await accessibleBid(req, req.params.id);
+    if (!req.file) throw new BidError('Choose the brochure or spec sheet.');
+    const specs = (bid.data && bid.data.specs) || [];
+    if (!specs.length) throw new BidError('This bid has no technical specifications to compare with.');
+    const ai = await aiStatus(req.user);
+    if (!ai.available) throw new BidError('AI is not available right now.', 503);
+    const product = String((req.body && req.body.product) || '').slice(0, 200);
+    const suggestions = await specsFromBrochure(req, req.file, specs, { companyId: bid.company_id, product });
+    res.json({ suggestions });
+  } catch (error) {
+    sendError(res, error, 'Could not read the brochure');
+  }
+});
+
 // POST /api/bids/:id/status — { status } draft | review | approved | submitted | won | lost | cancelled
 const STATUSES = ['draft', 'review', 'approved', 'submitted', 'won', 'lost', 'cancelled'];
 router.post('/:id/status', async (req, res) => {
@@ -470,6 +670,21 @@ router.post('/:id/status', async (req, res) => {
     const status = String((req.body && req.body.status) || '');
     if (!STATUSES.includes(status)) throw new BidError('Unknown status.');
     if (status === 'approved' && req.user.role !== 'admin') throw new BidError('Only an admin can approve a bid.', 403);
+    const note = req.body && req.body.note ? String(req.body.note).trim().slice(0, 2000) : null;
+    // Won / lost: keep the award details with the bid.
+    if ((status === 'won' || status === 'lost') && req.body && req.body.result) {
+      const x = req.body.result;
+      const result = {
+        awarded_amount: Number(x.awarded_amount) > 0 ? Number(x.awarded_amount) : null,
+        contract_date: ymd(x.contract_date),
+        winner: x.winner ? String(x.winner).slice(0, 255) : '',
+        winner_price: Number(x.winner_price) > 0 ? Number(x.winner_price) : null,
+        reason: x.reason ? String(x.reason).slice(0, 100) : '',
+        notes: x.notes ? String(x.notes).slice(0, 2000) : '',
+        recorded_by: req.user.name, recorded_at: today(),
+      };
+      await db.execute('UPDATE bids SET data = ? WHERE id = ?', [JSON.stringify({ ...bid.data, result }), bid.id]);
+    }
     await db.execute(
       `UPDATE bids SET status = ?,
               approved_by = IF(? = 'approved', ?, IF(? IN ('draft', 'review'), NULL, approved_by)),
@@ -478,6 +693,7 @@ router.post('/:id/status', async (req, res) => {
         WHERE id = ?`,
       [status, status, req.user.id, status, status, status, status, status, bid.id]
     );
+    await db.execute('INSERT INTO bid_events (bid_id, user_id, kind, status, note) VALUES (?, ?, ?, ?, ?)', [bid.id, req.user.id, 'status', status, note]);
     res.json(await loadBid(bid.id));
   } catch (error) {
     sendError(res, error, 'Could not change the status');
@@ -488,7 +704,7 @@ router.post('/:id/status', async (req, res) => {
 router.post('/:id/duplicate', async (req, res) => {
   try {
     const bid = await accessibleBid(req, req.params.id);
-    const data = { ...bid.data, tender: { ...(bid.data.tender || {}), deadline: '', reference_number: '' } };
+    const data = { ...bid.data, result: undefined, tender: { ...(bid.data.tender || {}), deadline: '', reference_number: '' } };
     const [r] = await db.execute(
       `INSERT INTO bids (company_id, created_by, bid_number, kind, status, title, procuring_entity, data)
        VALUES (?, ?, ?, ?, 'draft', ?, ?, ?)`,

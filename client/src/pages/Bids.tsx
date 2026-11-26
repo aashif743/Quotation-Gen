@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Upload, Plus, Loader2, AlertCircle, Gavel, Clock, Trophy, Send, FileSearch, X, Building2 } from 'lucide-react';
+import { Upload, Plus, Loader2, AlertCircle, Gavel, Clock, Trophy, Send, FileSearch, X, Building2, List, CalendarDays, BarChart3 } from 'lucide-react';
 import { useCompany } from '../context/CompanyContext';
 import { useTheme } from '../context/ThemeContext';
 import { brandColorFor } from '../utils/colors';
@@ -9,6 +9,7 @@ import { Bid, BidKind, STATUS_LABELS, STATUS_STYLE, createBid, getBidProfile, ge
 import { getAiStatus, AiStatus } from '../services/aiApi';
 import { timeLeftText } from './BidWorkspace';
 import FitText from '../components/common/FitText';
+import DeadlineCalendar from '../components/Bid/DeadlineCalendar';
 
 type Filter = 'active' | 'submitted' | 'won' | 'closed' | 'all';
 const FILTERS: { key: Filter; label: string }[] = [
@@ -31,6 +32,8 @@ const Bids: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState<Filter>('active');
+  const [view, setView] = useState<'list' | 'calendar'>(() => { try { return localStorage.getItem('bidsView') === 'calendar' ? 'calendar' : 'list'; } catch { return 'list'; } });
+  const pickView = (v: 'list' | 'calendar') => { setView(v); try { localStorage.setItem('bidsView', v); } catch { /* private mode */ } };
   const [uploading, setUploading] = useState(false);
   const [profileSaved, setProfileSaved] = useState(true);
   const [ai, setAi] = useState<AiStatus | null>(null);
@@ -133,8 +136,15 @@ const Bids: React.FC = () => {
       </div>
 
       <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-        <div className="px-6 py-4 border-b border-gray-200 flex flex-wrap gap-2">
-          {FILTERS.map((f) => {
+        <div className="px-6 py-4 border-b border-gray-200 flex flex-wrap items-center gap-2">
+          <div className="inline-flex rounded-lg border border-gray-300 p-0.5 mr-1">
+            {([['list', List, 'List'], ['calendar', CalendarDays, 'Calendar']] as const).map(([k, I, l]) => (
+              <button key={k} onClick={() => pickView(k)} title={l} className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-sm ${view === k ? 'text-white' : 'text-gray-600'}`} style={view === k ? { backgroundColor: primary } : undefined}>
+                <I className="h-4 w-4" /> <span className="hidden sm:inline">{l}</span>
+              </button>
+            ))}
+          </div>
+          {view === 'list' && FILTERS.map((f) => {
             const on = filter === f.key;
             return (
               <button key={f.key} onClick={() => setFilter(f.key)}
@@ -144,9 +154,10 @@ const Bids: React.FC = () => {
               </button>
             );
           })}
+          <Link to="/tender-reports" className="ml-auto inline-flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900"><BarChart3 className="h-4 w-4" /> Reports</Link>
         </div>
         <div className="overflow-x-auto">
-          {loading ? (
+          {view === 'calendar' && !loading ? <DeadlineCalendar bids={bids} primary={primary} /> : loading ? (
             <div className="p-12 text-center"><Loader2 className="h-8 w-8 animate-spin text-gray-300 mx-auto" /></div>
           ) : shown.length === 0 ? (
             <div className="p-12 text-center">

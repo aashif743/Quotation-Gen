@@ -59,6 +59,7 @@ import AiUsage from './pages/AiUsage';
 import Bids from './pages/Bids';
 import BidWorkspace from './pages/BidWorkspace';
 import BidProfilePage from './pages/BidProfile';
+import TenderReports from './pages/TenderReports';
 import Organizations from './pages/Organizations';
 import UserManagement from './pages/UserManagement';
 import Login from './pages/Login';
@@ -225,6 +226,7 @@ function AppRoutes() {
                   <Route path="/tenders" element={<Bids />} />
                   <Route path="/tenders/:id" element={<BidWorkspace />} />
                   <Route path="/bid-profile" element={<BidProfilePage />} />
+                  <Route path="/tender-reports" element={<TenderReports />} />
                   <Route path="/letters" element={<Letters />} />
                   <Route path="/letters/new" element={<LetterForm />} />
                   <Route path="/letters/:id" element={<LetterView />} />

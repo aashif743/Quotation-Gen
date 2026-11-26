@@ -8,6 +8,7 @@ import { exitOrganization } from '../../services/api';
 import CompanySelector, { CompanyThumb } from './CompanySelector';
 import { QuoteFlowLogo, QuoteFlowMark } from '../common/QuoteFlowLogo';
 import DemoBanner from './DemoBanner';
+import { getBidSummary } from '../../services/bidsApi';
 import {
   Home,
   Landmark,
@@ -44,6 +45,7 @@ import {
   Mail,
   Sparkles,
   Gavel,
+  BarChart3,
   FolderLock,
 } from 'lucide-react';
 import FloatingScrollbar from './FloatingScrollbar';
@@ -107,6 +109,15 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     } catch { /* ignore */ }
     window.location.assign('/organizations');
   };
+
+  // Bids due within 3 days → a red count on "Tenders & RFQs".
+  const [bidsDue, setBidsDue] = useState(0);
+  useEffect(() => {
+    if (platformMode || !selectedCompany?.id) { setBidsDue(0); return; }
+    let live = true;
+    getBidSummary(selectedCompany.id).then((s) => { if (live) setBidsDue(s.due_within_3_days); }).catch(() => {});
+    return () => { live = false; };
+  }, [platformMode, selectedCompany?.id, location.pathname]);
 
   const [collapsed, setCollapsed] = useState<boolean>(
     () => localStorage.getItem('sidebarCollapsed') === 'true'
@@ -230,6 +241,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     ]},
     { label: 'Tenders', items: [
       { to: '/tenders', icon: Gavel, label: 'Tenders & RFQs' },
+      { to: '/tender-reports', icon: BarChart3, label: 'Tender Reports' },
       { to: '/bid-profile', icon: FolderLock, label: 'Bid Profile' },
     ]},
     { label: 'Contacts', items: [
@@ -388,8 +400,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                       style={getNavItemStyle(to)}
                       title={collapsed ? label : undefined}
                     >
-                      <Icon className="h-5 w-5 flex-shrink-0" />
+                      <span className="relative flex-shrink-0">
+                        <Icon className="h-5 w-5" />
+                        {collapsed && to === '/tenders' && bidsDue > 0 && <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white dark:ring-[#1a1a1a]" />}
+                      </span>
                       {!collapsed && <span className="truncate">{label}</span>}
+                      {!collapsed && to === '/tenders' && bidsDue > 0 && (
+                        <span className="ml-auto min-w-[1.25rem] h-5 px-1.5 rounded-full bg-red-500 text-white text-[11px] font-semibold flex items-center justify-center" title={`${bidsDue} bid deadline${bidsDue === 1 ? '' : 's'} within 3 days`}>{bidsDue}</span>
+                      )}
                     </Link>
                   ))}
                 </div>

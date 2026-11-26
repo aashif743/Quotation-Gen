@@ -4,6 +4,7 @@ import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   PieChart, Pie, Cell, BarChart, Bar,
 } from 'recharts';
+import TenderDeadlinesCard from '../components/Bid/TenderDeadlinesCard';
 import { useCompany } from '../context/CompanyContext';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -135,6 +136,8 @@ const Dashboard: React.FC = () => {
               ? <MiniStat i={3} label="Petty Cash" value={t.petty_balance} money icon={Banknote} accent="#22c55e" />
               : <MiniStat i={3} label="Delivery Notes" value={t.delivery_notes} icon={Truck} accent="#22c55e" />}
           </div>
+
+          <TenderDeadlinesCard companyId={selectedCompany.id} brand={brand} />
 
           {/* Revenue area + payment donut */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">

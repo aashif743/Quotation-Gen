@@ -148,6 +148,8 @@ export interface BidData {
   checklist?: ChecklistItem[];
   forms?: string[];
   options?: BidOptions;
+  /** Award details recorded when the bid was won / not won. */
+  result?: BidResult;
 }
 
 export interface Bid {
@@ -210,7 +212,52 @@ export const createBid = async (companyId: number, kind: BidKind, title: string)
   (await api.post('/bids', { company_id: companyId, kind, title })).data;
 export const saveBid = async (id: number, data: BidData): Promise<Bid> => (await api.put(`/bids/${id}`, { data })).data;
 export const readBidAgain = async (id: number): Promise<Bid> => (await api.post(`/bids/${id}/read`)).data;
-export const setBidStatus = async (id: number, status: BidStatus): Promise<Bid> => (await api.post(`/bids/${id}/status`, { status })).data;
+export interface BidResult {
+  awarded_amount?: number | null;
+  contract_date?: string | null;
+  winner?: string;
+  winner_price?: number | null;
+  reason?: string;
+  notes?: string;
+  recorded_by?: string;
+  recorded_at?: string;
+}
+export const setBidStatus = async (id: number, status: BidStatus, extra: { note?: string; result?: BidResult } = {}): Promise<Bid> =>
+  (await api.post(`/bids/${id}/status`, { status, ...extra })).data;
+
+export interface BidEvent { id: number; kind: 'status' | 'comment'; status?: BidStatus | null; note?: string | null; created_at: string; user_id?: number | null; user_name?: string | null }
+export const getBidEvents = async (id: number): Promise<BidEvent[]> => (await api.get(`/bids/${id}/events`)).data;
+export const addBidComment = async (id: number, note: string) => (await api.post(`/bids/${id}/events`, { note })).data;
+
+/** Link to the deadline as a calendar event (.ics) with reminders. */
+export const bidCalendarUrl = (id: number) => `${(api.defaults.baseURL || '/api').replace(/\/$/, '')}/bids/${id}/calendar.ics`;
+
+export interface SpecSuggestion { index: number; offered: string; compliance: 'Comply' | 'Partly comply' | 'Does not comply' | 'Not stated'; evidence: string }
+export const suggestSpecsFromBrochure = async (id: number, file: File, product: string): Promise<SpecSuggestion[]> => {
+  const fd = new FormData();
+  fd.append('file', file);
+  if (product) fd.append('product', product);
+  return (await api.post(`/bids/${id}/specs-from-brochure`, fd)).data.suggestions;
+};
+
+export interface BidSummary {
+  upcoming: { id: number; bid_number: string; kind: BidKind; status: BidStatus; title: string | null; procuring_entity: string | null; deadline: string; minutes_left: number }[];
+  due_within_3_days: number;
+  awaiting_review: number;
+  documents_expired: number;
+  documents_expiring: number;
+}
+export const getBidSummary = async (companyId: number): Promise<BidSummary> => (await api.get('/bids/summary', { params: { company_id: companyId } })).data;
+
+export interface BidReports {
+  totals: { bids: number; in_progress: number; submitted: number; won: number; lost: number; win_rate: number | null; value_bid: number; value_won: number; avg_gap_percent: number | null };
+  by_entity: { entity: string; bids: number; submitted: number; won: number; lost: number; value_bid: number; value_won: number }[];
+  by_month: { month: string; submitted: number; won: number; lost: number; value_won: number }[];
+  lost_reasons: { reason: string; count: number }[];
+  decided: { id: number; bid_number: string; title: string | null; procuring_entity: string | null; status: BidStatus; value: number; result: BidResult | null }[];
+}
+export const getBidReports = async (companyId: number, from?: string, to?: string): Promise<BidReports> =>
+  (await api.get('/bids/reports', { params: { company_id: companyId, ...(from ? { from } : {}), ...(to ? { to } : {}) } })).data;
 export const duplicateBid = async (id: number): Promise<Bid> => (await api.post(`/bids/${id}/duplicate`)).data;
 export const deleteBid = async (id: number) => { await api.delete(`/bids/${id}`); };
 
