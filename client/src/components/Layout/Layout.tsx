@@ -43,6 +43,8 @@ import {
   ShoppingBag,
   Mail,
   Sparkles,
+  Gavel,
+  FolderLock,
 } from 'lucide-react';
 import FloatingScrollbar from './FloatingScrollbar';
 
@@ -225,6 +227,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       ...(canUseDeliveryNotes ? [{ to: '/delivery-history', icon: Truck, label: 'Delivery Notes' }] : []),
       { to: '/contracts', icon: FileSignature, label: 'Contracts' },
       { to: '/letters', icon: Mail, label: 'Letters' },
+    ]},
+    { label: 'Tenders', items: [
+      { to: '/tenders', icon: Gavel, label: 'Tenders & RFQs' },
+      { to: '/bid-profile', icon: FolderLock, label: 'Bid Profile' },
     ]},
     { label: 'Contacts', items: [
       { to: '/clients', icon: Briefcase, label: 'Clients' },

@@ -32,6 +32,7 @@ const ENTITIES = {
   payments:          { type: 'payment',       table: 'payments',        label: null },
   'cash-sales':      { type: 'cash_sale',     table: 'invoices',        label: 'invoice_number' },
   letters:           { type: 'letter',        table: 'letters',         label: 'letter_number' },
+  bids:              { type: 'bid',           table: 'bids',            label: 'bid_number' },
   ai: {
     nested: {
       admin: { type: 'ai_settings' },

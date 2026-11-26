@@ -56,6 +56,9 @@ import Letters from './pages/Letters';
 import LetterForm from './pages/LetterForm';
 import LetterView from './pages/LetterView';
 import AiUsage from './pages/AiUsage';
+import Bids from './pages/Bids';
+import BidWorkspace from './pages/BidWorkspace';
+import BidProfilePage from './pages/BidProfile';
 import Organizations from './pages/Organizations';
 import UserManagement from './pages/UserManagement';
 import Login from './pages/Login';
@@ -219,6 +222,9 @@ function AppRoutes() {
                   <Route path="/cash-sales/:id" element={<PaymentsRoute><CashSaleView /></PaymentsRoute>} />
                   <Route path="/cash-sales/:id/edit" element={<PaymentsRoute><CashSaleForm /></PaymentsRoute>} />
                   <Route path="/receipts/:paymentId" element={<PaymentsRoute><ReceiptView /></PaymentsRoute>} />
+                  <Route path="/tenders" element={<Bids />} />
+                  <Route path="/tenders/:id" element={<BidWorkspace />} />
+                  <Route path="/bid-profile" element={<BidProfilePage />} />
                   <Route path="/letters" element={<Letters />} />
                   <Route path="/letters/new" element={<LetterForm />} />
                   <Route path="/letters/:id" element={<LetterView />} />

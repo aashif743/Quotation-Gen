@@ -50,6 +50,8 @@ const SPECS = {
   },
   contract: { table: 'contracts', label: 'contract_number', name: 'Contract' },
   letter: { table: 'letters', label: 'letter_number', name: 'Letter' },
+  bid: { table: 'bids', label: 'bid_number', name: 'Bid' },
+  bid_document: { table: 'bid_documents', label: 'title', name: 'Bid document' },
   client: {
     table: 'clients', label: 'name', name: 'Client',
     refs: [['quotations', 'client_id'], ['invoices', 'client_id'], ['delivery_notes', 'client_id'], ['job_cards', 'client_id'], ['contracts', 'client_id']],
@@ -97,6 +99,10 @@ function describe(type, row, parentRow) {
       return [row.recipient_name, money(row.amount)].filter(Boolean).join(' · ');
     case 'contract':
       return [row.client_name, row.title].filter(Boolean).join(' · ');
+    case 'bid':
+      return [row.procuring_entity, row.title].filter(Boolean).join(' · ');
+    case 'bid_document':
+      return [row.doc_type, row.file_name].filter(Boolean).join(' · ');
     case 'letter':
       return [row.recipient_company || row.recipient_name, row.subject].filter(Boolean).join(' · ');
     case 'client':

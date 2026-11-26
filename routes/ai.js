@@ -18,6 +18,7 @@ const FEATURE_NAMES = {
   letter_improve: 'Letter improving',
   payment_reminder: 'Payment reminders',
   receipt_scan: 'Receipt scanning',
+  tender_read: 'Tender reading',
   test: 'Connection test',
 };
 

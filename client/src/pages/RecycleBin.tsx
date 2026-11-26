@@ -10,7 +10,7 @@ const TYPES: [string, string][] = [
   ['', 'All types'], ['quotation', 'Quotations'], ['invoice', 'Invoices'], ['payment', 'Payments'],
   ['delivery_note', 'Delivery notes'], ['job_card', 'Job cards'], ['lpo', 'LPOs'], ['purchase', 'Purchases'],
   ['vendor_payment', 'Vendor payments'], ['expense', 'Expenses'], ['petty_cash', 'Petty cash'],
-  ['donation', 'Donations'], ['contract', 'Contracts'], ['letter', 'Letters'], ['client', 'Clients'], ['vendor', 'Vendors'],
+  ['donation', 'Donations'], ['contract', 'Contracts'], ['letter', 'Letters'], ['bid', 'Bids'], ['bid_document', 'Bid documents'], ['client', 'Clients'], ['vendor', 'Vendors'],
   ['account_transaction', 'Transfers & money in/out'],
 ];
 
@@ -18,7 +18,7 @@ const TYPES: [string, string][] = [
 const openPath = (type: string, id: number): string | null => ({
   quotation: `/quotation/${id}`, invoice: `/invoice/${id}`, delivery_note: `/delivery-note/${id}`,
   job_card: `/job-cards/${id}`, lpo: `/lpos/${id}`, purchase: `/purchase/${id}`, donation: `/donations/${id}`,
-  contract: `/contracts/${id}`, letter: `/letters/${id}`, client: `/clients/${id}`, vendor: `/vendors/${id}`,
+  contract: `/contracts/${id}`, letter: `/letters/${id}`, bid: `/tenders/${id}`, client: `/clients/${id}`, vendor: `/vendors/${id}`,
 } as Record<string, string>)[type] || null;
 
 const fmtWhen = (s: string) => new Date(s.replace(' ', 'T')).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });

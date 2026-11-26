@@ -91,12 +91,12 @@ async function logUsage(row) {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /** One API call, retried twice when Claude is overloaded or rate-limited. */
-async function callApi(body) {
+async function callApi(body, timeoutMs = TIMEOUT_MS) {
   let lastStatus = 0;
   for (let attempt = 0; attempt < 3; attempt++) {
     if (attempt) await sleep(1500 * attempt);
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
     let res;
     try {
       res = await fetch(API_URL, {
@@ -143,9 +143,10 @@ async function callApi(body) {
  *             then that tool's input (structured), otherwise plain text
  *   maxTokens default 1500
  *   companyId for the usage log
+ *   timeoutMs per attempt (default 90 s)
  * Returns { result, usage }.
  */
-async function runAi({ req, feature, tier = 'fast', system, content, tool, maxTokens = 1500, companyId = null }) {
+async function runAi({ req, feature, tier = 'fast', system, content, tool, maxTokens = 1500, companyId = null, timeoutMs }) {
   const user = req.user || {};
   const status = await aiStatus(user);
   if (!status.configured) throw new AiError('AI is not switched on for this system yet.', 503, 'not_configured');
@@ -172,7 +173,7 @@ async function runAi({ req, feature, tier = 'fast', system, content, tool, maxTo
   const started = Date.now();
   let data;
   try {
-    data = await callApi(body);
+    data = await callApi(body, timeoutMs);
   } catch (e) {
     await logUsage({ ...base, status: 'error', error: e.code || e.message, duration_ms: Date.now() - started });
     throw e;

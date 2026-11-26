@@ -1514,6 +1514,77 @@ async function migrate() {
     `);
   } else { console.log('  • ai_usage table already present, skipping.'); }
 
+  // 3zf. Tenders & RFQs (added 2026-11). Additive only.
+  //   - bid_profiles: one per company — the facts every bid asks for.
+  //   - bid_documents: the company's document vault (certificates etc.,
+  //     with expiry dates). Files are never deleted automatically.
+  //   - bids: one per tender / RFQ responded to (details read from the
+  //     tender, items & prices, technical compliance, status).
+  if (!(await tableExists('bid_profiles'))) {
+    console.log('  • Creating `bid_profiles` table...');
+    await db.query(`
+      CREATE TABLE bid_profiles (
+        company_id INT PRIMARY KEY,
+        data MEDIUMTEXT NULL,
+        updated_by INT NULL,
+        updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        CONSTRAINT fk_bid_profiles_company FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+  } else { console.log('  • bid_profiles table already present, skipping.'); }
+  if (!(await tableExists('bid_documents'))) {
+    console.log('  • Creating `bid_documents` table...');
+    await db.query(`
+      CREATE TABLE bid_documents (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        company_id INT NOT NULL,
+        doc_type VARCHAR(40) NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        file_url VARCHAR(255) NOT NULL,
+        file_name VARCHAR(255) NULL,
+        mime VARCHAR(100) NULL,
+        issued_on DATE NULL,
+        expires_on DATE NULL,
+        notes TEXT NULL,
+        uploaded_by INT NULL,
+        created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+        KEY idx_bid_documents_company (company_id, doc_type),
+        CONSTRAINT fk_bid_documents_company FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+  } else { console.log('  • bid_documents table already present, skipping.'); }
+  if (!(await tableExists('bids'))) {
+    console.log('  • Creating `bids` table...');
+    await db.query(`
+      CREATE TABLE bids (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        company_id INT NOT NULL,
+        created_by INT NULL,
+        bid_number VARCHAR(50) NOT NULL,
+        kind VARCHAR(10) NOT NULL DEFAULT 'tender',
+        status VARCHAR(20) NOT NULL DEFAULT 'draft',
+        title VARCHAR(500) NULL,
+        procuring_entity VARCHAR(255) NULL,
+        reference_number VARCHAR(150) NULL,
+        deadline_at DATETIME NULL,
+        data MEDIUMTEXT NULL,
+        source_file_url VARCHAR(255) NULL,
+        source_file_name VARCHAR(255) NULL,
+        ai_status VARCHAR(20) NULL,
+        ai_error VARCHAR(255) NULL,
+        approved_by INT NULL,
+        approved_at DATETIME NULL,
+        submitted_at DATETIME NULL,
+        created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_bid_number (company_id, bid_number),
+        KEY idx_bids_company_deadline (company_id, deadline_at),
+        CONSTRAINT fk_bids_company FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
+        CONSTRAINT fk_bids_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+  } else { console.log('  • bids table already present, skipping.'); }
+
   // 4. Backfill created_by from each row's company owner so existing records
   //    are attributed to the user who originally owned the company.
   const [qBackfill] = await db.query(

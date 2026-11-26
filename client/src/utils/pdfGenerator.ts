@@ -36,10 +36,16 @@ async function waitForImages(element: HTMLElement): Promise<void> {
  * per-page canvas and add each slice as its own image — no clipping needed,
  * works in every viewer.
  */
-async function saveElementAsPdf(
-  element: HTMLElement,
-  filename: string
-): Promise<void> {
+async function saveElementAsPdf(element: HTMLElement, filename: string): Promise<void> {
+  const pdf = await buildElementPdf(element);
+  pdf.save(filename);
+}
+
+/**
+ * Capture the given DOM element as a multi-page A4 PDF and return it (without
+ * saving), e.g. to merge several documents into one file.
+ */
+export async function buildElementPdf(element: HTMLElement): Promise<jsPDF> {
   // Make sure every image (especially the company logo) is fully loaded
   // first — otherwise the captured height varies per company.
   await waitForImages(element);
@@ -83,6 +89,10 @@ async function saveElementAsPdf(
   // above print clarity for text and keeps the JPEG inside the PDF small. The
   // old `scale: 2` produced ~217 DPI which is overkill and roughly quadruples
   // the raw pixel count vs the file size we actually need.
+  // Mark the element being captured so the clone pins exactly this element
+  // (a page can hold several documents, e.g. a bid pack's forms).
+  document.querySelectorAll('[data-pdf-root]').forEach((e) => e.removeAttribute('data-pdf-root'));
+  element.setAttribute('data-pdf-root', '1');
   const canvas = await html2canvas(element, {
     scale: CAPTURE_SCALE,
     useCORS: true,
@@ -101,9 +111,10 @@ async function saveElementAsPdf(
     // footer) actually fill the A4 page in the captured image, since the
     // browser inside html2canvas's iframe ignores `aspect-ratio`.
     onclone: (clonedDoc) => {
-      const root = clonedDoc.querySelector<HTMLElement>(
-        '.quotation-document, .invoice-document, .delivery-note-document, .contract-document, .job-card-document, .lpo-document, .payslip-document, .donation-document, .statement-document'
-      );
+      const root = clonedDoc.querySelector<HTMLElement>('[data-pdf-root]')
+        || clonedDoc.querySelector<HTMLElement>(
+          '.quotation-document, .invoice-document, .delivery-note-document, .contract-document, .job-card-document, .lpo-document, .payslip-document, .donation-document, .statement-document'
+        );
       if (!root) return;
       root.style.width = `${captureWidth}px`;
       root.style.height = `${captureHeight}px`;
@@ -119,6 +130,7 @@ async function saveElementAsPdf(
       contentEnd = collectContentEnd(root, CAPTURE_SCALE);
     },
   });
+  element.removeAttribute('data-pdf-root');
 
   // `compress: true` zlib-compresses the PDF streams (text, fonts, embedded
   // objects). Combined with JPEG-compressed images below, this brings a single
@@ -152,8 +164,7 @@ async function saveElementAsPdf(
       undefined, // alias
       'FAST'     // jsPDF's own zlib compression on top of the JPEG stream
     );
-    pdf.save(filename);
-    return;
+    return pdf;
   }
 
   // html2canvas doesn't always paint text exactly where the DOM lays it out
@@ -290,7 +301,7 @@ async function saveElementAsPdf(
     if (isLast) break;
   }
 
-  pdf.save(filename);
+  return pdf;
 }
 
 /**
