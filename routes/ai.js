@@ -19,6 +19,7 @@ const FEATURE_NAMES = {
   payment_reminder: 'Payment reminders',
   receipt_scan: 'Receipt scanning',
   tender_read: 'Tender reading',
+  tender_fill: 'Tender form filling',
   test: 'Connection test',
 };
 

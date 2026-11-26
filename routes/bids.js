@@ -9,7 +9,9 @@ const { requireCompanyAccess, companyInOrg, orgParamGuard } = require('../utils/
 const { getCompanyPrefix } = require('../utils/quotePrefix');
 const { UPLOADS_ROOT } = require('../config/paths');
 const { aiStatus, AiError } = require('../utils/ai');
-const { readTender, DOC_TYPES } = require('../utils/tenderAi');
+const { readTender, fillBlanksWithAi, DOC_TYPES } = require('../utils/tenderAi');
+const { fillDocx } = require('../utils/docxFill');
+const { buildFacts, factsForAi } = require('../utils/bidFacts');
 const { docxToText } = require('../utils/docxText');
 
 // Tenders & RFQs.
@@ -180,7 +182,28 @@ const BID_SELECT = `
          TIMESTAMPDIFF(MINUTE, NOW(), b.deadline_at) AS minutes_left
     FROM bids b LEFT JOIN users u ON u.id = b.created_by LEFT JOIN users a ON a.id = b.approved_by`;
 
-const shape = (row) => (row ? { ...row, data: parse(row.data) } : null);
+const shape = (row) => {
+  if (!row) return null;
+  let report = null;
+  try { report = row.word_report ? JSON.parse(row.word_report) : null; } catch { report = null; }
+  return { ...row, data: parse(row.data), word_report: report };
+};
+
+/** Width / height ratio of a PNG or JPEG (for placing the signature). */
+function imageRatio(buf) {
+  try {
+    if (buf.readUInt32BE(0) === 0x89504e47) return buf.readUInt32BE(16) / buf.readUInt32BE(20);
+    let i = 2;
+    while (i < buf.length) {
+      if (buf[i] !== 0xff) { i++; continue; }
+      const marker = buf[i + 1];
+      const len = buf.readUInt16BE(i + 2);
+      if (marker >= 0xc0 && marker <= 0xc3) return buf.readUInt16BE(i + 7) / buf.readUInt16BE(i + 5);
+      i += 2 + len;
+    }
+  } catch { /* fall through */ }
+  return 3;
+}
 async function loadBid(id) {
   // A read that never finished (e.g. the server restarted) is marked failed after 10 minutes.
   await db.execute(
@@ -388,6 +411,54 @@ router.put('/:id', async (req, res) => {
     res.json(await loadBid(bid.id));
   } catch (error) {
     sendError(res, error, 'Could not save the bid');
+  }
+});
+
+// POST /api/bids/:id/fill-word — { highlight } fill the tender's own Word file.
+router.post('/:id/fill-word', async (req, res) => {
+  try {
+    const bid = await accessibleBid(req, req.params.id);
+    if (!bid.source_file_url || !/\.docx$/i.test(bid.source_file_url)) {
+      throw new BidError('Only a Word (.docx) tender can be filled in. For a PDF tender, use the bid pack.');
+    }
+    const [[co]] = await db.execute('SELECT * FROM companies WHERE id = ?', [bid.company_id]);
+    const [[pr]] = await db.execute('SELECT data FROM bid_profiles WHERE company_id = ?', [bid.company_id]);
+    const profile = pr ? parse(pr.data) : {};
+    const facts = buildFacts(bid.data || {}, profile, co);
+
+    // The signatory's saved signature (unless the bid says not to print it).
+    let signature = null;
+    if ((bid.data.options || {}).show_signature !== false && profile.signatory_user_id) {
+      const [[u]] = await db.execute('SELECT signature_url FROM users WHERE id = ? AND organization_id = ?', [profile.signatory_user_id, req.user.organization_id]);
+      if (u && u.signature_url) {
+        try {
+          const data = fs.readFileSync(path.join(UPLOADS_ROOT, 'signatures', path.basename(u.signature_url)));
+          const ext = data.readUInt32BE(0) === 0x89504e47 ? 'png' : 'jpeg';
+          signature = { data, ext, ratio: imageRatio(data) };
+        } catch { signature = null; }
+      }
+    }
+
+    const ai = await aiStatus(req.user);
+    const original = fs.readFileSync(path.join(UPLOADS_ROOT, 'tenders', path.basename(bid.source_file_url)));
+    const { buffer, report } = await fillDocx(original, facts, {
+      highlight: !!(req.body && req.body.highlight),
+      signature,
+      resolve: ai.available ? (blanks) => fillBlanksWithAi(req, blanks, factsForAi(facts), bid.company_id) : null,
+    });
+    report.ai = ai.available;
+    const dir = path.join(UPLOADS_ROOT, 'tenders');
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    const stored = `filled-${bid.id}-${Date.now()}.docx`;
+    fs.writeFileSync(path.join(dir, stored), buffer);
+    const niceName = `${[bid.bid_number, (bid.data.tender || {}).reference_number].filter(Boolean).join('_').replace(/[^A-Za-z0-9_-]+/g, '_')}_filled.docx`;
+    await db.execute(
+      'UPDATE bids SET word_file_url = ?, word_file_name = ?, word_report = ?, word_filled_at = NOW() WHERE id = ?',
+      [`/uploads/tenders/${stored}`, niceName, JSON.stringify(report).slice(0, 2_000_000), bid.id]
+    );
+    res.json(await loadBid(bid.id));
+  } catch (error) {
+    sendError(res, error, 'Could not fill the Word document');
   }
 });
 

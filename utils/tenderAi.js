@@ -148,4 +148,53 @@ async function readTender(req, doc, { companyId, companyName, today }) {
   return result;
 }
 
-module.exports = { readTender, trimBoilerplate, DOC_TYPES, FORMS };
+const FILL_TOOL = {
+  name: 'fill_blanks',
+  description: 'Give the text for each blank the bidder should fill. Use "" to leave a blank as it is.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      answers: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: { id: { type: 'integer' }, value: { type: 'string' } },
+          required: ['id', 'value'],
+        },
+      },
+    },
+    required: ['answers'],
+  },
+};
+
+/**
+ * Decide the remaining "[insert …]" blanks of a bidding document.
+ * `blanks`: [{ id, placeholder, sentence, section }]; `facts`: plain facts.
+ * Returns Map(id → value).
+ */
+async function fillBlanksWithAi(req, blanks, facts, companyId) {
+  const out = new Map();
+  for (let i = 0; i < blanks.length; i += 120) {
+    const batch = blanks.slice(i, i + 120);
+    const system = [
+      'You fill in blanks in a Malawian bidding document on behalf of the BIDDER.',
+      'Use only the facts given. Write the value exactly as it should appear in the sentence (no brackets).',
+      'Return "" (leave the blank) when: the blank is for the procuring entity, a bank, guarantor, insurer or manufacturer;',
+      'it belongs to a contract form or something that happens after the award; it asks for a choice you cannot make from the facts;',
+      'or the fact is not given. Never invent numbers, names, dates or amounts.',
+      'For "[select one option ...]"-type instructions, return "".',
+    ].join(' ');
+    const content = `FACTS:
+${JSON.stringify(facts, null, 1)}
+
+BLANKS:
+${batch.map((b) => JSON.stringify({ id: b.id, blank: b.placeholder, sentence: String(b.sentence || '').slice(0, 500), section: b.section || '' })).join('\n')}`;
+    const { result } = await runAi({ req, feature: 'tender_fill', tier: 'smart', system, content, tool: FILL_TOOL, maxTokens: 6000, companyId, timeoutMs: 180_000 });
+    for (const a of (result && result.answers) || []) {
+      if (a && Number.isInteger(a.id)) out.set(a.id, String(a.value || '').replace(/^\[|\]$/g, '').trim());
+    }
+  }
+  return out;
+}
+
+module.exports = { readTender, trimBoilerplate, fillBlanksWithAi, DOC_TYPES, FORMS };

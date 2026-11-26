@@ -16,6 +16,7 @@ import { getLetterOptions, Signer } from '../services/lettersApi';
 import { ChecklistTab, OverviewTab, PricesTab, TechnicalTab, card, input, label, matchDocument } from '../components/Bid/BidTabs';
 import { BidFormContext, BidFormView, defaultCoverBody } from '../components/Bid/BidForms';
 import { checkBid } from '../utils/bidChecker';
+import WordFillCard from '../components/Bid/WordFillCard';
 import { buildBidPack, downloadPdf } from '../utils/bidPack';
 import { pdfFileSegment } from '../utils/pdfGenerator';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
@@ -401,6 +402,20 @@ const BidWorkspace: React.FC = () => {
 
           {tab === 'check' && (
             <div className="space-y-5">
+              <WordFillCard
+                bid={bid}
+                primary={primary}
+                disabled={!canEdit}
+                beforeFill={async () => {
+                  if (dirtyRef.current) {
+                    const b = await saveBid(bid.id, dataRef.current);
+                    dirtyRef.current = false;
+                    setSaveState('saved');
+                    setBid((old) => (old ? { ...old, ...b, data: old.data } : b));
+                  }
+                }}
+                onFilled={(b) => setBid((old) => (old ? { ...old, ...b, data: old.data } : b))}
+              />
               <div className={card}>
                 <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
                   <div>

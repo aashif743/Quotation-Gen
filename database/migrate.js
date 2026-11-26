@@ -1584,6 +1584,18 @@ async function migrate() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
   } else { console.log('  • bids table already present, skipping.'); }
+  // The tender's own Word file, filled in (phase 2).
+  for (const [col, sql] of [
+    ['word_file_url', 'ALTER TABLE `bids` ADD COLUMN `word_file_url` VARCHAR(255) NULL'],
+    ['word_file_name', 'ALTER TABLE `bids` ADD COLUMN `word_file_name` VARCHAR(255) NULL'],
+    ['word_report', 'ALTER TABLE `bids` ADD COLUMN `word_report` MEDIUMTEXT NULL'],
+    ['word_filled_at', 'ALTER TABLE `bids` ADD COLUMN `word_filled_at` DATETIME NULL'],
+  ]) {
+    if (!(await columnExists('bids', col))) {
+      console.log(`  • Adding \`${col}\` to bids...`);
+      await db.query(sql);
+    }
+  }
 
   // 4. Backfill created_by from each row's company owner so existing records
   //    are attributed to the user who originally owned the company.

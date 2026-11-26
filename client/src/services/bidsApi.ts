@@ -169,6 +169,11 @@ export interface Bid {
   ai_status?: 'reading' | 'done' | 'failed' | 'unavailable' | null;
   ai_error?: string | null;
   approved_by_name?: string | null;
+  /** The tender's own Word file, filled in (phase 2). */
+  word_file_url?: string | null;
+  word_file_name?: string | null;
+  word_filled_at?: string | null;
+  word_report?: WordFillReport | null;
   approved_at?: string | null;
   submitted_at?: string | null;
   created_at?: string;
@@ -177,6 +182,21 @@ export interface Bid {
   total?: number;
   item_count?: number;
 }
+
+export interface WordFillReport {
+  tables: string[];
+  filled: { where: string; blank: string; value: string; by: 'rule' | 'profile' | 'ai' }[];
+  left: { where: string; blank: string }[];
+  signatures: number;
+  removed?: number;
+  /** Forms left for the bank / manufacturer to fill (e.g. "Bid security"). */
+  othersForms?: string[];
+  ai?: boolean;
+  aiError?: string;
+}
+
+export const fillWord = async (id: number, highlight: boolean): Promise<Bid> =>
+  (await api.post(`/bids/${id}/fill-word`, { highlight })).data;
 
 export const getBids = async (companyId: number): Promise<Bid[]> => (await api.get('/bids', { params: { company_id: companyId } })).data;
 export const getBid = async (id: number): Promise<Bid> => (await api.get(`/bids/${id}`)).data;
