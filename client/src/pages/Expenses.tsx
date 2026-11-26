@@ -11,12 +11,30 @@ import {
 import { Expense, Vendor } from '../types';
 import { toCsv, downloadCsv } from '../utils/csv';
 import AccountSelect from '../components/common/AccountSelect';
+import { api } from '../services/api';
+import { AiStatus, getAiStatus } from '../services/aiApi';
+import { shrinkImage } from '../utils/imageResize';
 import {
   Wallet, Search, Plus, Trash2, Edit2, X, AlertCircle, DollarSign, Calendar,
-  Paperclip, ExternalLink, Loader2, Download,
+  Paperclip, ExternalLink, Loader2, Download, Sparkles, ScanLine,
 } from 'lucide-react';
 import MoneyInput from '../components/common/MoneyInput';
 import FitText from '../components/common/FitText';
+
+/** What the AI read from a receipt (see POST /api/ai/scan-receipt). */
+interface ScanResult {
+  is_receipt: boolean;
+  date: string;
+  payee: string;
+  amount: number;
+  currency: string;
+  category: string;
+  description: string;
+  reference: string;
+  payment_method: string;
+  vendor_match: string;
+  notes: string;
+}
 
 const CATEGORIES = [
   'Rent', 'Salaries', 'Transport', 'Fuel', 'Utilities', 'Office Supplies',
@@ -65,6 +83,12 @@ const Expenses: React.FC = () => {
   const [toDelete, setToDelete] = useState<Expense | null>(null);
   const [uploadingFor, setUploadingFor] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Receipt scanning (AI): the photo becomes the new expense's receipt.
+  const scanInputRef = useRef<HTMLInputElement>(null);
+  const [aiStatus, setAiStatus] = useState<AiStatus | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const [scanned, setScanned] = useState<{ file: File; preview: string | null; result: ScanResult } | null>(null);
+  useEffect(() => { getAiStatus().then(setAiStatus).catch(() => {}); }, []);
   const receiptTargetRef = useRef<number | null>(null);
 
   const load = async () => {
@@ -116,7 +140,42 @@ const Expenses: React.FC = () => {
     return { total, count: filtered.length, thisMonth };
   }, [filtered, expenses]);
 
-  const openAdd = () => { setEditing(null); setForm(blankForm()); setFormError(''); setTriedSave(false); setModalOpen(true); };
+  const clearScan = () => setScanned((s) => { if (s?.preview) URL.revokeObjectURL(s.preview); return null; });
+  const openAdd = () => { setEditing(null); setForm(blankForm()); setFormError(''); setTriedSave(false); clearScan(); setModalOpen(true); };
+
+  // Read a receipt photo / PDF with AI and fill in the new expense.
+  const scanReceipt = async (picked: File | null) => {
+    if (!picked || !selectedCompany) return;
+    if (!modalOpen || editing) openAdd();
+    setFormError('');
+    setScanning(true);
+    try {
+      const file = await shrinkImage(picked);
+      if (file.size > 8 * 1024 * 1024) { setFormError('The file is too large (max 8 MB).'); return; }
+      const fd = new FormData();
+      fd.append('file', file);
+      const r: ScanResult = (await api.post(`/ai/scan-receipt?company_id=${selectedCompany.id}`, fd)).data;
+      if (!r.is_receipt) { setFormError('This does not look like a receipt. Try a clearer photo of the whole receipt.'); return; }
+      const vendor = r.vendor_match ? vendors.find((v) => v.name === r.vendor_match) : undefined;
+      const desc = [r.description, !vendor && r.payee ? `(${r.payee})` : ''].filter(Boolean).join(' ');
+      setForm((f) => ({
+        ...f,
+        amount: r.amount > 0 ? String(r.amount) : f.amount,
+        date: r.date || f.date,
+        category: r.category || f.category,
+        description: desc || f.description,
+        reference: r.reference || f.reference,
+        payment_method: f.account_id ? f.payment_method : r.payment_method || f.payment_method,
+        vendor_id: vendor ? String(vendor.id) : f.vendor_id,
+      }));
+      clearScan();
+      setScanned({ file, preview: file.type.startsWith('image/') ? URL.createObjectURL(file) : null, result: r });
+    } catch (e: any) {
+      setFormError(e?.response?.data?.error || 'Could not read the receipt. Please fill in the details yourself.');
+    } finally {
+      setScanning(false);
+    }
+  };
   const openEdit = (e: Expense) => {
     setEditing(e);
     setForm({
@@ -157,8 +216,15 @@ const Expenses: React.FC = () => {
         await updateExpense(editing.id, payload as any);
         setMessage({ type: 'success', text: 'Expense updated.' });
       } else {
-        await createExpense({ company_id: selectedCompany.id, ...payload } as any);
-        setMessage({ type: 'success', text: 'Expense added.' });
+        const created = await createExpense({ company_id: selectedCompany.id, ...payload } as any);
+        // A scanned receipt becomes the expense's receipt.
+        let receiptNote = '';
+        if (scanned && created?.id) {
+          try { await uploadExpenseReceipt(created.id, scanned.file); receiptNote = ' The receipt is attached.'; }
+          catch { receiptNote = ' The receipt could not be attached — attach it from the list.'; }
+        }
+        clearScan();
+        setMessage({ type: 'success', text: `Expense added.${receiptNote}` });
       }
       setModalOpen(false);
       await load();
@@ -236,21 +302,37 @@ const Expenses: React.FC = () => {
     <div className="max-w-7xl mx-auto space-y-6">
       <input ref={fileInputRef} type="file" accept="image/*,application/pdf" onChange={onReceiptFile} className="hidden" />
 
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
           <h1 className="text-3xl font-bold text-gray-900">Expenses</h1>
           <p className="text-gray-600 mt-2">Track {selectedCompany.name}'s running costs — rent, salaries, transport and more.</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={exportCsv}
             disabled={filtered.length === 0}
             title={filtered.length === 0 ? 'No expenses to export' : 'Download the shown expenses as CSV (Excel)'}
-            className="inline-flex items-center px-4 py-2 rounded-lg text-gray-700 bg-white border border-gray-300 shadow-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center whitespace-nowrap px-4 py-2 rounded-lg text-gray-700 bg-white border border-gray-300 shadow-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Download className="h-5 w-5 mr-2" /> Export CSV
           </button>
-          <button onClick={openAdd} className="inline-flex items-center px-4 py-2 rounded-lg text-white shadow-sm hover:opacity-90" style={{ backgroundColor: primary }}>
+          {aiStatus?.available && (
+            <button
+              onClick={() => scanInputRef.current?.click()}
+              className="inline-flex items-center whitespace-nowrap px-4 py-2 rounded-lg text-gray-700 bg-white border border-gray-300 shadow-sm hover:bg-gray-50"
+              title="Take or choose a photo of a receipt — AI fills in the expense"
+            >
+              <ScanLine className="h-5 w-5 mr-2" style={{ color: primary }} /> Scan receipt
+            </button>
+          )}
+          <input
+            ref={scanInputRef}
+            type="file"
+            accept="image/*,application/pdf"
+            className="hidden"
+            onChange={(e) => { const f = e.target.files?.[0] || null; e.target.value = ''; scanReceipt(f); }}
+          />
+          <button onClick={openAdd} className="inline-flex items-center whitespace-nowrap px-4 py-2 rounded-lg text-white shadow-sm hover:opacity-90" style={{ backgroundColor: primary }}>
             <Plus className="h-5 w-5 mr-2" /> Add Expense
           </button>
         </div>
@@ -377,6 +459,37 @@ const Expenses: React.FC = () => {
               <button onClick={() => setModalOpen(false)} className="text-gray-400 hover:text-gray-600"><X className="h-5 w-5" /></button>
             </div>
             <div className="p-6 space-y-3">
+              {!editing && aiStatus?.available && (
+                scanning ? (
+                  <div className="rounded-lg border-2 border-dashed border-gray-300 p-4 flex items-center justify-center gap-2 text-sm text-gray-600">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Reading the receipt…
+                  </div>
+                ) : scanned ? (
+                  <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 flex items-start gap-3">
+                    {scanned.preview
+                      ? <img src={scanned.preview} alt="Receipt" className="h-16 w-12 object-cover rounded border border-emerald-200 flex-shrink-0" />
+                      : <Paperclip className="h-5 w-5 text-emerald-700 flex-shrink-0 mt-0.5" />}
+                    <div className="flex-1 min-w-0 text-sm">
+                      <p className="font-medium text-emerald-800 flex items-center gap-1.5"><Sparkles className="h-4 w-4" /> Filled in from the receipt</p>
+                      <p className="text-emerald-700">Please check the details before saving. The receipt will be attached.</p>
+                      {scanned.result.currency && selectedCompany.currency && scanned.result.currency !== (selectedCompany.currency || 'MWK').toUpperCase() && (
+                        <p className="text-amber-700 mt-1">The receipt is in {scanned.result.currency} — the amount was not converted.</p>
+                      )}
+                      {scanned.result.notes && <p className="text-amber-700 mt-1">Note: {scanned.result.notes}</p>}
+                    </div>
+                    <button type="button" onClick={() => scanInputRef.current?.click()} className="text-xs font-medium text-emerald-800 underline flex-shrink-0">Scan another</button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => scanInputRef.current?.click()}
+                    className="w-full rounded-lg border-2 border-dashed border-gray-300 p-4 flex items-center justify-center gap-2 text-sm font-medium text-gray-700 hover:border-gray-400 hover:bg-gray-50"
+                  >
+                    <ScanLine className="h-5 w-5" style={{ color: primary }} /> Scan a receipt to fill this in
+                    <span className="font-normal text-gray-400">(photo or PDF)</span>
+                  </button>
+                )
+              )}
               {formError && <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">{formError}</div>}
               <div className="grid grid-cols-2 gap-3">
                 <div>

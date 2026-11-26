@@ -27,9 +27,12 @@ import {
   Copy,
   Receipt,
   X,
+  BellRing,
 } from 'lucide-react';
 import DuplicateInvoiceModal from '../components/Invoice/DuplicateInvoiceModal';
 import InvoiceDocument from '../components/Invoice/InvoiceDocument';
+import PaymentReminderModal from '../components/AI/PaymentReminderModal';
+import { AiStatus, getAiStatus } from '../services/aiApi';
 import FitText from '../components/common/FitText';
 
 const InvoiceView: React.FC = () => {
@@ -49,6 +52,9 @@ const InvoiceView: React.FC = () => {
   // When set, the modal opens in edit mode for this payment.
   const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
   const [showDuplicate, setShowDuplicate] = useState(false);
+  const [showReminder, setShowReminder] = useState(false);
+  const [aiStatus, setAiStatus] = useState<AiStatus | null>(null);
+  useEffect(() => { getAiStatus().then(setAiStatus).catch(() => {}); }, []);
   // The payment just recorded — offers its receipt.
   const [justRecorded, setJustRecorded] = useState<Payment | null>(null);
 
@@ -203,6 +209,18 @@ const InvoiceView: React.FC = () => {
             >
               <Edit2 className="h-4 w-4 mr-1.5" />
               Edit
+            </button>
+          )}
+
+          {/* Payment reminder (WhatsApp / SMS / email) while a balance is due. */}
+          {Number(invoice.balance_due ?? 0) > 0.004 && (
+            <button
+              onClick={() => setShowReminder(true)}
+              className="inline-flex items-center px-3 py-1.5 text-sm font-medium border border-amber-300 rounded-lg text-amber-800 bg-amber-50 hover:bg-amber-100 transition-colors"
+              title="Write a payment reminder to send by WhatsApp, SMS or email"
+            >
+              <BellRing className="h-4 w-4 mr-1.5" />
+              Send reminder
             </button>
           )}
 
@@ -368,6 +386,30 @@ const InvoiceView: React.FC = () => {
           }}
           onClose={() => setShowPaymentForm(false)}
           onRecorded={(p) => { setJustRecorded(p || null); loadAll(invoice.id!); }}
+        />
+      )}
+
+      {showReminder && invoice.id && (
+        <PaymentReminderModal
+          invoice={{
+            id: invoice.id,
+            invoice_number: invoice.invoice_number,
+            client_name: invoice.client_name,
+            client_phone: invoice.client_phone,
+            client_email: invoice.client_email,
+            grand_total: invoice.grand_total,
+            amount_paid: invoice.amount_paid,
+            balance_due: invoice.balance_due,
+            date: String(invoice.date || ''),
+            due_days: invoice.due_days,
+            company_name: invoice.company_name,
+            company_bank_details: invoice.company_bank_details,
+          }}
+          aiStatus={aiStatus}
+          isAdmin={isAdmin}
+          senderName={user?.name || ''}
+          primary={accentColor}
+          onClose={() => setShowReminder(false)}
         />
       )}
 
